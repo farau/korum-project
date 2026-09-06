@@ -41,7 +41,7 @@ export default function Header() {
   const pathname = usePathname();
   const [menuOpen, setMenuOpen] = useState(false);
   const { mockEnabled, setMockEnabled, hydrated } = useMock();
-  const { address, connected, connect, disconnect, hydrated: walletHydrated } = useWallet();
+  const { address, connected, authenticating, connect, disconnect, hydrated: walletHydrated } = useWallet();
 
   function toggleTheme() {
     const el = document.documentElement;
@@ -95,10 +95,12 @@ export default function Header() {
           <button
             type="button"
             className="btn btn-solid wallet-shine-btn"
-            disabled={!walletHydrated}
+            disabled={!walletHydrated || authenticating}
             onClick={connected ? disconnect : connect}
+            aria-busy={authenticating}
+            title={authenticating ? "Authenticating wallet..." : undefined}
           >
-            {connected && address ? shortenAddress(address) : "Connect wallet"}
+            {address ? shortenAddress(address) : connected ? "Connecting..." : "Connect wallet"}
           </button>
 
           <label className="mock-toggle" title="Show test data">

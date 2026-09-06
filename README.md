@@ -2,14 +2,15 @@
 
 Korum is a Next.js application for creating and exploring tokenized matchups. Each matchup contains two opposing tokens. Users can follow market activity, compare both sides, simulate potential earnings, maintain a watchlist, and access wallet-linked profile data.
 
-The current repository is a functional frontend prototype. It uses deterministic mock market data and a temporary local wallet adapter while the Railway indexer, database, smart-contract interactions, and production wallet connection are being prepared.
+The current repository is a functional frontend prototype. It uses deterministic mock market data while the Railway indexer, database, and smart-contract interactions are being prepared. Wallet connection is provided by Reown AppKit and authenticated through a server-verified wallet signature.
 
 ## Current Status
 
 - The interface and all canonical routes are in English.
-- The Explore experience, filters, search, cards, ticker, analytics, leaderboard, earnings calculator, watchlist, profile gate, and legal pages are implemented.
+- The Explore experience, filters, search, cards, ticker, analytics, leaderboard, earnings calculator, watchlist, wallet profile, and legal pages are implemented.
 - Mock debates are available through the same typed data contract intended for the future API.
-- Wallet connection is simulated locally and does not currently request a real wallet signature.
+- Wallet connection uses Reown AppKit on Robinhood Chain and Robinhood Chain Testnet.
+- Profile access requires a valid server-side session created from a verified wallet signature.
 - Trading and VS creation controls are UI prototypes; they do not submit blockchain transactions yet.
 
 ## Main Features
@@ -22,8 +23,12 @@ The current repository is a functional frontend prototype. It uses deterministic
 - Buy and sell card states for both matchup tokens.
 - Live-style transaction ticker with green buy and red sell highlights.
 - Mock data switch for testing the Explore feed without a backend.
+- Dedicated empty state when mock data is disabled and the live source returns no versus.
 - Persistent local watchlist.
-- Wallet-gated profile using the connected EVM address as the referral code.
+- Wallet-gated profile with information, activity, referral, badge, watchlist, and simulation tabs.
+- Connected EVM address used as both the profile identity and referral code.
+- Reown AppKit wallet modal with Wagmi SSR hydration.
+- Nonce-based wallet authentication and signed `HttpOnly` session cookies.
 - Trader, creator, and referrer leaderboard views.
 - Interactive creator and referral earnings calculator.
 - Protocol analytics and market breakdowns.
@@ -41,6 +46,8 @@ The current repository is a functional frontend prototype. It uses deterministic
 | Fonts | Geist and Geist Mono through `next/font` |
 | Images | Next.js Image plus local reference assets |
 | Persistence | Browser `localStorage` for prototype state |
+| Wallet | Reown AppKit with the Wagmi adapter |
+| Authentication | Viem signature verification and signed server sessions |
 
 ## Requirements
 
@@ -48,7 +55,27 @@ The current repository is a functional frontend prototype. It uses deterministic
 - npm
 - Network access during a clean production build so `next/font` can retrieve Geist
 
-No environment variables are currently required.
+Create a local environment file before starting the application:
+
+```bash
+cp .env.example .env.local
+```
+
+Then provide the following values:
+
+| Variable | Visibility | Purpose |
+| --- | --- | --- |
+| `NEXT_PUBLIC_REOWN_PROJECT_ID` | Public | Project ID created in the Reown dashboard |
+| `NEXT_PUBLIC_APP_URL` | Public | Exact application origin registered with Reown |
+| `KORUM_SESSION_SECRET` | Server only | HMAC secret containing at least 32 random bytes |
+
+Generate a session secret with:
+
+```bash
+openssl rand -hex 32
+```
+
+The repository includes a local-only Reown project ID fallback for localhost development. Never use that public fallback in production. `.env.local` is ignored by Git.
 
 ## Getting Started
 
@@ -85,7 +112,7 @@ If port `3000` is already occupied, Next.js selects the next available port and 
 | Route | Description |
 | --- | --- |
 | `/` | Redirects to `/explore` |
-| `/explore` | Main discovery feed, search, filters, ticker, and VS cards |
+| `/explore` | Main discovery feed, search, filters, ticker, VS cards, and live-data empty state |
 | `/vs/[id]` | Detail page for a specific matchup |
 | `/earn` | Earning paths and interactive revenue calculator |
 | `/leaderboard` | Trader, creator, and referrer rankings |
@@ -93,10 +120,14 @@ If port `3000` is already occupied, Next.js selects the next available port and 
 | `/analytics` | Protocol and market analytics |
 | `/create` | VS creation prototype |
 | `/watchlist` | Locally saved matchups |
-| `/profile` | Wallet-gated profile and referral address |
+| `/profile` | Wallet-gated account information, activity, referrals, badges, watchlist, and simulator |
 | `/privacy` | Privacy Policy |
 | `/terms` | Terms of Use |
 | `/api/debates` | Current JSON endpoint for the debate data contract |
+| `/api/auth/challenge` | Creates a short-lived wallet sign-in challenge |
+| `/api/auth/verify` | Verifies the wallet signature and creates a session |
+| `/api/auth/session` | Reads or deletes the current wallet session |
+| `/api/profile` | Example authenticated profile endpoint |
 
 Legacy French routes and the former `/index` route are intentionally not maintained. Internal links use the canonical English routes.
 
@@ -104,12 +135,12 @@ Legacy French routes and the former `/index` route are intentionally not maintai
 
 ```text
 app/
-├── api/debates/            # Debate JSON route
+├── api/                    # Public debate and authenticated wallet routes
 ├── components/             # Shared client and server components
 │   ├── analytics/          # Analytics UI and data composition
 │   └── explore/            # Search, filters, ticker, cards, and feed
 ├── hooks/                  # Browser-state hooks such as the watchlist
-├── lib/                    # Typed debate model and mock data generator
+├── lib/                    # Typed data model, fixtures, and server auth
 ├── vs/[id]/                # Dynamic matchup route
 ├── */page.tsx              # App Router pages
 ├── globals.css             # Shared design system and responsive styles
@@ -118,7 +149,7 @@ public/
 └── korum-reference/        # Visual assets adapted from the reference design
 ```
 
-`PageWrapper` mounts the shared header, footer, mock provider, and wallet provider around each application page.
+The root layout mounts the SSR-aware AppKit and wallet providers. `PageWrapper` supplies the shared header, footer, and mock-data provider to application pages.
 
 ## Data Contract
 
@@ -174,22 +205,32 @@ Treat this type as the frontend boundary when replacing the fixture with Railway
 The `Mock data` switch is available in the header and persists its value under `korum-mock`.
 
 - Enabled: the Explore cards and animated activity ticker use `getDebates()`.
-- Disabled: the Explore cards and ticker are hidden, making an empty future-API state easy to test.
+- Disabled: the mock cards and ticker are hidden. If the live source returns no records, Explore displays a dedicated `No versus available yet` state.
 - `/api/debates` currently returns the same deterministic fixtures.
 - Analytics and watchlist can request `/api/debates`; this endpoint is the intended replacement point for Railway data.
 
 Mock timestamps use a fixed UTC reference date so server and client output remains deterministic during hydration.
 
-## Wallet Prototype
+## Wallet Authentication
 
-`WalletProvider` currently simulates a connected wallet using a development EVM address. State is stored under `korum-wallet-address`.
+The wallet layer uses Reown AppKit, the Wagmi adapter, Viem, and React Query. AppKit is initialized once at module scope and Wagmi receives its initial cookie state from the root server layout.
 
-- The header button connects or disconnects the development address.
-- `/profile` remains locked until an address is connected.
-- The profile uses only the wallet address, without first or last names.
-- The complete EVM address is the referral code.
+Authentication follows this flow:
 
-Before production, replace this provider with the selected wallet SDK while preserving the existing `address`, `connected`, `hydrated`, `connect`, and `disconnect` interface where practical.
+1. The user connects an EVM wallet through Reown AppKit.
+2. The browser requests a five-minute, server-signed challenge.
+3. The wallet signs the exact challenge message without submitting a transaction.
+4. The server verifies the nonce, origin, expiration, address, network, message, and EVM signature.
+5. The server creates a signed 12-hour session cookie.
+6. Server Components and private API routes derive the wallet address only from that verified session.
+
+The session cookie is `HttpOnly`, `SameSite=Strict`, scoped to `/`, and marked `Secure` in production. It contains only a signed session identifier, wallet address, chain ID, and timestamps. It never contains profile records, private keys, signatures, or Railway credentials.
+
+The challenge cookie is also `HttpOnly`, short-lived, and limited to `/api/auth`. It is deleted after successful verification. Disconnecting through the Korum header deletes the authenticated session as well as the AppKit connection.
+
+`/profile` reads the session on the server and does not send profile data to unauthenticated clients. `/api/profile` demonstrates the same protection for a Route Handler. Every future wallet-specific Railway query must repeat this server-side authorization check; hiding content in React is not a security boundary.
+
+The current profile mirrors the Korum reference layout while keeping its controls reactive. Its Information, Activity, Referrals, Badges, Watchlist, and Global simulator tabs are client-side React views. Wallet-specific metrics display `Awaiting indexer` until Railway supplies authoritative records. Profile-image uploads and X account linking are visibly disabled and cannot be activated by pointer or keyboard.
 
 ## Browser Persistence
 
@@ -197,10 +238,11 @@ Before production, replace this provider with the selected wallet SDK while pres
 | --- | --- |
 | `korum-theme` | `dark` or `light` |
 | `korum-mock` | Mock feed preference |
-| `korum-wallet-address` | Temporary connected EVM address |
 | `korum-watchlist` | JSON array of saved debate IDs |
 
 All reads that affect initial rendering are deferred until client hydration to avoid server/client markup mismatches.
+
+AppKit and the authenticated session additionally use cookies. The signed session cookie is intentionally unavailable through browser JavaScript.
 
 ## Styling and Assets
 
@@ -220,6 +262,7 @@ The recommended integration path is:
 6. Replace the fixed `getDebates()` response without changing card or analytics components.
 7. Add loading, empty, and API-error states for every data-driven page.
 8. Keep secrets server-side and expose only explicitly public `NEXT_PUBLIC_*` values to client components.
+9. Call `getWalletSession()` before every wallet-specific query and use `session.address`, never an address supplied by the browser.
 
 Do not place Railway credentials, private keys, RPC secrets, or signing material in source control.
 
@@ -238,13 +281,15 @@ The Webpack build command is useful as a fallback in restricted environments whe
 
 ## Known Limitations
 
-- Wallet connection is simulated and does not use a production wallet SDK yet.
 - Creation, buy, and sell actions do not submit transactions.
 - `/api/debates` serves in-memory mock data rather than Railway records.
 - Leaderboard rows and analytics projections are deterministic prototype values.
 - Watchlist state is local to one browser and is not wallet-synced.
+- Profile metrics remain empty until the Railway indexer is connected.
+- Profile-image uploads and X account linking are intentionally disabled.
 - Advanced numeric filters and quick-amount configuration are visual placeholders.
 - Automated unit, integration, and end-to-end tests have not been added yet.
+- The current signature verifier supports standard EVM account signatures; contract-wallet authentication requires an ERC-1271-aware verifier before production use.
 
 ## Changelog
 

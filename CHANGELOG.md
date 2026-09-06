@@ -8,6 +8,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- Reown AppKit wallet connection with the Wagmi adapter, Robinhood Chain, and Robinhood Chain Testnet.
+- SSR wallet-state hydration through Wagmi cookies and the root Next.js layout.
+- Short-lived, server-signed wallet challenges with origin, network, nonce, and expiration validation.
+- Server-side EVM signature verification through Viem.
+- Signed 12-hour wallet sessions stored in `HttpOnly`, `SameSite=Strict`, production-secure cookies.
+- Authenticated `/api/profile` example for future wallet-specific Railway data.
+- Server-side profile authorization that withholds profile payloads from unauthenticated requests.
+- Environment template for Reown metadata and session security configuration.
+- Complete wallet-profile interface with Information, Activity, Referrals, Badges, Watchlist, and Global simulator tabs.
+- Dedicated Explore empty state when mock data is disabled and no live versus are returned.
 - Complete responsive Korum application shell with shared header and footer.
 - Canonical Explore page with animated grid lines, pointer halo, search, category filters, sorting, grid view, and table view.
 - Interactive VS cards with token imagery, market data, sparklines, percentage meters, watchlist actions, and separate buy and sell states.
@@ -18,7 +28,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Dynamic `/vs/[id]` route for matchup details.
 - Persistent browser watchlist and dedicated `/watchlist` page.
 - Wallet-gated profile with the connected EVM address used as the referral code.
-- Temporary development wallet adapter and persisted connection state.
 - Earn page with creator, trader, and referral explanations.
 - Interactive creator and referral revenue calculator with tiered creator fees.
 - Concept page covering matchup mechanics, Korum terminology, fee tiers, a worked revenue example, and referral distribution.
@@ -31,6 +40,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- Replaced the simulated development wallet with the Reown AppKit connection and signature flow.
+- Moved the wallet provider to the root AppKit context so connection state persists across application routes.
+- Bound profile identity and referral data to the address stored in the verified server session.
+- Aligned the Profile page with the Korum reference design and translated its complete interface to English.
+- Marked profile-image uploads and X account linking as unavailable with disabled, visually muted controls.
+- Replaced hard-coded profile metrics with explicit Railway indexer placeholders.
 - Replaced the default Create Next App interface with the Korum product experience.
 - Translated all application copy and canonical navigation labels to English.
 - Renamed canonical routes to `/explore`, `/earn`, `/leaderboard`, `/concept`, `/create`, and `/profile`.
@@ -46,6 +61,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- Waited for Wagmi's active connector before requesting a signature, preventing `connector.getChainId` failures after hydration.
+- Versioned Wagmi's persisted connection state and kept wallet disconnection available when application authentication fails.
+- Kept the connected wallet address visible while authentication completes by refreshing Server Components without reloading AppKit.
 - Prevented theme initialization from producing a React hydration mismatch on the root HTML element.
 - Corrected dynamic route parameter handling for the asynchronous Next.js 16 `params` API.
 - Ensured filled token images have stable parent dimensions.

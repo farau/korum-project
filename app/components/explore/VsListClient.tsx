@@ -168,7 +168,13 @@ export default function VsListClient({ debates }: { debates: Debate[] }) {
           </div>
         </div>
 
-        {view === "grid" ? (
+        {!mockEnabled && filtered.length === 0 ? (
+          <div className="explore-empty-versus" role="status">
+            <span className="explore-empty-versus-icon" aria-hidden="true">VS</span>
+            <h2>No versus available yet</h2>
+            <p>No live versus have been returned by the data source. Enable Mock data to preview the feed.</p>
+          </div>
+        ) : view === "grid" ? (
           <div className="card-grid">
             {filtered.map((debate, index) => <VsCard key={debate.id} debate={debate} index={index} />)}
           </div>

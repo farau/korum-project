@@ -1,8 +1,10 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { headers } from "next/headers";
 import "./globals.css";
 
 import Script from 'next/script';
+import AppKitProvider from "./components/AppKitProvider";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -19,10 +21,12 @@ export const metadata: Metadata = {
   description: "Korum brings online debates to token markets. Pick your side and trade the debate.",
 };
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+export default async function RootLayout({ children }: LayoutProps<"/">) {
   // Minimal deterministic head to avoid server/client mismatches. Do not inject the
   // original korum.html head here — it caused hydration issues and nested <script>.
   const themeInitScript = `try{const t=localStorage.getItem('korum-theme'); if(t) document.documentElement.setAttribute('data-theme', t);}catch(e){};`;
+  const requestHeaders = await headers();
+  const cookieHeader = requestHeaders.get("cookie");
 
   return (
     <html
@@ -40,7 +44,9 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         <Script id="korum-theme-init" strategy="beforeInteractive">{themeInitScript}</Script>
       </head>
 
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="min-h-full flex flex-col">
+        <AppKitProvider cookies={cookieHeader}>{children}</AppKitProvider>
+      </body>
     </html>
   );
 }
