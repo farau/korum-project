@@ -7836,6 +7836,59 @@ html[data-theme="dark"] .profile-page .profile-versus-values span {
   filter: grayscale(1);
 }
 
+.profile-page .profile-bio-field.editing {
+  grid-column: span 2;
+}
+
+.profile-page .profile-bio-field input {
+  width: 100%;
+  min-width: 140px;
+  padding: 2px 0 4px;
+  border: 0;
+  border-bottom: 1px solid var(--line-hover);
+  outline: 0;
+  color: var(--text);
+  background: transparent;
+  font: inherit;
+  font-size: 13px;
+}
+
+.profile-page .profile-field > .profile-bio-actions {
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: row;
+  gap: 6px;
+}
+
+.profile-page .profile-bio-actions button {
+  min-height: 28px;
+  padding: 4px 9px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--text-2);
+  background: var(--panel-2);
+  font: inherit;
+  font-size: 10.5px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.profile-page .profile-bio-actions button:first-child {
+  color: var(--on-accent);
+  background: var(--blue);
+}
+
+.profile-page .profile-bio-actions button:disabled {
+  cursor: wait;
+  opacity: .6;
+}
+
+.profile-page .profile-field-error {
+  margin: 12px 0 0;
+  color: var(--red);
+  font-size: 12px;
+}
+
 .profile-page .profile-pill-button {
   display: inline-flex;
   min-height: 30px;
@@ -8476,6 +8529,12 @@ html[data-theme="dark"] .profile-page .profile-versus-values span {
   .profile-page .profile-stat-grid,
   .profile-page .profile-metric-row {
     grid-template-columns: 1fr;
+  }
+
+  .profile-page .profile-bio-field.editing {
+    grid-column: auto;
+    align-items: stretch;
+    flex-direction: column;
   }
 
   .profile-page .profile-stat-block {

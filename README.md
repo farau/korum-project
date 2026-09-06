@@ -11,6 +11,7 @@ The current repository is a functional frontend prototype. It uses deterministic
 - Mock debates are available through the same typed data contract intended for the future API.
 - Wallet connection uses Reown AppKit on Robinhood Chain and Robinhood Chain Testnet.
 - Profile access requires a valid server-side session created from a verified wallet signature.
+- Wallet identities and editable profile fields are persisted in a managed Railway PostgreSQL database.
 - Trading and VS creation controls are UI prototypes; they do not submit blockchain transactions yet.
 
 ## Main Features
@@ -29,6 +30,7 @@ The current repository is a functional frontend prototype. It uses deterministic
 - Connected EVM address used as both the profile identity and referral code.
 - Reown AppKit wallet modal with Wagmi SSR hydration.
 - Nonce-based wallet authentication and signed `HttpOnly` session cookies.
+- Atomic user creation on first verified wallet sign-in, with database-enforced wallet uniqueness.
 - Trader, creator, and referrer leaderboard views.
 - Interactive creator and referral earnings calculator.
 - Protocol analytics and market breakdowns.
@@ -48,6 +50,7 @@ The current repository is a functional frontend prototype. It uses deterministic
 | Persistence | Browser `localStorage` for prototype state |
 | Wallet | Reown AppKit with the Wagmi adapter |
 | Authentication | Viem signature verification and signed server sessions |
+| Database | Managed PostgreSQL on Railway through the `postgres` driver |
 
 ## Requirements
 
@@ -68,6 +71,7 @@ Then provide the following values:
 | `NEXT_PUBLIC_REOWN_PROJECT_ID` | Public | Project ID created in the Reown dashboard |
 | `NEXT_PUBLIC_APP_URL` | Public | Exact application origin registered with Reown |
 | `KORUM_SESSION_SECRET` | Server only | HMAC secret containing at least 32 random bytes |
+| `DATABASE_URL` | Server only | PostgreSQL connection URL supplied by Railway |
 
 Generate a session secret with:
 
@@ -104,6 +108,9 @@ If port `3000` is already occupied, Next.js selects the next available port and 
 | `npm run build -- --webpack` | Create a production build with Webpack |
 | `npm run start` | Serve an existing production build |
 | `npm run lint` | Run ESLint across the repository |
+| `npm run db:migrate` | Apply pending checksum-protected PostgreSQL migrations |
+| `npm run db:check` | Test wallet upsert and referral invariants inside a rolled-back transaction |
+| `npm run auth:check` | Exercise wallet authentication and profile persistence with a disposable test account |
 | `npx tsc --noEmit` | Run a standalone TypeScript check |
 | `npx next typegen` | Regenerate typed App Router route definitions |
 
@@ -221,8 +228,9 @@ Authentication follows this flow:
 2. The browser requests a five-minute, server-signed challenge.
 3. The wallet signs the exact challenge message without submitting a transaction.
 4. The server verifies the nonce, origin, expiration, address, network, message, and EVM signature.
-5. The server creates a signed 12-hour session cookie.
-6. Server Components and private API routes derive the wallet address only from that verified session.
+5. PostgreSQL atomically creates the wallet user or updates the existing user's last-login metadata.
+6. The server creates a signed 12-hour session cookie containing the internal user ID and wallet address.
+7. Server Components and private API routes require both signed identifiers before reading or updating a profile.
 
 The session cookie is `HttpOnly`, `SameSite=Strict`, scoped to `/`, and marked `Secure` in production. It contains only a signed session identifier, wallet address, chain ID, and timestamps. It never contains profile records, private keys, signatures, or Railway credentials.
 
@@ -231,6 +239,46 @@ The challenge cookie is also `HttpOnly`, short-lived, and limited to `/api/auth`
 `/profile` reads the session on the server and does not send profile data to unauthenticated clients. `/api/profile` demonstrates the same protection for a Route Handler. Every future wallet-specific Railway query must repeat this server-side authorization check; hiding content in React is not a security boundary.
 
 The current profile mirrors the Korum reference layout while keeping its controls reactive. Its Information, Activity, Referrals, Badges, Watchlist, and Global simulator tabs are client-side React views. Wallet-specific metrics display `Awaiting indexer` until Railway supplies authoritative records. Profile-image uploads and X account linking are visibly disabled and cannot be activated by pointer or keyboard.
+
+## User Database
+
+The first migration lives in `db/migrations/0001_create_users.sql`. The `users` table stores:
+
+- A generated UUID primary key.
+- A lowercase, format-checked, unique EVM wallet.
+- A generated and unique referral code that is always identical to the EVM wallet.
+- An optional self-referencing referrer relationship.
+- A 160-character profile bio.
+- Future avatar object metadata and verified X account metadata.
+- Last-login chain and timestamps, plus creation and update timestamps.
+
+Wallet addresses and referral codes are immutable through the Profile API. `POST /api/auth/verify` performs an atomic `INSERT ... ON CONFLICT DO UPDATE`, so concurrent sign-ins for the same wallet resolve to one user record. `GET` and `PATCH /api/profile` derive identity only from the signed session. Profile updates use a strict field allowlist; currently only `bio` can be changed.
+
+The migration runner serializes concurrent runs with a PostgreSQL advisory lock and stores each migration checksum in `korum_schema_migrations`. Never edit an applied migration; add a new numbered file instead.
+
+For local access without a public database proxy, open a Railway SSH tunnel and run commands with the database service variables:
+
+```bash
+railway connect Postgres --tunnel-only --port 15432
+railway run --service Postgres env KORUM_DB_TUNNEL_HOST=127.0.0.1 KORUM_DB_TUNNEL_PORT=15432 npm run db:migrate
+```
+
+In a deployed Railway application service, set `DATABASE_URL` to the private `${{Postgres.DATABASE_URL}}` reference.
+
+## Profile Image Strategy
+
+The recommended first implementation is a private Railway Bucket with S3-compatible signed uploads. PostgreSQL should store only an immutable object key and validated metadata, never image bytes or a temporary presigned URL.
+
+A production avatar flow should:
+
+1. Require a valid wallet session before issuing a short-lived upload authorization.
+2. Generate a random user-scoped temporary key instead of trusting the original filename.
+3. Limit accepted formats, encoded size, decoded dimensions, and pixel count.
+4. Verify the actual file signature, strip metadata, resize, and re-encode to a canonical WebP or AVIF asset.
+5. Move the validated asset to an immutable key and update the user row only after storage succeeds.
+6. Delete replaced and abandoned objects asynchronously.
+
+Cloudflare Images or Cloudinary are stronger alternatives when automatic transformations, global image delivery, moderation, or responsive variants matter more than keeping storage inside Railway. X account linking should use an OAuth flow and persist only provider IDs and verified metadata after callback validation.
 
 ## Browser Persistence
 
@@ -255,7 +303,7 @@ Reference media is stored in `public/korum-reference`. Remote mock token images 
 The recommended integration path is:
 
 1. Keep the `Debate` and `DebateToken` interfaces as the frontend contract.
-2. Add a server-only Railway client or service module.
+2. Reuse the existing server-only database boundary in `app/lib/db`.
 3. Fetch indexer records inside `/api/debates` or dedicated server components.
 4. Convert database timestamps to ISO 8601 UTC strings and millisecond timestamps at the boundary.
 5. Validate and normalize nullable database fields before returning JSON.

@@ -15,6 +15,7 @@ export const CHALLENGE_COOKIE_NAME = process.env.NODE_ENV === "production"
   : "korum-challenge";
 
 export type WalletSession = {
+  userId: string;
   address: `0x${string}`;
   chainId: number;
   issuedAt: number;
@@ -91,9 +92,10 @@ export function readWalletChallenge(token: string | undefined) {
   return verifyPayload<WalletChallenge>(token);
 }
 
-export function createWalletSession(address: `0x${string}`, chainId: number) {
+export function createWalletSession(userId: string, address: `0x${string}`, chainId: number) {
   const issuedAt = Date.now();
   const session: WalletSession = {
+    userId,
     address,
     chainId,
     issuedAt,
@@ -105,7 +107,15 @@ export function createWalletSession(address: `0x${string}`, chainId: number) {
 }
 
 export function readWalletSession(token: string | undefined) {
-  return verifyPayload<WalletSession>(token);
+  const session = verifyPayload<WalletSession>(token);
+  const validUserId = typeof session?.userId === "string"
+    && /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(session.userId);
+  const validAddress = typeof session?.address === "string" && /^0x[0-9a-fA-F]{40}$/.test(session.address);
+  const validChainId = Number.isSafeInteger(session?.chainId) && Number(session?.chainId) > 0;
+  if (!session || !validUserId || !validAddress || !validChainId) {
+    return null;
+  }
+  return session;
 }
 
 export async function getWalletSession() {

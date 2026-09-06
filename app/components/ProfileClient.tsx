@@ -4,12 +4,14 @@ import Link from "next/link";
 import React, { useMemo, useState } from "react";
 import { useWatchlist } from "../hooks/useWatchlist";
 import type { Debate } from "../lib/debates";
+import type { UserProfile } from "../lib/profile";
 import { shortenAddress, useWallet } from "./WalletProvider";
 
 type ProfileTab = "information" | "activity" | "referrals" | "badges" | "watchlist" | "simulator";
 
 type ProfileClientProps = {
   debates: Debate[];
+  profile: UserProfile | null;
   sessionAddress: string | null;
   sessionChainId: number | null;
 };
@@ -30,16 +32,25 @@ function walletInitial(address: string) {
 }
 
 function chainName(chainId: number | null) {
-  if (chainId === 8453) return "Base";
-  if (chainId === 84532) return "Base Sepolia";
+  if (chainId === 4663) return "Robinhood Chain";
+  if (chainId === 46630) return "Robinhood Chain Testnet";
   return chainId ? `Chain ${chainId}` : "Awaiting wallet";
+}
+
+function formatUtcDate(value: string) {
+  return new Intl.DateTimeFormat("en-US", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+    timeZone: "UTC",
+  }).format(new Date(value));
 }
 
 function compactMoney(value: number) {
   return `$${Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 1 }).format(value)}`;
 }
 
-function Icon({ name }: { name: "copy" | "users" | "bolt" | "chart" | "wallet" | "trade" | "image" | "x" }) {
+function Icon({ name }: { name: "copy" | "users" | "bolt" | "chart" | "wallet" | "trade" | "image" | "x" | "edit" }) {
   const paths = {
     copy: <><rect x="8" y="8" width="10" height="10" rx="2" /><path d="M6 15H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v1" /></>,
     users: <><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" /></>,
@@ -49,6 +60,7 @@ function Icon({ name }: { name: "copy" | "users" | "bolt" | "chart" | "wallet" |
     trade: <><path d="m7 7 3-3 3 3" /><path d="M10 4v13" /><path d="m17 17-3 3-3-3" /><path d="M14 20V7" /></>,
     image: <><rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="8.5" cy="8.5" r="1.5" /><path d="m21 15-5-5L5 21" /></>,
     x: <path d="M5 4h4.5l3.2 4.5L17 4h2l-5.4 6 5.9 10H15l-3.6-5.2L6.8 20h-2l5.7-6.7L5 4Z" />,
+    edit: <><path d="M12 20h9" /><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L8 18l-4 1 1-4Z" /></>,
   };
 
   return <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">{paths[name]}</svg>;
@@ -74,7 +86,33 @@ function DataPending() {
   return <span className="profile-data-pending">Awaiting indexer</span>;
 }
 
-function InformationPanel({ address, network }: { address: string; network: string }) {
+function InformationPanel({ profile, onProfileChange }: { profile: UserProfile; onProfileChange: (profile: UserProfile) => void }) {
+  const [editingBio, setEditingBio] = useState(false);
+  const [bio, setBio] = useState(profile.bio ?? "");
+  const [savingBio, setSavingBio] = useState(false);
+  const [bioError, setBioError] = useState<string | null>(null);
+
+  async function saveBio() {
+    setSavingBio(true);
+    setBioError(null);
+    try {
+      const response = await fetch("/api/profile", {
+        method: "PATCH",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ bio }),
+      });
+      const result = await response.json() as { user?: UserProfile; error?: string };
+      if (!response.ok || !result.user) throw new Error(result.error || "Unable to update the profile bio.");
+      onProfileChange(result.user);
+      setEditingBio(false);
+    } catch (error) {
+      setBioError(error instanceof Error ? error.message : "Unable to update the profile bio.");
+    } finally {
+      setSavingBio(false);
+    }
+  }
+
   return (
     <div className="profile-tab-panel" role="tabpanel" id="profile-panel-information">
       <section className="profile-account-card">
@@ -82,34 +120,36 @@ function InformationPanel({ address, network }: { address: string; network: stri
         <p>Wallet identity and account access in one place.</p>
         <div className="profile-account-grid">
           <div className="profile-field">
-            <span><small>Wallet profile</small><strong>{shortenAddress(address)}</strong></span>
+            <span><small>Wallet profile</small><strong>{shortenAddress(profile.evmWallet)}</strong></span>
             <span className="profile-status-pill">Connected</span>
           </div>
           <div className="profile-field profile-field-disabled" aria-disabled="true">
-            <span><small>Profile picture</small><strong>Image upload</strong></span>
+            <span><small>Profile picture</small><strong>{profile.avatar ? "Image stored" : "No image"}</strong></span>
             <button type="button" className="profile-pill-button" disabled title="Image uploads are not available yet"><Icon name="image" /> Upload</button>
           </div>
           <div className="profile-field">
-            <span><small>Member since</small><strong><DataPending /></strong></span>
+            <span><small>Member since</small><strong>{formatUtcDate(profile.createdAt)}</strong></span>
           </div>
-          <div className="profile-field">
-            <span><small>Network</small><strong>{network}</strong></span>
+          <div className={`profile-field profile-bio-field${editingBio ? " editing" : ""}`}>
+            <span><small>Profile bio</small>{editingBio ? <input aria-label="Profile bio" maxLength={160} value={bio} onChange={(event) => setBio(event.target.value)} /> : <strong>{profile.bio || "No bio set"}</strong>}</span>
+            {editingBio ? <span className="profile-bio-actions"><button type="button" disabled={savingBio} onClick={saveBio}>{savingBio ? "Saving..." : "Save"}</button><button type="button" disabled={savingBio} onClick={() => { setBio(profile.bio ?? ""); setBioError(null); setEditingBio(false); }}>Cancel</button></span> : <button type="button" className="profile-copy-button" onClick={() => setEditingBio(true)} aria-label="Edit profile bio" title="Edit profile bio"><Icon name="edit" /></button>}
           </div>
           <div className="profile-field profile-field-disabled" aria-disabled="true">
-            <span><small className="profile-label-with-icon"><Icon name="x" /> X account</small><strong>Not linked</strong></span>
+            <span><small className="profile-label-with-icon"><Icon name="x" /> X account</small><strong>{profile.xAccount ? `@${profile.xAccount.username}` : "Not linked"}</strong></span>
             <button type="button" className="profile-pill-button" disabled title="X account linking is not available yet">Link</button>
           </div>
           <div className="profile-field">
-            <span><small>Account address</small><strong className="profile-address-value">{address}</strong></span>
-            <CopyButton value={address} label="Copy wallet address" />
+            <span><small>Account address</small><strong className="profile-address-value">{profile.evmWallet}</strong></span>
+            <CopyButton value={profile.evmWallet} label="Copy wallet address" />
           </div>
         </div>
+        {bioError ? <p className="profile-field-error" role="alert">{bioError}</p> : null}
       </section>
 
       <div className="profile-stat-grid">
         <article className="profile-stat-block">
           <div className="profile-stat-heading"><span className="profile-stat-icon"><Icon name="users" /></span><span>Referral</span></div>
-          <div className="profile-referral-code"><span><small>Referral code</small><strong>{shortenAddress(address)}</strong></span><CopyButton value={address} label="Copy referral address" /></div>
+          <div className="profile-referral-code"><span><small>Referral code</small><strong>{shortenAddress(profile.referralCode)}</strong></span><CopyButton value={profile.referralCode} label="Copy referral address" /></div>
         </article>
         <article className="profile-stat-block">
           <div className="profile-stat-heading"><span className="profile-stat-icon"><Icon name="users" /></span><span>Referrals</span></div>
@@ -236,7 +276,7 @@ function WatchlistPanel({ debates }: { debates: Debate[] }) {
       <div className="profile-section-title"><div><span className="profile-eyebrow">Saved markets</span><h2>Watchlist</h2></div><span className="profile-count-pill">{watched.length}</span></div>
       {watched.length ? <div className="profile-table-scroll"><table className="profile-data-table profile-watchlist-table"><thead><tr><th>Versus</th><th>Category</th><th>24h volume</th><th>Participants</th><th><span className="sr-only">Actions</span></th></tr></thead><tbody>
         {watched.map((debate) => <tr key={debate.id}><td><Link href={`/vs/${debate.id}`}>{debate.sideA} <span>vs</span> {debate.sideB}</Link></td><td>{debate.category}</td><td>{compactMoney(debate.volume24h)}</td><td>{Intl.NumberFormat("en-US").format(debate.participantCount)}</td><td><button type="button" onClick={() => remove(debate.id)}>Remove</button></td></tr>)}
-      </tbody></table></div> : <div className="profile-empty-state"><Icon name="bolt" /><strong>Your watchlist is empty</strong><p>Save a versus from Explore to find it here.</p><Link className="btn" href="/index">Explore versus</Link></div>}
+      </tbody></table></div> : <div className="profile-empty-state"><Icon name="bolt" /><strong>Your watchlist is empty</strong><p>Save a versus from Explore to find it here.</p><Link className="btn" href="/explore">Explore versus</Link></div>}
     </div>
   );
 }
@@ -272,19 +312,21 @@ function LockedProfile({ connected, authenticating, authError, connect, loading 
   );
 }
 
-export default function ProfileClient({ debates, sessionAddress, sessionChainId }: ProfileClientProps) {
+export default function ProfileClient({ debates, profile, sessionAddress, sessionChainId }: ProfileClientProps) {
   const { address, connected, authenticated, authenticating, connect, hydrated, authError } = useWallet();
   const [activeTab, setActiveTab] = useState<ProfileTab>("information");
+  const [currentProfile, setCurrentProfile] = useState(profile);
 
   if (!hydrated) return <LockedProfile connected={false} authenticating={false} authError={null} connect={() => undefined} loading />;
 
   const hasMatchingServerSession = Boolean(authenticated && address && sessionAddress && address.toLowerCase() === sessionAddress.toLowerCase());
   if (!connected || !address || !hasMatchingServerSession) return <LockedProfile connected={connected} authenticating={authenticating} authError={authError} connect={connect} />;
+  if (!currentProfile) return <LockedProfile connected authenticating={authenticating} authError="The wallet profile could not be initialized. Sign in again to retry." connect={connect} />;
 
   const panels: Record<ProfileTab, React.ReactNode> = {
-    information: <InformationPanel address={address} network={chainName(sessionChainId)} />,
+    information: <InformationPanel profile={currentProfile} onProfileChange={setCurrentProfile} />,
     activity: <ActivityPanel />,
-    referrals: <ReferralsPanel address={address} />,
+    referrals: <ReferralsPanel address={currentProfile.referralCode} />,
     badges: <BadgesPanel />,
     watchlist: <WatchlistPanel debates={debates} />,
     simulator: <SimulatorPanel />,
@@ -293,7 +335,7 @@ export default function ProfileClient({ debates, sessionAddress, sessionChainId 
   return (
     <div className="page profile-page">
       <section className="profile-reference-hero">
-        <div className="wrap"><div className="profile-reference-card"><div className="profile-avatar-hex" aria-hidden="true">{walletInitial(address)}</div><div className="profile-reference-main"><h1>{shortenAddress(address)}</h1><p>Profile linked to your connected EVM wallet.</p><div className="profile-reference-badges"><span>Wallet verified</span><span>{chainName(sessionChainId)}</span></div></div></div></div>
+        <div className="wrap"><div className="profile-reference-card"><div className="profile-avatar-hex" aria-hidden="true">{walletInitial(address)}</div><div className="profile-reference-main"><h1>{shortenAddress(address)}</h1><p>{currentProfile.bio || "Profile linked to your connected EVM wallet."}</p><div className="profile-reference-badges"><span>Wallet verified</span><span>{chainName(sessionChainId)}</span></div></div></div></div>
       </section>
       <section className="profile-reference-content">
         <div className="wrap">

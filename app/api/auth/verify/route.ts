@@ -1,5 +1,6 @@
 import { verifyMessage } from "viem";
 import { NextResponse, type NextRequest } from "next/server";
+import { upsertUserAfterWalletVerification } from "../../../lib/db/users";
 import {
   CHALLENGE_COOKIE_NAME,
   SESSION_COOKIE_NAME,
@@ -37,7 +38,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "The wallet signature is invalid." }, { status: 401 });
     }
 
-    const { session, token } = createWalletSession(challenge.address, challenge.chainId);
+    let user;
+    try {
+      user = await upsertUserAfterWalletVerification(challenge.address, challenge.chainId);
+    } catch (error) {
+      console.error("Unable to initialize the wallet user.", error);
+      return NextResponse.json({ error: "The wallet profile service is temporarily unavailable." }, { status: 503 });
+    }
+
+    const { session, token } = createWalletSession(user.id, challenge.address, challenge.chainId);
     const response = NextResponse.json({ authenticated: true, address: session.address });
     response.cookies.set(SESSION_COOKIE_NAME, token, sessionCookieOptions);
     response.cookies.set(CHALLENGE_COOKIE_NAME, "", { ...challengeCookieOptions, maxAge: 0 });
