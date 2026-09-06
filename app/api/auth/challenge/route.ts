@@ -5,6 +5,7 @@ import {
   challengeCookieOptions,
   createSignInMessage,
   createWalletChallenge,
+  getRequestOrigin,
   isSameOriginRequest,
 } from "../../../lib/auth/session";
 
@@ -26,9 +27,9 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Unsupported network." }, { status: 400 });
     }
 
-    const requestUrl = new URL(request.url);
-    const uri = `${requestUrl.protocol}//${requestUrl.host}`;
-    const { challenge, token } = createWalletChallenge(getAddress(body.address), chainId, requestUrl.host, uri);
+    const requestOrigin = getRequestOrigin(request);
+    const domain = new URL(requestOrigin).host;
+    const { challenge, token } = createWalletChallenge(getAddress(body.address), chainId, domain, requestOrigin);
     const response = NextResponse.json({ message: createSignInMessage(challenge) });
     response.cookies.set(CHALLENGE_COOKIE_NAME, token, challengeCookieOptions);
     response.headers.set("Cache-Control", "no-store");

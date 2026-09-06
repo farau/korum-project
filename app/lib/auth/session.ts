@@ -145,12 +145,31 @@ export const challengeCookieOptions = {
   priority: "high" as const,
 };
 
+function firstForwardedValue(value: string | null) {
+  return value?.split(",", 1)[0]?.trim() || null;
+}
+
+export function getRequestOrigin(request: Request) {
+  const requestUrl = new URL(request.url);
+  const forwardedHost = firstForwardedValue(request.headers.get("x-forwarded-host"));
+  if (!forwardedHost) return requestUrl.origin;
+
+  const forwardedProtocol = firstForwardedValue(request.headers.get("x-forwarded-proto"))
+    || requestUrl.protocol.slice(0, -1);
+
+  try {
+    return new URL(`${forwardedProtocol}://${forwardedHost}`).origin;
+  } catch {
+    return requestUrl.origin;
+  }
+}
+
 export function isSameOriginRequest(request: Request) {
   const origin = request.headers.get("origin");
   if (!origin) return true;
 
   try {
-    return new URL(origin).host === new URL(request.url).host;
+    return new URL(origin).origin === getRequestOrigin(request);
   } catch {
     return false;
   }
