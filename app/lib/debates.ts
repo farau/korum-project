@@ -31,6 +31,10 @@ export type DebateToken = {
   buys24h?: number;
   sells24h?: number;
   change24h?: number;
+  change5m?: number;
+  change1h?: number;
+  change6h?: number;
+  priceHistory?: number[];
 };
 
 export type Debate = {
@@ -189,6 +193,11 @@ export function getDebates(): Debate[] {
         buys24h: Math.round(d.participantCount * 0.55),
         sells24h: Math.round(d.participantCount * 0.35),
         change24h: changeA24h,
+        // Deterministic preview data; live providers can supply each period independently.
+        change5m: Math.sin(d.id * 1.3) * 6,
+        change1h: Math.cos(d.id * 1.7) * 14,
+        change6h: Math.sin(d.id * 1.9) * 35,
+        priceHistory: Array.from({ length: 16 }, (_, i) => 100 + i * changeA24h / 15 + Math.sin(i + d.id * 1) * 2),
       },
       tokenB: {
         id: `${d.id}-b`,
@@ -219,6 +228,11 @@ export function getDebates(): Debate[] {
         buys24h: Math.round(d.participantCount * 0.38),
         sells24h: Math.round(d.participantCount * 0.42),
         change24h: changeB24h,
+        // Deterministic preview data; live providers can supply each period independently.
+        change5m: Math.sin(d.id * 4.3) * 6,
+        change1h: Math.cos(d.id * 4.7) * 14,
+        change6h: Math.sin(d.id * 4.9) * 35,
+        priceHistory: Array.from({ length: 16 }, (_, i) => 100 + i * changeB24h / 15 + Math.sin(i + d.id * 4) * 2),
       },
     };
   });

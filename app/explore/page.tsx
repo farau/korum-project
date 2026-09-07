@@ -21,22 +21,24 @@ export default function ExplorePage() {
         <ExploreSearchProvider>
           <ExploreVisualEffects />
 
-          <div className="bg-grid-header" aria-hidden="true">
-            <div className="bg-grid-header-cells">
-              {Array.from({ length: 170 }, (_, index) => {
-                const [columnSpan, rowSpan] = gridPattern[index % gridPattern.length];
-                return (
-                  <div
-                    className="bg-grid-header-cell"
-                    key={index}
-                    style={{ gridColumn: `span ${columnSpan}`, gridRow: `span ${rowSpan}` }}
-                  />
-                );
-              })}
+          <div className="explore-header">
+            <div className="bg-grid-header" aria-hidden="true">
+              <div className="bg-grid-header-cells">
+                {Array.from({ length: 170 }, (_, index) => {
+                  const [columnSpan, rowSpan] = gridPattern[index % gridPattern.length];
+                  return (
+                    <div
+                      className="bg-grid-header-cell"
+                      key={index}
+                      style={{ gridColumn: `span ${columnSpan}`, gridRow: `span ${rowSpan}` }}
+                    />
+                  );
+                })}
+              </div>
             </div>
-          </div>
 
-          <MiniHero />
+            <MiniHero />
+          </div>
 
           <TickerServer />
 

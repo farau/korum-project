@@ -2,6 +2,7 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 import VsCard from "./VsCard";
+import VsTable from "./VsTable";
 import type { Debate } from "../../lib/debates";
 import { useMock } from "../MockProvider";
 import { useExploreSearch } from "./ExploreSearchProvider";
@@ -179,30 +180,7 @@ export default function VsListClient({ debates }: { debates: Debate[] }) {
             {filtered.map((debate, index) => <VsCard key={debate.id} debate={debate} index={index} />)}
           </div>
         ) : (
-          <div className="vs-table-wrap">
-            <table className="vs-table">
-              <thead>
-                <tr>
-                  <th>VS</th>
-                  <th className="num">MCap</th>
-                  <th className="num">Age</th>
-                  <th className="num">Vol 24h</th>
-                  <th className="num">Traders</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map((debate) => (
-                  <tr key={debate.id}>
-                    <td>{debate.tokenA?.name || debate.sideA} vs {debate.tokenB?.name || debate.sideB}</td>
-                    <td className="num mono">${Math.round(totalMarketCap(debate)).toLocaleString("en-US")}</td>
-                    <td className="num muted">{ageHours(debate, now)}h</td>
-                    <td className="num mono">${debateVolume(debate).toLocaleString("en-US")}</td>
-                    <td className="num mono">{debateParticipants(debate).toLocaleString("en-US")}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <VsTable debates={filtered} ageLabel={(debate) => `${ageHours(debate, now)}h ago`} />
         )}
       </div>
     </section>

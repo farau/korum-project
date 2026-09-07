@@ -2,6 +2,7 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 import { useMock } from "../../components/MockProvider";
+import MetricGlyph from "./MetricGlyph";
 import type { Debate } from "../../lib/debates";
 
 const chartAll = [42, 58, 36, 74, 64, 88, 53, 70, 96, 82, 68, 91];
@@ -45,27 +46,12 @@ function formatMoney(value: number) {
   return `$${formatCompact(value)}`;
 }
 
-function AnalyticsIcon({ type = "trend" }: { type?: "trend" | "bars" | "cash" | "bolt" | "users" | "wallet" }) {
+function AnalyticsIcon({ type = "trend" }: { type?: "trades" | "trend" | "bars" | "cash" | "bolt" | "users" | "wallet" }) {
   const paths = {
     trend: (
       <>
         <polyline points="3 17 9 11 13 15 21 7" />
         <polyline points="14 7 21 7 21 14" />
-      </>
-    ),
-    bars: (
-      <>
-        <line x1="4" y1="20" x2="20" y2="20" />
-        <rect x="6" y="10" width="3" height="10" rx="1" />
-        <rect x="11" y="4" width="3" height="16" rx="1" />
-        <rect x="16" y="13" width="3" height="7" rx="1" />
-      </>
-    ),
-    cash: (
-      <>
-        <rect x="3" y="6" width="18" height="12" rx="2" />
-        <circle cx="12" cy="12" r="3" />
-        <path d="M6 9v.01M18 15v.01" />
       </>
     ),
     bolt: <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />,
@@ -90,9 +76,9 @@ function AnalyticsIcon({ type = "trend" }: { type?: "trend" | "bars" | "cash" | 
     <span className="analytics-stat-icon">
       <span className="spark spark1" />
       <span className="spark spark2" />
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        {paths[type]}
-      </svg>
+      {type === "trades" || type === "bars" || type === "cash" ? <MetricGlyph type={type} /> : (
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">{paths[type]}</svg>
+      )}
     </span>
   );
 }
@@ -168,10 +154,11 @@ export default function StatsClient({ debates }: { debates: Debate[] }) {
   const categories = useMemo(() => {
     const totals = new Map<string, number>();
     src.forEach((debate) => totals.set(debate.category, (totals.get(debate.category) || 0) + debate.volume24h));
+    const total = Math.max([...totals.values()].reduce((sum, volume) => sum + volume, 0), 1);
     const max = Math.max(...totals.values(), 1);
     return [...totals.entries()]
       .sort((a, b) => b[1] - a[1])
-      .map(([name, volume], index) => ({ name, volume, color: categoryColors[index % categoryColors.length], percentage: (volume / max) * 100 }));
+      .map(([name, volume], index) => ({ name, volume, color: categoryColors[index % categoryColors.length], percentage: (volume / total) * 100, width: (volume / max) * 100 }));
   }, [src]);
 
   const topVs = useMemo(
@@ -204,7 +191,7 @@ export default function StatsClient({ debates }: { debates: Debate[] }) {
               </div>
               <div className="tac-period-toggle">
                 {(["day", "week", "month"] as const).map((item) => (
-                  <button className={`pill ${period === item ? "active" : ""}`} key={item} type="button" onClick={() => setPeriod(item)}>
+                  <button aria-pressed={period === item} className={`pill ${period === item ? "active" : ""}`} key={item} type="button" onClick={() => setPeriod(item)}>
                     {period === item && <span className="tac-period-spark" />}
                     {item === "day" ? "Daily" : item === "week" ? "Weekly" : "Monthly"}
                   </button>
@@ -214,7 +201,7 @@ export default function StatsClient({ debates }: { debates: Debate[] }) {
 
             <div className="tac-stats">
               <div className="tac-stat">
-                <span className="tac-icon-tile"><AnalyticsIcon type="trend" /></span>
+                <span className="tac-icon-tile"><AnalyticsIcon type="trades" /></span>
                 <div className="tac-stat-text">
                   <span className="tac-stat-label">Number of trades</span>
                   <span className="tac-stat-value">{formatCompact(tradesDisplay)}</span>
@@ -253,7 +240,7 @@ export default function StatsClient({ debates }: { debates: Debate[] }) {
                     <div className="analytics-chart-head">
                       <span className="gauge-value">{formatMoney(annualVolume)}</span>
                       <div className="analytics-vol24h">
-                        <span className="vol24h-icon"><AnalyticsIcon type="bars" /></span>
+                        <span className="vol24h-icon" aria-hidden="true"><MetricGlyph type="bars" /></span>
                         <span className="vol24h-text">
                           <span className="vol24h-label">Vol 24h</span>
                           <span className="vol24h-value">{formatMoney(totalVolume)}</span>
@@ -278,7 +265,7 @@ export default function StatsClient({ debates }: { debates: Debate[] }) {
                     <div className="analytics-chart-head">
                       <span className="gauge-value">{formatMoney(weeklyVolume)}</span>
                       <div className="analytics-vol24h">
-                        <span className="vol24h-icon"><AnalyticsIcon type="bars" /></span>
+                        <span className="vol24h-icon" aria-hidden="true"><MetricGlyph type="bars" /></span>
                         <span className="vol24h-text">
                           <span className="vol24h-label">Vol 24h</span>
                           <span className="vol24h-value">{formatMoney(totalVolume * 0.18)}</span>
@@ -316,7 +303,8 @@ export default function StatsClient({ debates }: { debates: Debate[] }) {
               <div className="fee-bar-row2" key={category.name}>
                 <span className="fee-bar-name"><span className="fee-bar-dot" style={{ background: category.color }} />{category.name}</span>
                 <div className="fee-bar-track2">
-                  <div className="fee-bar-fill2" style={{ width: `${category.percentage}%` }} />
+                  <div className="fee-bar-fill2" style={{ width: `${category.width}%` }} />
+                  <span className="fee-bar-percentage" style={{ left: `${category.width}%` }}>{category.percentage.toFixed(1)}%</span>
                 </div>
                 <span className="fee-bar-value"><span className="fee-bar-value-dot" />{formatMoney(category.volume)}</span>
               </div>

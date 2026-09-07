@@ -144,12 +144,11 @@ function CrownIcon() {
     <svg viewBox="0 0 73.07 65.16" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
       <defs>
         <linearGradient id="lbCrownRainbow" x1="0" y1="0" x2="73.07" y2="65.16" gradientUnits="userSpaceOnUse">
-          <stop offset="0%" stopColor="#F2A6E4" />
-          <stop offset="24%" stopColor="#E9B1DE" />
-          <stop offset="47%" stopColor="#F2D98B" />
-          <stop offset="68%" stopColor="#B9E978" />
-          <stop offset="84%" stopColor="#79E873" />
-          <stop offset="100%" stopColor="#2EDDB4" />
+          <stop offset="0%" stopColor="var(--rainbow-1)" />
+          <stop offset="25%" stopColor="var(--rainbow-2)" />
+          <stop offset="50%" stopColor="var(--rainbow-3)" />
+          <stop offset="75%" stopColor="var(--rainbow-4)" />
+          <stop offset="100%" stopColor="var(--rainbow-5)" />
         </linearGradient>
       </defs>
       <g fill="url(#lbCrownRainbow)">

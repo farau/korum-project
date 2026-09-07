@@ -68,6 +68,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- Restricted Explore background grids to the hero in both themes and kept Leaderboard grid-free.
+- Restored the original Glass Green / Glass Red button surfaces and gradient borders, including visible borders on solid controls.
+- Rebuilt the Explore table with paired token rows, per-token metrics, sparklines, timeframe changes, detail links, and watchlist controls.
+- Restored the rainbow crown and the dedicated light-theme podium PNG from the design reference.
+- Matched Analytics metric glyphs, outlined period selection, volume icons, category percentage labels, and dark chart bars in light mode.
+- Improved Analytics chart responsiveness and light-theme Concept icon contrast, rings, and card gradients.
+- Rounded the profile avatar hexagon and standardized positive text colors with a darker green in light mode.
 - Reconstructed public request origins from Railway proxy headers so wallet challenges retain valid same-origin protection and use the correct HTTPS signing domain.
 - Waited for Wagmi's active connector before requesting a signature, preventing `connector.getChainId` failures after hydration.
 - Versioned Wagmi's persisted connection state and kept wallet disconnection available when application authentication fails.
