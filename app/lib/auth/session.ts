@@ -33,6 +33,8 @@ export type WalletChallenge = {
   expiresAt: number;
 };
 
+export type WalletNonce = Pick<WalletChallenge, "nonce" | "domain" | "uri" | "issuedAt" | "expiresAt">;
+
 function getSessionSecret() {
   const secret = process.env.KORUM_SESSION_SECRET;
   if (!secret || Buffer.byteLength(secret) < 32) {
@@ -73,16 +75,28 @@ function verifyPayload<T extends { expiresAt: number }>(token: string | undefine
   }
 }
 
-export function createWalletChallenge(address: `0x${string}`, chainId: number, domain: string, uri: string) {
+export function createWalletNonce(domain: string, uri: string) {
   const issuedAt = Date.now();
-  const challenge: WalletChallenge = {
-    address,
-    chainId,
+  const nonce: WalletNonce = {
     domain,
     uri,
     nonce: randomBytes(16).toString("hex"),
     issuedAt,
     expiresAt: issuedAt + CHALLENGE_LIFETIME_SECONDS * 1000,
+  };
+
+  return { nonce, token: signPayload(nonce) };
+}
+
+export function readWalletNonce(token: string | undefined) {
+  return verifyPayload<WalletNonce>(token);
+}
+
+export function createWalletChallenge(address: `0x${string}`, chainId: number, nonce: WalletNonce) {
+  const challenge: WalletChallenge = {
+    ...nonce,
+    address,
+    chainId,
   };
 
   return { challenge, token: signPayload(challenge) };

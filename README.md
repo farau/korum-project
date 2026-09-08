@@ -2,14 +2,14 @@
 
 Korum is a Next.js application for creating and exploring tokenized matchups. Each matchup contains two opposing tokens. Users can follow market activity, compare both sides, simulate potential earnings, maintain a watchlist, and access wallet-linked profile data.
 
-The current repository is a functional frontend prototype. It uses deterministic mock market data while the Railway indexer, database, and smart-contract interactions are being prepared. Wallet connection is provided by Reown AppKit and authenticated through a server-verified wallet signature.
+The current repository is a functional frontend prototype. It uses deterministic mock market data while the Railway indexer, database, and smart-contract interactions are being prepared. Wallet connection is provided by RainbowKit and authenticated through a server-verified wallet signature.
 
 ## Current Status
 
 - The interface and all canonical routes are in English.
 - The Explore experience, filters, search, cards, ticker, analytics, leaderboard, earnings calculator, watchlist, wallet profile, and legal pages are implemented.
 - Mock debates are available through the same typed data contract intended for the future API.
-- Wallet connection uses Reown AppKit on Robinhood Chain and Robinhood Chain Testnet.
+- Wallet connection uses RainbowKit on Robinhood Chain and Robinhood Chain Testnet.
 - Profile access requires a valid server-side session created from a verified wallet signature.
 - Wallet identities and editable profile fields are persisted in a managed Railway PostgreSQL database.
 - Trading and VS creation controls are UI prototypes; they do not submit blockchain transactions yet.
@@ -28,7 +28,7 @@ The current repository is a functional frontend prototype. It uses deterministic
 - Persistent local watchlist.
 - Wallet-gated profile with information, activity, referral, badge, watchlist, and simulation tabs.
 - Connected EVM address used as both the profile identity and referral code.
-- Reown AppKit wallet modal with Wagmi SSR hydration.
+- RainbowKit wallet modal with Wagmi SSR hydration.
 - Nonce-based wallet authentication and signed `HttpOnly` session cookies.
 - Atomic user creation on first verified wallet sign-in, with database-enforced wallet uniqueness.
 - Trader, creator, and referrer leaderboard views.
@@ -48,7 +48,7 @@ The current repository is a functional frontend prototype. It uses deterministic
 | Fonts | Geist and Geist Mono through `next/font` |
 | Images | Next.js Image plus local reference assets |
 | Persistence | Browser `localStorage` for prototype state |
-| Wallet | Reown AppKit with the Wagmi adapter |
+| Wallet | RainbowKit with Wagmi |
 | Authentication | Viem signature verification and signed server sessions |
 | Database | Managed PostgreSQL on Railway through the `postgres` driver |
 
@@ -68,8 +68,8 @@ Then provide the following values:
 
 | Variable | Visibility | Purpose |
 | --- | --- | --- |
-| `NEXT_PUBLIC_REOWN_PROJECT_ID` | Public | Project ID created in the Reown dashboard |
-| `NEXT_PUBLIC_APP_URL` | Public | Exact application origin registered with Reown |
+| `NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID` | Public | WalletConnect project ID used by RainbowKit |
+| `NEXT_PUBLIC_APP_URL` | Public | Exact public application origin used in sign-in messages |
 | `KORUM_SESSION_SECRET` | Server only | HMAC secret containing at least 32 random bytes |
 | `DATABASE_URL` | Server only | PostgreSQL connection URL supplied by Railway |
 
@@ -79,7 +79,7 @@ Generate a session secret with:
 openssl rand -hex 32
 ```
 
-The repository includes a local-only Reown project ID fallback for localhost development. Never use that public fallback in production. `.env.local` is ignored by Git.
+The repository includes a shared WalletConnect project ID fallback for localhost development. Configure your own project ID in production. `.env.local` is ignored by Git.
 
 ## Getting Started
 
@@ -156,7 +156,7 @@ public/
 └── korum-reference/        # Visual assets adapted from the reference design
 ```
 
-The root layout mounts the SSR-aware AppKit and wallet providers. `PageWrapper` supplies the shared header, footer, and mock-data provider to application pages.
+The root layout mounts the SSR-aware RainbowKit and wallet providers. `PageWrapper` supplies the shared header, footer, and mock-data provider to application pages.
 
 ## Data Contract
 
@@ -220,13 +220,13 @@ Mock timestamps use a fixed UTC reference date so server and client output remai
 
 ## Wallet Authentication
 
-The wallet layer uses Reown AppKit, the Wagmi adapter, Viem, and React Query. AppKit is initialized once at module scope and Wagmi receives its initial cookie state from the root server layout.
+The wallet layer uses RainbowKit, Wagmi, Viem, and React Query. RainbowKit receives a custom authentication adapter while Wagmi receives its initial cookie state from the root server layout.
 
 Authentication follows this flow:
 
-1. The user connects an EVM wallet through Reown AppKit.
-2. The browser requests a five-minute, server-signed challenge.
-3. The wallet signs the exact challenge message without submitting a transaction.
+1. The user connects an EVM wallet through RainbowKit.
+2. RainbowKit requests a five-minute, server-signed nonce, then asks the server to construct the exact challenge message for the connected address and chain.
+3. The wallet signs that message without submitting a transaction.
 4. The server verifies the nonce, origin, expiration, address, network, message, and EVM signature.
 5. PostgreSQL atomically creates the wallet user or updates the existing user's last-login metadata.
 6. The server creates a signed 12-hour session cookie containing the internal user ID and wallet address.
@@ -234,7 +234,7 @@ Authentication follows this flow:
 
 The session cookie is `HttpOnly`, `SameSite=Strict`, scoped to `/`, and marked `Secure` in production. It contains only a signed session identifier, wallet address, chain ID, and timestamps. It never contains profile records, private keys, signatures, or Railway credentials.
 
-The challenge cookie is also `HttpOnly`, short-lived, and limited to `/api/auth`. It is deleted after successful verification. Disconnecting through the Korum header deletes the authenticated session as well as the AppKit connection.
+The challenge cookie is also `HttpOnly`, short-lived, and limited to `/api/auth`. It is deleted after successful verification. Disconnecting through the Korum header deletes the authenticated session as well as the RainbowKit connection.
 
 `/profile` reads the session on the server and does not send profile data to unauthenticated clients. `/api/profile` demonstrates the same protection for a Route Handler. Every future wallet-specific Railway query must repeat this server-side authorization check; hiding content in React is not a security boundary.
 
@@ -290,7 +290,7 @@ Cloudflare Images or Cloudinary are stronger alternatives when automatic transfo
 
 All reads that affect initial rendering are deferred until client hydration to avoid server/client markup mismatches.
 
-AppKit and the authenticated session additionally use cookies. The signed session cookie is intentionally unavailable through browser JavaScript.
+Wagmi and the authenticated session additionally use cookies. The signed session cookie is intentionally unavailable through browser JavaScript.
 
 ## Styling and Assets
 

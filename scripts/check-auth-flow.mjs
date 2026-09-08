@@ -39,10 +39,19 @@ async function jsonResponse(response) {
 }
 
 try {
+  const nonceResponse = await fetch(`${appUrl}/api/auth/challenge`, {
+    headers: { Origin: appUrl },
+  });
+  if (!nonceResponse.ok) {
+    throw new Error(`Nonce request failed with status ${nonceResponse.status}.`);
+  }
+  const nonce = await nonceResponse.text();
+  const nonceCookie = cookieFrom(nonceResponse, "korum-challenge");
+
   const challengeResponse = await fetch(`${appUrl}/api/auth/challenge`, {
     method: "POST",
-    headers: { "Content-Type": "application/json", Origin: appUrl },
-    body: JSON.stringify({ address: account.address, chainId: 46630 }),
+    headers: { "Content-Type": "application/json", Origin: appUrl, Cookie: nonceCookie },
+    body: JSON.stringify({ nonce, address: account.address, chainId: 46630 }),
   });
   const challenge = await jsonResponse(challengeResponse);
   const challengeCookie = cookieFrom(challengeResponse, "korum-challenge");

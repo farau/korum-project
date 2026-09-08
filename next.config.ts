@@ -15,6 +15,7 @@ const nextConfig: NextConfig = {
     config.resolve.alias = {
       ...config.resolve.alias,
       accounts: false,
+      "@react-native-async-storage/async-storage": false,
     };
     return config;
   },

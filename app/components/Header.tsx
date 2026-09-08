@@ -41,7 +41,7 @@ export default function Header() {
   const pathname = usePathname();
   const [menuOpen, setMenuOpen] = useState(false);
   const { mockEnabled, setMockEnabled, hydrated } = useMock();
-  const { address, connected, authenticating, connect, disconnect, hydrated: walletHydrated } = useWallet();
+  const { address, connected, authenticating, connect, openWallet, hydrated: walletHydrated } = useWallet();
 
   function toggleTheme() {
     const el = document.documentElement;
@@ -86,9 +86,11 @@ export default function Header() {
             <ThemeIcon />
           </button>
 
-          <Link href="/profile" className="icon-btn header-icon" aria-label="Profile">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="3.4" /><path d="M5 20c0-4 3.5-6.5 7-6.5s7 2.5 7 6.5" /></svg>
-          </Link>
+          {walletHydrated && connected ? (
+            <Link href="/profile" className="icon-btn header-icon" aria-label="Profile">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="3.4" /><path d="M5 20c0-4 3.5-6.5 7-6.5s7 2.5 7 6.5" /></svg>
+            </Link>
+          ) : null}
 
           <Link href="/create" className="btn btn-create">Create a VS</Link>
 
@@ -96,7 +98,7 @@ export default function Header() {
             type="button"
             className="btn btn-solid wallet-shine-btn"
             disabled={!walletHydrated || authenticating}
-            onClick={connected ? disconnect : connect}
+            onClick={connected ? openWallet : connect}
             aria-busy={authenticating}
             title={authenticating ? "Authenticating wallet..." : undefined}
           >

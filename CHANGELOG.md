@@ -8,14 +8,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
-- Reown AppKit wallet connection with the Wagmi adapter, Robinhood Chain, and Robinhood Chain Testnet.
+- RainbowKit wallet connection with Wagmi, Robinhood Chain, and Robinhood Chain Testnet.
 - SSR wallet-state hydration through Wagmi cookies and the root Next.js layout.
 - Short-lived, server-signed wallet challenges with origin, network, nonce, and expiration validation.
 - Server-side EVM signature verification through Viem.
 - Signed 12-hour wallet sessions stored in `HttpOnly`, `SameSite=Strict`, production-secure cookies.
 - Authenticated `/api/profile` example for future wallet-specific Railway data.
 - Server-side profile authorization that withholds profile payloads from unauthenticated requests.
-- Environment template for Reown metadata and session security configuration.
+- Environment template for WalletConnect and session security configuration.
 - Complete wallet-profile interface with Information, Activity, Referrals, Badges, Watchlist, and Global simulator tabs.
 - Dedicated Explore empty state when mock data is disabled and no live versus are returned.
 - Managed Railway PostgreSQL service and checksum-protected schema migration runner.
@@ -45,8 +45,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
-- Replaced the simulated development wallet with the Reown AppKit connection and signature flow.
-- Moved the wallet provider to the root AppKit context so connection state persists across application routes.
+- Replaced the simulated development wallet with the RainbowKit connection and signature flow.
+- Moved the wallet provider to the root RainbowKit context so connection state persists across application routes.
 - Bound profile identity and referral data to the address stored in the verified server session.
 - Aligned the Profile page with the Korum reference design and translated its complete interface to English.
 - Marked profile-image uploads and X account linking as unavailable with disabled, visually muted controls.
@@ -68,6 +68,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- Opened RainbowKit's account modal from the connected address button and hid the Profile shortcut while disconnected.
+- Opened the RainbowKit signature prompt immediately after connecting a wallet without a matching authenticated session.
 - Restricted Explore background grids to the hero in both themes and kept Leaderboard grid-free.
 - Restored the original Glass Green / Glass Red button surfaces and gradient borders, including visible borders on solid controls.
 - Rebuilt the Explore table with paired token rows, per-token metrics, sparklines, timeframe changes, detail links, and watchlist controls.
@@ -78,7 +80,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Reconstructed public request origins from Railway proxy headers so wallet challenges retain valid same-origin protection and use the correct HTTPS signing domain.
 - Waited for Wagmi's active connector before requesting a signature, preventing `connector.getChainId` failures after hydration.
 - Versioned Wagmi's persisted connection state and kept wallet disconnection available when application authentication fails.
-- Kept the connected wallet address visible while authentication completes by refreshing Server Components without reloading AppKit.
+- Kept the connected wallet address visible while authentication completes by refreshing Server Components without reloading RainbowKit.
 - Prevented duplicate wallet users through a database unique constraint and atomic conflict handling.
 - Prevented referral-code drift by deriving it from the immutable wallet column in PostgreSQL.
 - Prevented theme initialization from producing a React hydration mismatch on the root HTML element.

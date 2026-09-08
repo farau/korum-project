@@ -1,9 +1,15 @@
 "use client";
 
-import { useAppKit, useAppKitAccount, useAppKitNetwork, useDisconnect } from "@reown/appkit/react";
+import {
+  createAuthenticationAdapter,
+  RainbowKitAuthenticationProvider,
+  useAccountModal,
+  useConnectModal,
+  type AuthenticationStatus,
+} from "@rainbow-me/rainbowkit";
 import { useRouter } from "next/navigation";
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
-import { useConnections, useSignMessage } from "wagmi";
+import { useAccount } from "wagmi";
 
 type WalletContextValue = {
   address: string | null;
@@ -13,7 +19,7 @@ type WalletContextValue = {
   hydrated: boolean;
   authError: string | null;
   connect: () => void;
-  disconnect: () => Promise<void>;
+  openWallet: () => void;
 };
 
 type SessionResponse = {
@@ -21,135 +27,211 @@ type SessionResponse = {
   address?: string;
 };
 
+type AuthContextValue = {
+  authenticationStatus: AuthenticationStatus;
+  authError: string | null;
+  sessionAddress: string | null;
+  signOut: () => Promise<void>;
+};
+
+const AuthContext = createContext<AuthContextValue | null>(null);
 const WalletContext = createContext<WalletContextValue | null>(null);
 
-export function WalletProvider({ children }: { children: React.ReactNode }) {
+async function responseError(response: Response, fallback: string) {
+  try {
+    const body = await response.json() as { error?: string };
+    return body.error || fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+export function WalletAuthenticationProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter();
-  const { open } = useAppKit();
-  const { address, isConnected, status } = useAppKitAccount({ namespace: "eip155" });
-  const { chainId } = useAppKitNetwork();
-  const { disconnect: disconnectAppKit } = useDisconnect();
-  const connections = useConnections();
-  const { signMessageAsync } = useSignMessage();
+  const { address, isConnected, status: accountStatus } = useAccount();
+  const [authenticationStatus, setAuthenticationStatus] = useState<AuthenticationStatus>("loading");
   const [sessionAddress, setSessionAddress] = useState<string | null>(null);
-  const [sessionChecked, setSessionChecked] = useState(false);
-  const [authenticating, setAuthenticating] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
-  const attemptedAddress = useRef<string | null>(null);
-  const previousAddress = useRef<string | null>(null);
-  const connectionReady = Boolean(address && connections.some((connection) => (
-    connection.accounts.some((account) => account.toLowerCase() === address.toLowerCase())
-    && typeof connection.connector.getChainId === "function"
-  )));
 
-  const authenticate = useCallback(async () => {
-    if (!isConnected || !address || !connectionReady || authenticating) return;
-
-    setAuthenticating(true);
-    setAuthError(null);
+  const signOut = useCallback(async () => {
     try {
-      const challengeResponse = await fetch("/api/auth/challenge", {
-        method: "POST",
+      await fetch("/api/auth/session", {
+        method: "DELETE",
         credentials: "same-origin",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ address, chainId: Number(chainId) }),
       });
-      const challenge = await challengeResponse.json() as { message?: string; error?: string };
-      if (!challengeResponse.ok || !challenge.message) {
-        throw new Error(challenge.error || "Unable to create a wallet challenge.");
-      }
+    } catch {
+      setAuthError("Unable to close the wallet session cleanly.");
+    } finally {
+      setSessionAddress(null);
+      setAuthenticationStatus("unauthenticated");
+      router.refresh();
+    }
+  }, [router]);
 
-      const signature = await signMessageAsync({ message: challenge.message });
-      const verifyResponse = await fetch("/api/auth/verify", {
+  const authenticationAdapter = useMemo(() => createAuthenticationAdapter<string>({
+    getNonce: async () => {
+      setAuthError(null);
+      const response = await fetch("/api/auth/challenge", {
+        credentials: "same-origin",
+        cache: "no-store",
+      });
+      if (!response.ok) {
+        const error = await responseError(response, "Unable to create a wallet nonce.");
+        setAuthError(error);
+        throw new Error(error);
+      }
+      return response.text();
+    },
+    createMessage: async ({ nonce, address: messageAddress, chainId }) => {
+      const response = await fetch("/api/auth/challenge", {
         method: "POST",
         credentials: "same-origin",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: challenge.message, signature }),
+        body: JSON.stringify({ nonce, address: messageAddress, chainId }),
       });
-      const verified = await verifyResponse.json() as SessionResponse & { error?: string };
-      if (!verifyResponse.ok || !verified.authenticated || !verified.address) {
-        throw new Error(verified.error || "Wallet authentication failed.");
+      const challenge = await response.json() as { message?: string; error?: string };
+      if (!response.ok || !challenge.message) {
+        const error = challenge.error || "Unable to create a wallet challenge.";
+        setAuthError(error);
+        throw new Error(error);
+      }
+      return challenge.message;
+    },
+    verify: async ({ message, signature }) => {
+      const response = await fetch("/api/auth/verify", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message, signature }),
+      });
+      const verified = await response.json() as SessionResponse & { error?: string };
+      if (!response.ok || !verified.authenticated || !verified.address) {
+        setSessionAddress(null);
+        setAuthenticationStatus("unauthenticated");
+        setAuthError(verified.error || "Wallet authentication failed.");
+        return false;
       }
 
       setSessionAddress(verified.address);
-      setSessionChecked(true);
+      setAuthenticationStatus("authenticated");
+      setAuthError(null);
       router.refresh();
-    } catch (error) {
-      setSessionAddress(null);
-      setSessionChecked(true);
-      setAuthError(error instanceof Error ? error.message : "Wallet authentication failed.");
-    } finally {
-      setAuthenticating(false);
-    }
-  }, [address, authenticating, chainId, connectionReady, isConnected, router, signMessageAsync]);
+      return true;
+    },
+    signOut,
+  }), [router, signOut]);
 
   useEffect(() => {
-    if (status === "connecting" || status === "reconnecting") return;
-
+    if (accountStatus === "connecting" || accountStatus === "reconnecting") return;
     if (!isConnected || !address) {
-      if (previousAddress.current) {
-        void fetch("/api/auth/session", { method: "DELETE", credentials: "same-origin" });
-      }
-      previousAddress.current = null;
-      attemptedAddress.current = null;
       const resetTimer = window.setTimeout(() => {
         setSessionAddress(null);
-        setSessionChecked(true);
+        setAuthenticationStatus("unauthenticated");
       }, 0);
       return () => window.clearTimeout(resetTimer);
     }
 
-    previousAddress.current = address;
     let cancelled = false;
-    fetch("/api/auth/session", { credentials: "same-origin", cache: "no-store" })
-      .then((response) => response.json() as Promise<SessionResponse>)
-      .then((session) => {
-        if (cancelled) return;
-        const matches = session.authenticated && session.address?.toLowerCase() === address.toLowerCase();
-        setSessionAddress(matches && session.address ? session.address : null);
-        setSessionChecked(true);
-        if (!matches && connectionReady && attemptedAddress.current !== address.toLowerCase()) {
-          attemptedAddress.current = address.toLowerCase();
-          void authenticate();
-        }
-      })
-      .catch(() => {
-        if (cancelled) return;
-        setSessionAddress(null);
-        setSessionChecked(true);
-        setAuthError("Unable to check the wallet session.");
-      });
+    const loadTimer = window.setTimeout(() => {
+      setAuthenticationStatus("loading");
+      setAuthError(null);
+      fetch("/api/auth/session", { credentials: "same-origin", cache: "no-store" })
+        .then((response) => response.json() as Promise<SessionResponse>)
+        .then((session) => {
+          if (cancelled) return;
+          const matches = session.authenticated
+            && session.address?.toLowerCase() === address.toLowerCase();
+          setSessionAddress(matches && session.address ? session.address : null);
+          setAuthenticationStatus(matches ? "authenticated" : "unauthenticated");
+        })
+        .catch(() => {
+          if (cancelled) return;
+          setSessionAddress(null);
+          setAuthenticationStatus("unauthenticated");
+          setAuthError("Unable to check the wallet session.");
+        });
+    }, 0);
 
     return () => {
       cancelled = true;
+      window.clearTimeout(loadTimer);
     };
-  }, [address, authenticate, connectionReady, isConnected, status]);
+  }, [accountStatus, address, isConnected]);
 
-  const connect = useCallback(() => {
-    if (isConnected && address) {
-      attemptedAddress.current = null;
-      void authenticate();
+  const authContext = useMemo<AuthContextValue>(() => ({ authenticationStatus, authError, sessionAddress, signOut }), [
+    authenticationStatus,
+    authError,
+    sessionAddress,
+    signOut,
+  ]);
+
+  return (
+    <AuthContext.Provider value={authContext}>
+      <RainbowKitAuthenticationProvider adapter={authenticationAdapter} status={authenticationStatus}>
+        {children}
+      </RainbowKitAuthenticationProvider>
+    </AuthContext.Provider>
+  );
+}
+
+export function WalletProvider({ children }: { children: React.ReactNode }) {
+  const { address, isConnected, status: accountStatus } = useAccount();
+  const { openAccountModal } = useAccountModal();
+  const { openConnectModal } = useConnectModal();
+  const authContext = useContext(AuthContext);
+  const previousAuthenticationStatus = useRef<AuthenticationStatus | null>(null);
+  const promptedAddress = useRef<string | null>(null);
+  if (!authContext) throw new Error("WalletProvider must be used within WalletAuthenticationProvider");
+  const { authenticationStatus } = authContext;
+
+  useEffect(() => {
+    const previousStatus = previousAuthenticationStatus.current;
+    previousAuthenticationStatus.current = authenticationStatus;
+
+    if (!isConnected || !address) {
+      promptedAddress.current = null;
       return;
     }
-    void open({ view: "Connect" });
-  }, [address, authenticate, isConnected, open]);
 
-  const disconnect = useCallback(async () => {
-    try {
-      await fetch("/api/auth/session", { method: "DELETE", credentials: "same-origin" });
-    } finally {
-      setSessionAddress(null);
-      setSessionChecked(true);
-      attemptedAddress.current = null;
-      await disconnectAppKit({ namespace: "eip155" });
+    const normalizedAddress = address.toLowerCase();
+    if (authenticationStatus === "authenticated") {
+      promptedAddress.current = normalizedAddress;
+      return;
     }
-  }, [disconnectAppKit]);
+
+    const needsAuthentication = previousStatus === "loading"
+      && authenticationStatus === "unauthenticated"
+      && promptedAddress.current !== normalizedAddress;
+    if (!needsAuthentication || !openConnectModal) return;
+
+    promptedAddress.current = normalizedAddress;
+    const promptTimer = window.setTimeout(openConnectModal, 0);
+    return () => window.clearTimeout(promptTimer);
+  }, [address, authenticationStatus, isConnected, openConnectModal]);
+
+  const connect = useCallback(() => {
+    openConnectModal?.();
+  }, [openConnectModal]);
+
+  const openWallet = useCallback(() => {
+    if (authenticationStatus === "authenticated") {
+      openAccountModal?.();
+      return;
+    }
+    openConnectModal?.();
+  }, [authenticationStatus, openAccountModal, openConnectModal]);
 
   const normalizedAddress = address || null;
   const authenticated = Boolean(
-    normalizedAddress && sessionAddress && normalizedAddress.toLowerCase() === sessionAddress.toLowerCase(),
+    authenticationStatus === "authenticated"
+    && normalizedAddress
+    && authContext.sessionAddress
+    && normalizedAddress.toLowerCase() === authContext.sessionAddress.toLowerCase(),
   );
-  const hydrated = status !== "connecting" && status !== "reconnecting" && sessionChecked;
+  const authenticating = Boolean(isConnected && authenticationStatus === "loading");
+  const hydrated = accountStatus !== "connecting"
+    && accountStatus !== "reconnecting"
+    && authenticationStatus !== "loading";
 
   const value = useMemo<WalletContextValue>(() => ({
     address: normalizedAddress,
@@ -157,10 +239,19 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     authenticated,
     authenticating,
     hydrated,
-    authError,
+    authError: authContext.authError,
     connect,
-    disconnect,
-  }), [authError, authenticated, authenticating, connect, disconnect, hydrated, isConnected, normalizedAddress]);
+    openWallet,
+  }), [
+    authContext.authError,
+    authenticated,
+    authenticating,
+    connect,
+    hydrated,
+    isConnected,
+    normalizedAddress,
+    openWallet,
+  ]);
 
   return <WalletContext.Provider value={value}>{children}</WalletContext.Provider>;
 }
