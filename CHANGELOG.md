@@ -19,9 +19,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Complete wallet-profile interface with Information, Activity, Referrals, Badges, Watchlist, and Global simulator tabs.
 - Dedicated Explore empty state when mock data is disabled and no live versus are returned.
 - Managed Railway PostgreSQL service and checksum-protected schema migration runner.
-- Database-backed `users` table with UUID identities, unique normalized EVM wallets, wallet-derived referral codes, editable profile metadata, and login timestamps.
+- Database-backed `users` table with UUID identities, unique normalized EVM wallets, unique short referral codes, editable profile metadata, and login timestamps.
 - Transactional database smoke test for wallet upsert and referral invariants.
+- Isolated PostgreSQL `indexer` read model for `ReferrerBound`, `VersusCreated`, and `CampCreated` events.
+- Transactional indexer smoke test covering referral bindings and complete two-camp versus projections.
+- Global `?ref=ABC123` referral capture with database validation, URL sanitization, a temporary server-only cookie, and authenticated wallet resolution for future contract calls.
 - End-to-end authentication check with an automatically removed ephemeral wallet user.
+- End-to-end referral attribution checks covering capture, pending resolution, and self-referral rejection.
+- Referral and indexer architecture decision documenting ownership boundaries, cookie lifecycle, later contract interactions, Goldsky projections, and rejected alternatives.
+- Functional notification center in the header with persistent unread referral confirmations.
 - Authenticated profile bio updates with strict server-side validation.
 - Complete responsive Korum application shell with shared header and footer.
 - Canonical Explore page with animated grid lines, pointer halo, search, category filters, sorting, grid view, and table view.
@@ -32,7 +38,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Detailed `Debate` and `DebateToken` TypeScript contracts for future Railway indexer integration.
 - Dynamic `/vs/[id]` route for matchup details.
 - Persistent browser watchlist and dedicated `/watchlist` page.
-- Wallet-gated profile with the connected EVM address used as the referral code.
+- Wallet-gated profile with a unique six-character referral code associated with the connected EVM address.
 - Earn page with creator, trader, and referral explanations.
 - Interactive creator and referral revenue calculator with tiered creator fees.
 - Concept page covering matchup mechanics, Korum terminology, fee tiers, a worked revenue example, and referral distribution.
@@ -45,6 +51,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- Copied profile referral values as complete shareable links using the current application origin and the `?ref=` query parameter.
+- Replaced EVM-address referral codes with random six-character Base62 codes generated securely, stored, and uniquely bound to wallets.
+- Moved referrer relationships out of `users`; `ReferralRegistry` is authoritative and Goldsky provides the queryable PostgreSQL projection.
 - Replaced the simulated development wallet with the RainbowKit connection and signature flow.
 - Moved the wallet provider to the root RainbowKit context so connection state persists across application routes.
 - Bound profile identity and referral data to the address stored in the verified server session.
@@ -82,7 +91,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Versioned Wagmi's persisted connection state and kept wallet disconnection available when application authentication fails.
 - Kept the connected wallet address visible while authentication completes by refreshing Server Components without reloading RainbowKit.
 - Prevented duplicate wallet users through a database unique constraint and atomic conflict handling.
-- Prevented referral-code drift by deriving it from the immutable wallet column in PostgreSQL.
+- Prevented referral-code drift by preserving the initially assigned compact code on every wallet upsert.
 - Prevented theme initialization from producing a React hydration mismatch on the root HTML element.
 - Corrected dynamic route parameter handling for the asynchronous Next.js 16 `params` API.
 - Ensured filled token images have stable parent dimensions.

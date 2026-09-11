@@ -1,7 +1,50 @@
+CREATE FUNCTION referral_code_from_wallet(wallet TEXT)
+RETURNS VARCHAR(6)
+LANGUAGE SQL
+IMMUTABLE
+STRICT
+PARALLEL SAFE
+AS $$
+  WITH RECURSIVE
+  digest AS (
+    SELECT DECODE(MD5(wallet), 'hex') AS bytes
+  ),
+  hash_value AS (
+    SELECT (
+      GET_BYTE(bytes, 0)::BIGINT * 1099511627776
+      + GET_BYTE(bytes, 1)::BIGINT * 4294967296
+      + GET_BYTE(bytes, 2)::BIGINT * 16777216
+      + GET_BYTE(bytes, 3)::BIGINT * 65536
+      + GET_BYTE(bytes, 4)::BIGINT * 256
+      + GET_BYTE(bytes, 5)::BIGINT
+    ) % 56800235584 AS value
+    FROM digest
+  ),
+  encoded(position, value, code) AS (
+    SELECT 0, value, ''::TEXT
+    FROM hash_value
+    UNION ALL
+    SELECT
+      position + 1,
+      value / 62,
+      SUBSTRING(
+        '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz'
+        FROM (value % 62)::INTEGER + 1
+        FOR 1
+      ) || code
+    FROM encoded
+    WHERE position < 6
+  )
+  SELECT code::VARCHAR(6)
+  FROM encoded
+  WHERE position = 6
+$$;
+
 CREATE TABLE users (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   evm_wallet VARCHAR(42) NOT NULL,
-  referral_code VARCHAR(42) GENERATED ALWAYS AS (evm_wallet) STORED,
+  referral_code VARCHAR(6) COLLATE "C"
+    GENERATED ALWAYS AS (referral_code_from_wallet(evm_wallet)) STORED,
   referred_by_user_id UUID REFERENCES users(id) ON DELETE SET NULL,
   profile_bio VARCHAR(160),
   avatar_object_key VARCHAR(512),
@@ -18,6 +61,7 @@ CREATE TABLE users (
   CONSTRAINT users_referral_code_unique UNIQUE (referral_code),
   CONSTRAINT users_evm_wallet_lowercase CHECK (evm_wallet = LOWER(evm_wallet)),
   CONSTRAINT users_evm_wallet_format CHECK (evm_wallet ~ '^0x[0-9a-f]{40}$'),
+  CONSTRAINT users_referral_code_format CHECK (referral_code ~ '^[A-Za-z0-9]{6}$'),
   CONSTRAINT users_profile_bio_not_blank CHECK (profile_bio IS NULL OR LENGTH(BTRIM(profile_bio)) > 0),
   CONSTRAINT users_avatar_metadata_complete CHECK (
     (avatar_object_key IS NULL AND avatar_mime_type IS NULL AND avatar_updated_at IS NULL)

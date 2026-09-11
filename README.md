@@ -27,7 +27,7 @@ The current repository is a functional frontend prototype. It uses deterministic
 - Dedicated empty state when mock data is disabled and the live source returns no versus.
 - Persistent local watchlist.
 - Wallet-gated profile with information, activity, referral, badge, watchlist, and simulation tabs.
-- Connected EVM address used as both the profile identity and referral code.
+- Unique six-character Base62 referral code permanently associated with the connected EVM wallet.
 - RainbowKit wallet modal with Wagmi SSR hydration.
 - Nonce-based wallet authentication and signed `HttpOnly` session cookies.
 - Atomic user creation on first verified wallet sign-in, with database-enforced wallet uniqueness.
@@ -51,6 +51,10 @@ The current repository is a functional frontend prototype. It uses deterministic
 | Wallet | RainbowKit with Wagmi |
 | Authentication | Viem signature verification and signed server sessions |
 | Database | Managed PostgreSQL on Railway through the `postgres` driver |
+
+## Architecture Decisions
+
+The accepted separation between application referral codes, the on-chain `ReferralRegistry`, Goldsky, and the Railway PostgreSQL read model is documented in [Referral and Indexer Architecture](./docs/referral-and-indexer-architecture.md). Read it before changing referral attribution, transaction arguments, indexer tables, or versus ingestion.
 
 ## Requirements
 
@@ -110,6 +114,7 @@ If port `3000` is already occupied, Next.js selects the next available port and 
 | `npm run lint` | Run ESLint across the repository |
 | `npm run db:migrate` | Apply pending checksum-protected PostgreSQL migrations |
 | `npm run db:check` | Test wallet upsert and referral invariants inside a rolled-back transaction |
+| `npm run db:check:indexer` | Test referral and versus indexer projections inside a rolled-back transaction |
 | `npm run auth:check` | Exercise wallet authentication and profile persistence with a disposable test account |
 | `npx tsc --noEmit` | Run a standalone TypeScript check |
 | `npx next typegen` | Regenerate typed App Router route definitions |
@@ -242,17 +247,34 @@ The current profile mirrors the Korum reference layout while keeping its control
 
 ## User Database
 
-The first migration lives in `db/migrations/0001_create_users.sql`. The `users` table stores:
+The user schema is defined by the numbered migrations in `db/migrations`. The `users` table stores:
 
 - A generated UUID primary key.
 - A lowercase, format-checked, unique EVM wallet.
-- A generated and unique referral code that is always identical to the EVM wallet.
-- An optional self-referencing referrer relationship.
+- A generated and unique six-character Base62 referral code bound to the normalized EVM wallet.
 - A 160-character profile bio.
 - Future avatar object metadata and verified X account metadata.
 - Last-login chain and timestamps, plus creation and update timestamps.
 
-Wallet addresses and referral codes are immutable through the Profile API. `POST /api/auth/verify` performs an atomic `INSERT ... ON CONFLICT DO UPDATE`, so concurrent sign-ins for the same wallet resolve to one user record. `GET` and `PATCH /api/profile` derive identity only from the signed session. Profile updates use a strict field allowlist; currently only `bio` can be changed.
+Wallet addresses and referral codes are immutable through the Profile API. On first verified sign-in, the server generates exactly six cryptographically random Base62 characters and retries if PostgreSQL reports the unique code constraint. Subsequent sign-ins preserve the code already bound to that wallet. `POST /api/auth/verify` performs an atomic `INSERT ... ON CONFLICT DO UPDATE`, so concurrent sign-ins for the same wallet resolve to one user record. `GET` and `PATCH /api/profile` derive identity only from the signed session. Profile updates use a strict field allowlist; currently only `bio` can be changed.
+
+The referrer is deliberately not stored on `users`. `ReferralRegistry.referrerOf(user)` remains the on-chain source of truth, while Goldsky projects successful `ReferrerBound` events into PostgreSQL for fast reverse lookups, rankings, and historical reads.
+
+Referral links can add a case-sensitive six-character code through `?ref=ABC123` on any application page. Next.js removes the code from the visible URL, validates it against `users`, and stores only the code in a 30-day `HttpOnly`, `SameSite=Lax` cookie. Authenticated transaction screens resolve that code back to its wallet server-side through `/api/referrals/pending`. Invalid codes and self-referrals are ignored. After an eligible transaction, the client clears the cookie only when `ReferrerBound` is present in the receipt or `ReferralRegistry.referrerOf(user)` is non-zero. See the [architecture decision](./docs/referral-and-indexer-architecture.md#cookie-lifecycle) for the complete lifecycle.
+
+## Goldsky Read Model
+
+Migration `0002_create_indexer_read_model.sql` creates an isolated `indexer` schema in the same Railway PostgreSQL database:
+
+- `indexer.referral_bindings` mirrors confirmed `ReferrerBound` events, keyed by chain and referred wallet.
+- `indexer.versuses` mirrors `VersusCreated`, including the descriptive strings that are emitted but not stored by the contract.
+- `indexer.versus_camps` mirrors both `CampCreated` events, including token metadata and launch parameters.
+
+Goldsky owns writes to the `indexer` schema; the application owns `public.users`. The tables do not reference `users` because an on-chain participant may never create a Korum profile. Camps also have no foreign key to `versuses`: the factory emits both `CampCreated` logs before `VersusCreated`, and independent sink writes must remain valid in that order.
+
+The Goldsky transforms must lowercase every EVM address and hash, convert event timestamps to UTC `timestamptz`, and start from the deployment block of each source contract. Configure PostgreSQL sinks as upserts using the table primary keys so replayed logs remain idempotent. The exact Goldsky pipeline should be created only after the factory and registry addresses, deployment blocks, and supported Robinhood Chain dataset identifier are confirmed.
+
+Goldsky can write these projections directly into Railway PostgreSQL through its externally reachable connection URL. The frontend must still read them through server-side Korum queries or API routes; neither the browser nor the smart contracts write directly to PostgreSQL.
 
 The migration runner serializes concurrent runs with a PostgreSQL advisory lock and stores each migration checksum in `korum_schema_migrations`. Never edit an applied migration; add a new numbered file instead.
 
@@ -304,7 +326,7 @@ The recommended integration path is:
 
 1. Keep the `Debate` and `DebateToken` interfaces as the frontend contract.
 2. Reuse the existing server-only database boundary in `app/lib/db`.
-3. Fetch indexer records inside `/api/debates` or dedicated server components.
+3. Fetch `indexer.versuses` and `indexer.versus_camps` inside `/api/debates` or dedicated Server Components.
 4. Convert database timestamps to ISO 8601 UTC strings and millisecond timestamps at the boundary.
 5. Validate and normalize nullable database fields before returning JSON.
 6. Replace the fixed `getDebates()` response without changing card or analytics components.

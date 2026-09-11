@@ -1,3 +1,4 @@
+import { randomBytes, randomInt } from "node:crypto";
 import process from "node:process";
 import postgres from "postgres";
 
@@ -28,14 +29,23 @@ const sql = tunnelHost
   : postgres(databaseUrl, options);
 
 const connection = await sql.reserve();
-const testWallet = "0x1111111111111111111111111111111111111111";
+const referralAlphabet = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
+const testWallet = `0x${randomBytes(20).toString("hex")}`;
+const secondWallet = `0x${randomBytes(20).toString("hex")}`;
+
+function generateReferralCode() {
+  return Array.from({ length: 6 }, () => referralAlphabet[randomInt(referralAlphabet.length)]).join("");
+}
+
+const firstReferralCode = generateReferralCode();
+const unusedReferralCode = generateReferralCode();
 
 try {
   await connection.unsafe("BEGIN");
 
   const [first] = await connection`
-    INSERT INTO users (evm_wallet, last_login_chain_id)
-    VALUES (${testWallet}, ${46630})
+    INSERT INTO users (evm_wallet, referral_code, last_login_chain_id)
+    VALUES (${testWallet}, ${firstReferralCode}, ${46630})
     ON CONFLICT (evm_wallet) DO UPDATE SET
       last_login_chain_id = EXCLUDED.last_login_chain_id,
       last_login_at = NOW(),
@@ -44,8 +54,8 @@ try {
   `;
 
   const [second] = await connection`
-    INSERT INTO users (evm_wallet, last_login_chain_id)
-    VALUES (${testWallet}, ${4663})
+    INSERT INTO users (evm_wallet, referral_code, last_login_chain_id)
+    VALUES (${testWallet}, ${unusedReferralCode}, ${4663})
     ON CONFLICT (evm_wallet) DO UPDATE SET
       last_login_chain_id = EXCLUDED.last_login_chain_id,
       last_login_at = NOW(),
@@ -62,11 +72,27 @@ try {
   if (first.id !== second.id || count !== 1) {
     throw new Error("Wallet upsert did not preserve a single user identity.");
   }
-  if (first.referral_code !== testWallet || second.referral_code !== testWallet) {
-    throw new Error("Referral code is not derived from the EVM wallet.");
+  if (first.referral_code !== firstReferralCode || second.referral_code !== firstReferralCode) {
+    throw new Error("Wallet upsert did not preserve its original referral code.");
+  }
+  if (!/^[A-Za-z0-9]{6}$/.test(first.referral_code) || first.referral_code === first.evm_wallet) {
+    throw new Error("Referral code is not a six-character Base62 identifier.");
   }
 
-  process.stdout.write("Users schema check passed: atomic upsert and referral invariants are valid.\n");
+  await connection.unsafe("SAVEPOINT referral_collision_check");
+  try {
+    await connection`
+      INSERT INTO users (evm_wallet, referral_code)
+      VALUES (${secondWallet}, ${firstReferralCode})
+    `;
+    throw new Error("Duplicate referral code was accepted.");
+  } catch (error) {
+    if (error?.code !== "23505" || error?.constraint_name !== "users_referral_code_unique") throw error;
+  } finally {
+    await connection.unsafe("ROLLBACK TO SAVEPOINT referral_collision_check");
+  }
+
+  process.stdout.write("Users schema check passed: atomic upsert, stable codes, and referral uniqueness are valid.\n");
 } finally {
   await connection.unsafe("ROLLBACK").catch(() => undefined);
   connection.release();

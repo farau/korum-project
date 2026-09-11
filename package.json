@@ -9,6 +9,7 @@
     "lint": "eslint",
     "db:migrate": "node scripts/migrate.mjs",
     "db:check": "node scripts/check-users-db.mjs",
+    "db:check:indexer": "node scripts/check-indexer-db.mjs",
     "auth:check": "node scripts/check-auth-flow.mjs"
   },
   "dependencies": {

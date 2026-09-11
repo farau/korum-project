@@ -5,7 +5,7 @@ const sections = [
   ["1. Scope", "This policy explains how Korum processes information related to use of the platform, including connection data, public interactions, and information required for wallet functionality."],
   ["2. Data collected", "Korum may process wallet addresses, public transactions, interface preferences, usage metrics, and technical information required to secure the Service."],
   ["3. Use of data", "Data is used to display VS markets, calculate rankings, secure interactions, improve the product experience, and prepare future API, indexer, and database integrations."],
-  ["4. Wallets", "An EVM address may be used as a public identifier, referral code, or key for linking activity. On its own, it does not constitute a civil identity within the application."],
+  ["4. Wallets", "An EVM address may be used as a public identifier or key for linking activity, and a short referral code may be associated with it. On its own, a wallet address does not constitute a civil identity within the application."],
   ["5. Retention", "Data is retained for as long as necessary for the purposes described, applicable obligations, and abuse prevention."],
   ["6. Security", "Korum applies reasonable measures to protect processed data. Blockchain transactions remain public and depend on the relevant networks."],
   ["7. Contact", "For privacy-related questions, contact the team at contact@korum.com."],

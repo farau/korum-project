@@ -66,11 +66,12 @@ function Icon({ name }: { name: "copy" | "users" | "bolt" | "chart" | "wallet" |
   return <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">{paths[name]}</svg>;
 }
 
-function CopyButton({ value, label }: { value: string; label: string }) {
+function CopyButton({ value, label }: { value: string | (() => string); label: string }) {
   const [copied, setCopied] = useState(false);
 
   async function copy() {
-    await navigator.clipboard?.writeText(value);
+    const copyValue = typeof value === "function" ? value() : value;
+    await navigator.clipboard?.writeText(copyValue);
     setCopied(true);
     window.setTimeout(() => setCopied(false), 1400);
   }
@@ -80,6 +81,12 @@ function CopyButton({ value, label }: { value: string; label: string }) {
       <Icon name="copy" />
     </button>
   );
+}
+
+function getReferralLink(code: string) {
+  const referralUrl = new URL("/", window.location.origin);
+  referralUrl.searchParams.set("ref", code);
+  return referralUrl.toString();
 }
 
 function DataPending() {
@@ -149,7 +156,7 @@ function InformationPanel({ profile, onProfileChange }: { profile: UserProfile; 
       <div className="profile-stat-grid">
         <article className="profile-stat-block">
           <div className="profile-stat-heading"><span className="profile-stat-icon"><Icon name="users" /></span><span>Referral</span></div>
-          <div className="profile-referral-code"><span><small>Referral code</small><strong>{shortenAddress(profile.referralCode)}</strong></span><CopyButton value={profile.referralCode} label="Copy referral address" /></div>
+          <div className="profile-referral-code"><span><small>Referral code</small><strong>{profile.referralCode}</strong></span><CopyButton value={() => getReferralLink(profile.referralCode)} label="Copy referral link" /></div>
         </article>
         <article className="profile-stat-block">
           <div className="profile-stat-heading"><span className="profile-stat-icon"><Icon name="users" /></span><span>Referrals</span></div>
@@ -191,22 +198,22 @@ function ActivityPanel() {
   );
 }
 
-function ReferralsPanel({ address }: { address: string }) {
+function ReferralsPanel({ code }: { code: string }) {
   const [referredVolume, setReferredVolume] = useState(10000);
   const estimatedReward = referredVolume * 0.001;
 
   return (
     <div className="profile-tab-panel" role="tabpanel" id="profile-panel-referrals">
       <div className="profile-referral-flow" aria-label="Referral reward flow">
-        <article><span>01</span><strong>Share your wallet</strong><p>Your connected EVM address is your referral code.</p></article>
+        <article><span>01</span><strong>Share your code</strong><p>Your unique referral code stays bound to your connected EVM wallet.</p></article>
         <span className="profile-flow-arrow">→</span>
         <article><span>02</span><strong>Friends trade</strong><p>Indexed referral volume accumulates automatically.</p></article>
         <span className="profile-flow-arrow">→</span>
         <article><span>03</span><strong>Earn rewards</strong><p>Rewards become visible when the indexer is connected.</p></article>
       </div>
       <section className="profile-content-card profile-referral-address">
-        <div><span className="profile-eyebrow">Your referral code</span><strong>{address}</strong></div>
-        <CopyButton value={address} label="Copy referral address" />
+        <div><span className="profile-eyebrow">Your referral code</span><strong>{code}</strong></div>
+        <CopyButton value={() => getReferralLink(code)} label="Copy referral link" />
       </section>
       <div className="profile-referral-layout">
         <section className="profile-content-card">
@@ -326,7 +333,7 @@ export default function ProfileClient({ debates, profile, sessionAddress, sessio
   const panels: Record<ProfileTab, React.ReactNode> = {
     information: <InformationPanel profile={currentProfile} onProfileChange={setCurrentProfile} />,
     activity: <ActivityPanel />,
-    referrals: <ReferralsPanel address={currentProfile.referralCode} />,
+    referrals: <ReferralsPanel code={currentProfile.referralCode} />,
     badges: <BadgesPanel />,
     watchlist: <WatchlistPanel debates={debates} />,
     simulator: <SimulatorPanel />,

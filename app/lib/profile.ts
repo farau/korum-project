@@ -1,8 +1,7 @@
 export type UserProfile = {
   id: string;
   evmWallet: `0x${string}`;
-  referralCode: `0x${string}`;
-  referredByUserId: string | null;
+  referralCode: string;
   bio: string | null;
   avatar: {
     objectKey: string;

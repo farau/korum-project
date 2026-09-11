@@ -1,5 +1,6 @@
 import "server-only";
 
+import { randomInt } from "node:crypto";
 import { getAddress } from "viem";
 import type { UserProfile } from "../profile";
 import { getDatabase } from "./client";
@@ -8,7 +9,6 @@ type UserRow = {
   id: string;
   evmWallet: string;
   referralCode: string;
-  referredByUserId: string | null;
   profileBio: string | null;
   avatarObjectKey: string | null;
   avatarMimeType: string | null;
@@ -26,12 +26,30 @@ function normalizeWallet(address: `0x${string}`) {
   return getAddress(address).toLowerCase() as `0x${string}`;
 }
 
+const referralAlphabet = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
+const referralCodeLength = 6;
+const referralCodeAttempts = 8;
+
+function generateReferralCode() {
+  return Array.from(
+    { length: referralCodeLength },
+    () => referralAlphabet[randomInt(referralAlphabet.length)],
+  ).join("");
+}
+
+function isReferralCodeCollision(error: unknown) {
+  if (!error || typeof error !== "object") return false;
+
+  const postgresError = error as { code?: string; constraint_name?: string };
+  return postgresError.code === "23505"
+    && postgresError.constraint_name === "users_referral_code_unique";
+}
+
 function toUserProfile(row: UserRow): UserProfile {
   return {
     id: row.id,
     evmWallet: row.evmWallet as `0x${string}`,
-    referralCode: row.referralCode as `0x${string}`,
-    referredByUserId: row.referredByUserId,
+    referralCode: row.referralCode,
     bio: row.profileBio,
     avatar: row.avatarObjectKey && row.avatarMimeType && row.avatarUpdatedAt
       ? {
@@ -58,7 +76,6 @@ const userColumns = `
   id,
   evm_wallet AS "evmWallet",
   referral_code AS "referralCode",
-  referred_by_user_id AS "referredByUserId",
   profile_bio AS "profileBio",
   avatar_object_key AS "avatarObjectKey",
   avatar_mime_type AS "avatarMimeType",
@@ -75,18 +92,27 @@ const userColumns = `
 export async function upsertUserAfterWalletVerification(address: `0x${string}`, chainId: number) {
   const database = getDatabase();
   const evmWallet = normalizeWallet(address);
-  const rows = await database.unsafe<UserRow[]>(`
-    INSERT INTO users (evm_wallet, last_login_chain_id, last_login_at)
-    VALUES ($1, $2, NOW())
-    ON CONFLICT (evm_wallet) DO UPDATE SET
-      last_login_chain_id = EXCLUDED.last_login_chain_id,
-      last_login_at = NOW(),
-      updated_at = NOW()
-    RETURNING ${userColumns}
-  `, [evmWallet, chainId]);
 
-  if (!rows[0]) throw new Error("The wallet user upsert returned no row.");
-  return toUserProfile(rows[0]);
+  for (let attempt = 0; attempt < referralCodeAttempts; attempt += 1) {
+    try {
+      const rows = await database.unsafe<UserRow[]>(`
+        INSERT INTO users (evm_wallet, referral_code, last_login_chain_id, last_login_at)
+        VALUES ($1, $2, $3, NOW())
+        ON CONFLICT (evm_wallet) DO UPDATE SET
+          last_login_chain_id = EXCLUDED.last_login_chain_id,
+          last_login_at = NOW(),
+          updated_at = NOW()
+        RETURNING ${userColumns}
+      `, [evmWallet, generateReferralCode(), chainId]);
+
+      if (!rows[0]) throw new Error("The wallet user upsert returned no row.");
+      return toUserProfile(rows[0]);
+    } catch (error) {
+      if (!isReferralCodeCollision(error) || attempt === referralCodeAttempts - 1) throw error;
+    }
+  }
+
+  throw new Error("Unable to allocate a unique referral code.");
 }
 
 export async function getUserForSession(userId: string, address: `0x${string}`) {
