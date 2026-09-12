@@ -7,8 +7,22 @@ import FilterBar from '../components/explore/FilterBar';
 import VsListServer from '../components/explore/VsListServer';
 import ExploreVisualEffects from '../components/explore/ExploreVisualEffects';
 import { ExploreSearchProvider } from '../components/explore/ExploreSearchProvider';
+import { getDebates } from '../lib/debates';
+import type { Debate } from '../lib/debates';
+import { getIndexedDebates } from '../lib/db/debates';
 
-export default function ExplorePage() {
+export default async function ExplorePage() {
+  const mockDebates = getDebates();
+  let indexedDebates: Debate[] = [];
+  let indexedReadFailed = false;
+
+  try {
+    indexedDebates = await getIndexedDebates();
+  } catch (error) {
+    indexedReadFailed = true;
+    console.error("Unable to load indexed versus for Explore.", error);
+  }
+
   const gridPattern = [
     [1, 1], [1, 1], [2, 1], [1, 2], [1, 1], [2, 1], [1, 1], [1, 1],
     [1, 2], [1, 1], [2, 1], [1, 1], [1, 1], [2, 2], [1, 1], [1, 1],
@@ -42,11 +56,15 @@ export default function ExplorePage() {
 
           <TickerServer />
 
-          <HotTrending />
+          <HotTrending mockDebates={mockDebates} indexedDebates={indexedDebates} />
 
           <FilterBar />
 
-          <VsListServer />
+          <VsListServer
+            mockDebates={mockDebates}
+            indexedDebates={indexedDebates}
+            indexedReadFailed={indexedReadFailed}
+          />
         </ExploreSearchProvider>
 
         <div className="preview-modal-overlay" id="quickAmountModalOverlay" style={{ display: 'none' }}>

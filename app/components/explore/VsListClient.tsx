@@ -68,13 +68,20 @@ function matchesSearch(debate: Debate, query: string) {
   return normalizeSearch(value).includes(query) || compactSearch(value).includes(compactSearch(query));
 }
 
-export default function VsListClient({ debates }: { debates: Debate[] }) {
+type VsListClientProps = {
+  mockDebates: Debate[];
+  indexedDebates: Debate[];
+  indexedReadFailed: boolean;
+};
+
+export default function VsListClient({ mockDebates, indexedDebates, indexedReadFailed }: VsListClientProps) {
   const { mockEnabled } = useMock();
   const { query, category } = useExploreSearch();
   const [sortMode, setSortMode] = useState<SortMode>("trending");
   const [menuOpen, setMenuOpen] = useState(false);
   const [view, setView] = useState<"grid" | "table">("grid");
   const [now, setNow] = useState<number | null>(null);
+  const indexedFeedEmpty = indexedDebates.length === 0;
 
   useEffect(() => {
     const syncNow = () => setNow(Date.now());
@@ -87,7 +94,7 @@ export default function VsListClient({ debates }: { debates: Debate[] }) {
   }, []);
 
   const filtered = useMemo(() => {
-    if (!mockEnabled) return [];
+    const debates = mockEnabled ? mockDebates : indexedDebates;
     const normalizedQuery = normalizeSearch(query);
     const list = category === "HotTake"
       ? [...debates].sort((a, b) => debateVolume(b) - debateVolume(a)).slice(0, 12)
@@ -98,7 +105,7 @@ export default function VsListClient({ debates }: { debates: Debate[] }) {
     if (sortMode === "holders") searchedList.sort((a, b) => debateParticipants(b) - debateParticipants(a));
     if (sortMode === "recent") searchedList.sort((a, b) => newestTimestamp(b) - newestTimestamp(a));
     return searchedList.slice(0, sortMode === "trending" ? 12 : debates.length);
-  }, [category, debates, mockEnabled, query, sortMode]);
+  }, [category, indexedDebates, mockDebates, mockEnabled, query, sortMode]);
 
   return (
     <section className="grid-section">
@@ -172,8 +179,16 @@ export default function VsListClient({ debates }: { debates: Debate[] }) {
         {!mockEnabled && filtered.length === 0 ? (
           <div className="explore-empty-versus" role="status">
             <span className="explore-empty-versus-icon" aria-hidden="true">VS</span>
-            <h2>No versus available yet</h2>
-            <p>No live versus have been returned by the data source. Enable Mock data to preview the feed.</p>
+            <h2>{indexedReadFailed
+              ? "Live versus are temporarily unavailable"
+              : indexedFeedEmpty
+                ? "No versus available yet"
+                : "No matching versus"}</h2>
+            <p>{indexedReadFailed
+              ? "Explore could not read the Railway indexer. Try again shortly or enable Mock data to preview the feed."
+              : indexedFeedEmpty
+                ? "Goldsky has not projected any complete versus yet. Enable Mock data to preview the feed."
+                : "Try a different search, category, or sorting option."}</p>
           </div>
         ) : view === "grid" ? (
           <div className="card-grid">

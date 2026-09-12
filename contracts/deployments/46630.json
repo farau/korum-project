@@ -1,0 +1,41 @@
+{
+  "chainId": 46630,
+  "network": "robinhood-testnet",
+  "contracts": {
+    "KorumCore": {
+      "address": "0x08E1f34E0Fb10a0339ecBa8Cba2021Ea2Bb1171E",
+      "deploymentBlock": 116108373
+    },
+    "KorumFactory": {
+      "address": "0x18d70D9cA430747b81E6afb667aBDC923b16B417",
+      "deploymentBlock": 116108344
+    },
+    "KorumHook": {
+      "address": "0x63bAb3Ba5BdFc46D65fcaf3Beacf8Ee94438e0cc",
+      "deploymentBlock": 116108400
+    },
+    "KorumRouter": {
+      "address": "0xA933fD4D16FfcC6E7FE98dBE11121EC1A099a7ce",
+      "deploymentBlock": 116108264
+    },
+    "FeeEscrow": {
+      "address": "0xfb96ABE72B3D52E407f0A25c4D4CeDaD24985EA9",
+      "deploymentBlock": 116108319
+    },
+    "ReferralRegistry": {
+      "address": "0xe72f5f1D4c6793C67F962e2E8C36EE1F0750a24C",
+      "deploymentBlock": 116108291
+    },
+    "LiquidityLocker": {
+      "address": "0x764271Ed2B50FB82B1F552813b7d8F04698fF4CD",
+      "deploymentBlock": 116108243
+    }
+  },
+  "dependencies": {
+    "PoolManager": "0x8366a39cc670b4001a1121b8f6a443a643e40951",
+    "PositionManager": "0x58daec3116aae6d93017baaea7749052e8a04fa7",
+    "StateView": "0xf3334192d15450cdd385c8b70e03f9a6bd9e673b",
+    "Quoter": "0x8dc178efb8111bb0973dd9d722ebeff267c98f94",
+    "Permit2": "0x000000000022D473030F116dDEE9F6B43aC78BA3"
+  }
+}

@@ -2,9 +2,8 @@
 
 import React from "react";
 import Link from "next/link";
-import { getDebates } from "../../lib/debates";
-
-const debates = getDebates().sort((a, b) => b.volume24h - a.volume24h).slice(0, 6);
+import type { Debate } from "../../lib/debates";
+import { useMock } from "../MockProvider";
 
 function FireIcon({ className = "ht-fire" }: { className?: string }) {
   return (
@@ -18,7 +17,14 @@ function fmtMoney(value: number) {
   return `$${Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 1 }).format(value)}`;
 }
 
-export default function HotTrending() {
+export default function HotTrending({ mockDebates, indexedDebates }: { mockDebates: Debate[]; indexedDebates: Debate[] }) {
+  const { mockEnabled } = useMock();
+  const debates = [...(mockEnabled ? mockDebates : indexedDebates)]
+    .sort((a, b) => b.volume24h - a.volume24h)
+    .slice(0, 6);
+
+  if (!debates.length) return null;
+
   return (
     <section className="hot-trending">
       <div className="hot-trending-title">

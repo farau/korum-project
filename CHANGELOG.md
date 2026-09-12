@@ -22,12 +22,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Database-backed `users` table with UUID identities, unique normalized EVM wallets, unique short referral codes, editable profile metadata, and login timestamps.
 - Transactional database smoke test for wallet upsert and referral invariants.
 - Isolated PostgreSQL `indexer` read model for `ReferrerBound`, `VersusCreated`, and `CampCreated` events.
+- Deployed Goldsky streaming pipeline for Robinhood Testnet with decode-once event processing and independent PostgreSQL projections for referrals, versus records, and camps.
 - Transactional indexer smoke test covering referral bindings and complete two-camp versus projections.
 - Global `?ref=ABC123` referral capture with database validation, URL sanitization, a temporary server-only cookie, and authenticated wallet resolution for future contract calls.
 - End-to-end authentication check with an automatically removed ephemeral wallet user.
 - End-to-end referral attribution checks covering capture, pending resolution, and self-referral rejection.
 - Referral and indexer architecture decision documenting ownership boundaries, cookie lifecycle, later contract interactions, Goldsky projections, and rejected alternatives.
 - Functional notification center in the header with persistent unread referral confirmations.
+- Versioned contract artifact structure for shared ABIs and chain-specific deployment addresses.
+- Frontend-ready `VersusToken` ABI with standard ERC-20 reads, approvals, transfers, events, and token metadata URI.
 - Authenticated profile bio updates with strict server-side validation.
 - Complete responsive Korum application shell with shared header and footer.
 - Canonical Explore page with animated grid lines, pointer halo, search, category filters, sorting, grid view, and table view.
@@ -48,6 +51,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Dark and light themes with a persisted preference and animated view transition where supported.
 - Project favicon, Korum footer branding, Robinhood Chain attribution, and reference media assets.
 - Responsive behavior for desktop and mobile layouts.
+- Contract-backed Versus creation page with live launch configuration and cost reads, token/camp setup, responsive preview, wallet network switching, transaction simulation, `createVersus` publication, receipt decoding, and referral finalization.
+- Server-only Railway reader that joins indexed Versus records with both camps and maps complete projections to the frontend data contract.
+- Live indexed Versus feed in Explore, including camp metadata, media, token addresses, creator information, and creation timestamps.
 
 ### Changed
 
@@ -74,6 +80,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Updated date and number presentation to English and UTC-oriented formats.
 - Aligned the header, footer, Explore, Earn, Concept, Leaderboard, Privacy Policy, and Terms of Use visuals with the Korum reference document.
 - Removed personal first-name and last-name fields from the wallet profile experience.
+- Translated the complete Versus creation interface to English and consolidated its page-specific styles into globally loaded, `create-`-prefixed selectors.
+- Made Railway-indexed Versus data the default source across Explore, matchup details, Watchlist, and Analytics, with fixture data available only through the explicit Mock data control.
+- Kept market and trading metrics neutral until Goldsky indexes the events required to calculate them.
 
 ### Fixed
 
@@ -110,6 +119,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Improved Leaderboard crown spacing and iridescent colors.
 - Added hover elevation and clearer borders to primary interactive controls.
 - Made the favicon opaque and visible in browser tabs.
+- Converted decoded Solidity `uint128` and `uint256` event parameters to Goldsky `U256` values before PostgreSQL writes, unblocking exact `NUMERIC` inserts for versus IDs and camp launch values.
 
 ## [0.1.0] - 2026-08-31
 

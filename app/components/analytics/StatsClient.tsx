@@ -10,6 +10,7 @@ const chartWeek = [32, 48, 41, 59, 73, 67, 86];
 const labelsAll = ["J", "F", "M", "A", "M", "J", "J", "A", "S", "O", "N", "D"];
 const labelsWeek = ["M", "T", "W", "T", "F", "S", "S"];
 const categoryColors = ["#00A1FD", "#D794F3", "#F3D8AD", "#9DDA72", "#07CCC3", "#58E877", "#FF453A"];
+const emptyDebates: Debate[] = [];
 
 function useCountUp(value: number) {
   const [display, setDisplay] = useState(0);
@@ -132,12 +133,17 @@ export default function StatsClient({ debates }: { debates: Debate[] }) {
   useEffect(() => {
     if (mockEnabled) return;
     fetch("/api/debates")
-      .then((response) => response.json())
+      .then(async (response) => {
+        if (!response.ok) throw new Error(`Unable to load live versus (${response.status}).`);
+        const data: unknown = await response.json();
+        if (!Array.isArray(data)) throw new Error("The live versus response is invalid.");
+        return data as Debate[];
+      })
       .then((data) => setLiveData(data))
-      .catch(() => setLiveData(debates));
+      .catch(() => setLiveData([]));
   }, [mockEnabled, debates]);
 
-  const src = mockEnabled ? debates : liveData || debates;
+  const src = mockEnabled ? debates : liveData ?? emptyDebates;
   const totalVolume = src.reduce((sum, debate) => sum + debate.volume24h, 0);
   const participantCount = src.reduce((sum, debate) => sum + debate.participantCount, 0);
   const trades = Math.round(participantCount * 3.6);

@@ -18,10 +18,18 @@ export default function WatchlistView({ debates: serverDebates }: { debates: Deb
 
   useEffect(() => {
     if (mockEnabled) return;
-    fetch("/api/debates").then((response) => response.json()).then((data) => setLive(data)).catch(() => setLive(null));
+    fetch("/api/debates")
+      .then(async (response) => {
+        if (!response.ok) throw new Error(`Unable to load live versus (${response.status}).`);
+        const data: unknown = await response.json();
+        if (!Array.isArray(data)) throw new Error("The live versus response is invalid.");
+        return data as Debate[];
+      })
+      .then(setLive)
+      .catch(() => setLive([]));
   }, [mockEnabled]);
 
-  const source = mockEnabled ? serverDebates : live || serverDebates;
+  const source = mockEnabled ? serverDebates : live ?? [];
   const items = source.filter((debate) => ids.includes(debate.id));
   const stats = useMemo(() => {
     const volume = items.reduce((sum, debate) => sum + debate.volume24h, 0);

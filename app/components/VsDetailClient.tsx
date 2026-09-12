@@ -2,9 +2,26 @@
 import React from 'react';
 import type { Debate } from '../lib/debates';
 import Link from 'next/link';
+import { useMock } from './MockProvider';
 
-export default function VsDetailClient({ debate }: { debate?: Debate }) {
-  if (!debate) return <div>Debate not found</div>;
+type VsDetailClientProps = {
+  mockDebate?: Debate;
+  indexedDebate: Debate | null;
+  indexedReadFailed: boolean;
+};
+
+export default function VsDetailClient({ mockDebate, indexedDebate, indexedReadFailed }: VsDetailClientProps) {
+  const { mockEnabled } = useMock();
+  const debate = mockEnabled ? mockDebate : indexedDebate;
+
+  if (!debate) {
+    return (
+      <div className="vs-detail" style={{ padding: 20 }}>
+        <Link href="/explore">← Back to Explore</Link>
+        <h1>{!mockEnabled && indexedReadFailed ? "Versus data is temporarily unavailable" : "Versus not found"}</h1>
+      </div>
+    );
+  }
 
   return (
     <div className="vs-detail" style={{ padding: 20 }}>

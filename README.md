@@ -56,6 +56,8 @@ The current repository is a functional frontend prototype. It uses deterministic
 
 The accepted separation between application referral codes, the on-chain `ReferralRegistry`, Goldsky, and the Railway PostgreSQL read model is documented in [Referral and Indexer Architecture](./docs/referral-and-indexer-architecture.md). Read it before changing referral attribution, transaction arguments, indexer tables, or versus ingestion.
 
+Contract ABI conventions and chain-specific public addresses are documented in [Contract Artifacts](./contracts/README.md).
+
 ## Requirements
 
 - Node.js 20.9.0 or newer

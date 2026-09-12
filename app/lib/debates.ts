@@ -39,6 +39,9 @@ export type DebateToken = {
 
 export type Debate = {
   id: number;
+  title?: string;
+  description?: string;
+  socialsJson?: string;
   sideA: string;
   sideB: string;
   category: string;

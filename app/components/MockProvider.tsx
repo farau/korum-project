@@ -10,16 +10,16 @@ type MockContextValue = {
 const MockContext = createContext<MockContextValue | null>(null);
 
 export function MockProvider({ children }: { children: React.ReactNode }) {
-  const [mockEnabled, setMockEnabled] = useState<boolean>(true);
+  const [mockEnabled, setMockEnabled] = useState<boolean>(false);
   const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
       try {
         const v = localStorage.getItem('korum-mock');
-        setMockEnabled(v === null ? true : v === '1' || v === 'true');
+        setMockEnabled(v === '1' || v === 'true');
       } catch {
-        setMockEnabled(true);
+        setMockEnabled(false);
       }
       setHydrated(true);
     }, 0);
