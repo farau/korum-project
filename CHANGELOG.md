@@ -28,7 +28,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - End-to-end authentication check with an automatically removed ephemeral wallet user.
 - End-to-end referral attribution checks covering capture, pending resolution, and self-referral rejection.
 - Referral and indexer architecture decision documenting ownership boundaries, cookie lifecycle, later contract interactions, Goldsky projections, and rejected alternatives.
-- Functional notification center in the header with persistent unread referral confirmations.
+- Functional notification center in the header with persistent unread referral confirmations and watchlist add/remove updates.
 - Versioned contract artifact structure for shared ABIs and chain-specific deployment addresses.
 - Frontend-ready `VersusToken` ABI with standard ERC-20 reads, approvals, transfers, events, and token metadata URI.
 - Authenticated profile bio updates with strict server-side validation.
@@ -40,7 +40,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Deterministic debate and token fixtures exposed through `/api/debates`.
 - Detailed `Debate` and `DebateToken` TypeScript contracts for future Railway indexer integration.
 - Dynamic `/vs/[id]` route for matchup details.
-- Persistent browser watchlist and dedicated `/watchlist` page.
+- Wallet-bound watchlist synchronized from Railway across cards, tables, details, profiles, tabs, and devices, with toggleable stars, add/remove notifications, and a dedicated `/watchlist` page.
 - Wallet-gated profile with a unique six-character referral code associated with the connected EVM address.
 - Earn page with creator, trader, and referral explanations.
 - Interactive creator and referral revenue calculator with tiered creator fees.
@@ -54,6 +54,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Contract-backed Versus creation page with live launch configuration and cost reads, token/camp setup, responsive preview, wallet network switching, transaction simulation, `createVersus` publication, receipt decoding, and referral finalization.
 - Server-only Railway reader that joins indexed Versus records with both camps and maps complete projections to the frontend data contract.
 - Live indexed Versus feed in Explore, including camp metadata, media, token addresses, creator information, and creation timestamps.
+- Contract-backed trading panels on each Versus token with live ETH/token balances, on-chain buy and sell quotes, 1% minimum-output protection, wallet network switching, ERC-20 approval handling, receipt confirmation, and explorer links.
+- Inline Explore trading controls shared with the Versus detail flow, opened directly in Buy or Sell mode and kept inside each card without navigation or overlays.
+- Automatic trading-venue selection between the active `KorumCore` bonding curve and the graduated Uniswap pool through `KorumRouter`.
+- Authenticated Railway-backed `user_watchlist` storage with protected read, add, and remove endpoints and transactional schema coverage.
 
 ### Changed
 
@@ -83,6 +87,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Translated the complete Versus creation interface to English and consolidated its page-specific styles into globally loaded, `create-`-prefixed selectors.
 - Made Railway-indexed Versus data the default source across Explore, matchup details, Watchlist, and Analytics, with fixture data available only through the explicit Mock data control.
 - Kept market and trading metrics neutral until Goldsky indexes the events required to calculate them.
+- Centralized the deployed router, hook, and Versus token contract artifacts in the shared frontend contract adapter.
 
 ### Fixed
 
@@ -120,6 +125,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Added hover elevation and clearer borders to primary interactive controls.
 - Made the favicon opaque and visible in browser tabs.
 - Converted decoded Solidity `uint128` and `uint256` event parameters to Goldsky `U256` values before PostgreSQL writes, unblocking exact `NUMERIC` inserts for versus IDs and camp launch values.
+- Kept Wagmi's cookie-restored account state hidden until browser mount, preventing wallet controls and trading panels from producing hydration mismatches.
+- Resolved watchlist entries against their Railway-indexed Versus and camp rows instead of same-numbered mock fixtures.
 
 ## [0.1.0] - 2026-08-31
 

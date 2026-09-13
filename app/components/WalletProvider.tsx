@@ -179,10 +179,16 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   const { openAccountModal } = useAccountModal();
   const { openConnectModal } = useConnectModal();
   const authContext = useContext(AuthContext);
+  const [mounted, setMounted] = useState(false);
   const previousAuthenticationStatus = useRef<AuthenticationStatus | null>(null);
   const promptedAddress = useRef<string | null>(null);
   if (!authContext) throw new Error("WalletProvider must be used within WalletAuthenticationProvider");
   const { authenticationStatus } = authContext;
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => setMounted(true), 0);
+    return () => window.clearTimeout(timer);
+  }, []);
 
   useEffect(() => {
     const previousStatus = previousAuthenticationStatus.current;
@@ -221,21 +227,26 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     openConnectModal?.();
   }, [authenticationStatus, openAccountModal, openConnectModal]);
 
-  const normalizedAddress = address || null;
+  // Wagmi may restore a cookie-backed account on the server before the matching
+  // connector exists in the browser. Hide account state until mount so every
+  // consumer gets the same first render and React can hydrate deterministically.
+  const normalizedAddress = mounted ? address || null : null;
+  const connected = mounted && isConnected;
   const authenticated = Boolean(
     authenticationStatus === "authenticated"
     && normalizedAddress
     && authContext.sessionAddress
     && normalizedAddress.toLowerCase() === authContext.sessionAddress.toLowerCase(),
   );
-  const authenticating = Boolean(isConnected && authenticationStatus === "loading");
-  const hydrated = accountStatus !== "connecting"
+  const authenticating = Boolean(connected && authenticationStatus === "loading");
+  const hydrated = mounted
+    && accountStatus !== "connecting"
     && accountStatus !== "reconnecting"
     && authenticationStatus !== "loading";
 
   const value = useMemo<WalletContextValue>(() => ({
     address: normalizedAddress,
-    connected: isConnected,
+    connected,
     authenticated,
     authenticating,
     hydrated,
@@ -248,7 +259,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     authenticating,
     connect,
     hydrated,
-    isConnected,
+    connected,
     normalizedAddress,
     openWallet,
   ]);

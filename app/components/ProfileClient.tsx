@@ -3,14 +3,12 @@
 import Link from "next/link";
 import React, { useMemo, useState } from "react";
 import { useWatchlist } from "../hooks/useWatchlist";
-import type { Debate } from "../lib/debates";
 import type { UserProfile } from "../lib/profile";
 import { shortenAddress, useWallet } from "./WalletProvider";
 
 type ProfileTab = "information" | "activity" | "referrals" | "badges" | "watchlist" | "simulator";
 
 type ProfileClientProps = {
-  debates: Debate[];
   profile: UserProfile | null;
   sessionAddress: string | null;
   sessionChainId: number | null;
@@ -274,15 +272,15 @@ function BadgesPanel() {
   );
 }
 
-function WatchlistPanel({ debates }: { debates: Debate[] }) {
-  const { ids, remove } = useWatchlist();
+function WatchlistPanel() {
+  const { ids, debates, ready, remove } = useWatchlist();
   const watched = useMemo(() => debates.filter((debate) => ids.includes(debate.id)), [debates, ids]);
 
   return (
     <div className="profile-tab-panel" role="tabpanel" id="profile-panel-watchlist">
       <div className="profile-section-title"><div><span className="profile-eyebrow">Saved markets</span><h2>Watchlist</h2></div><span className="profile-count-pill">{watched.length}</span></div>
-      {watched.length ? <div className="profile-table-scroll"><table className="profile-data-table profile-watchlist-table"><thead><tr><th>Versus</th><th>Category</th><th>24h volume</th><th>Participants</th><th><span className="sr-only">Actions</span></th></tr></thead><tbody>
-        {watched.map((debate) => <tr key={debate.id}><td><Link href={`/vs/${debate.id}`}>{debate.sideA} <span>vs</span> {debate.sideB}</Link></td><td>{debate.category}</td><td>{compactMoney(debate.volume24h)}</td><td>{Intl.NumberFormat("en-US").format(debate.participantCount)}</td><td><button type="button" onClick={() => remove(debate.id)}>Remove</button></td></tr>)}
+      {!ready ? <div className="profile-empty-state"><Icon name="bolt" /><strong>Loading your watchlist...</strong></div> : watched.length ? <div className="profile-table-scroll"><table className="profile-data-table profile-watchlist-table"><thead><tr><th>Versus</th><th>Category</th><th>24h volume</th><th>Participants</th><th><span className="sr-only">Actions</span></th></tr></thead><tbody>
+        {watched.map((debate) => <tr key={debate.id}><td><Link href={`/vs/${debate.id}`}>{debate.sideA} <span>vs</span> {debate.sideB}</Link></td><td>{debate.category}</td><td>{compactMoney(debate.volume24h)}</td><td>{Intl.NumberFormat("en-US").format(debate.participantCount)}</td><td><button type="button" onClick={() => remove(debate.id, `${debate.sideA} vs ${debate.sideB}`)}>Remove</button></td></tr>)}
       </tbody></table></div> : <div className="profile-empty-state"><Icon name="bolt" /><strong>Your watchlist is empty</strong><p>Save a versus from Explore to find it here.</p><Link className="btn" href="/explore">Explore versus</Link></div>}
     </div>
   );
@@ -319,7 +317,7 @@ function LockedProfile({ connected, authenticating, authError, connect, loading 
   );
 }
 
-export default function ProfileClient({ debates, profile, sessionAddress, sessionChainId }: ProfileClientProps) {
+export default function ProfileClient({ profile, sessionAddress, sessionChainId }: ProfileClientProps) {
   const { address, connected, authenticated, authenticating, connect, hydrated, authError } = useWallet();
   const [activeTab, setActiveTab] = useState<ProfileTab>("information");
   const [currentProfile, setCurrentProfile] = useState(profile);
@@ -335,7 +333,7 @@ export default function ProfileClient({ debates, profile, sessionAddress, sessio
     activity: <ActivityPanel />,
     referrals: <ReferralsPanel code={currentProfile.referralCode} />,
     badges: <BadgesPanel />,
-    watchlist: <WatchlistPanel debates={debates} />,
+    watchlist: <WatchlistPanel />,
     simulator: <SimulatorPanel />,
   };
 

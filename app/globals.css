@@ -5548,8 +5548,7 @@ html[data-theme="dark"] .explore-page,
 
 .explore-page .vs-quick-amount,
 .explore-page .vs-buy-row,
-.explore-page .vs-cta-buy,
-.explore-page .watchlist-mini {
+.explore-page .vs-cta-buy {
   display: none;
 }
 
@@ -6932,7 +6931,43 @@ html[data-theme="light"] .explore-page .hero-search-wrap .korum-search-input {
 }
 
 .explore-page .watchlist-mini {
-  display: none;
+  display: grid;
+  place-items: center;
+  top: 130px;
+  right: 10px;
+  z-index: 6;
+  width: 30px;
+  height: 30px;
+  border-color: rgba(255,255,255,.28);
+  background: rgba(15,15,16,.82);
+  color: #f1f1f3;
+  font-size: 17px;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.explore-page .watchlist-mini:hover,
+.explore-page .watchlist-mini:focus-visible {
+  border-color: #fff;
+}
+
+.explore-page .watchlist-mini.active {
+  color: #ffd60a;
+}
+
+html[data-theme="light"] .explore-page .watchlist-mini {
+  border-color: rgba(0,0,0,.18);
+  background: rgba(255,255,255,.88);
+  color: #5b5b61;
+}
+
+html[data-theme="light"] .explore-page .watchlist-mini:hover,
+html[data-theme="light"] .explore-page .watchlist-mini:focus-visible {
+  border-color: #111;
+}
+
+html[data-theme="light"] .explore-page .watchlist-mini.active {
+  color: #b97800;
 }
 
 html[data-theme="light"] .explore-page .pill:not(.active) {
@@ -9562,6 +9597,7 @@ html[data-theme="light"] #page-leaderboard .lb-podium-blocks-bg {
 .table-thumb { display: grid; place-items: center; font-size: 12px; }
 .table-star.active { color: #c58b00; }
 html[data-theme="dark"] .table-star.active { color: #ffd60a; }
+.explore-page .card-grid{align-items:start}.vs-inline-trade{display:grid;gap:8px;padding-top:2px}.vs-inline-trade-status{margin:0;color:var(--green);font:650 8px var(--mono);text-align:center}.vs-inline-trade-hint{margin:0;padding:9px 10px;border:1px dashed var(--line);border-radius:8px;color:var(--text-3);font-size:9px;line-height:1.4;text-align:center}
 
 .analytics-page .tac-period-toggle { isolation: isolate; }
 .analytics-page .tac-period-toggle .pill { border: 0; font-weight: 600; }

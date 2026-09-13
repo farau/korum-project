@@ -2,6 +2,13 @@
 import React, { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import {
+  NOTIFICATION_EVENT,
+  isAppNotification,
+  readStoredNotifications,
+  storeNotifications,
+  type AppNotification,
+} from "../lib/notifications/client";
 import { useMock } from "./MockProvider";
 import { shortenAddress, useWallet } from "./WalletProvider";
 
@@ -12,43 +19,6 @@ const navItems = [
   { href: "/concept", label: "Concept" },
   { href: "/analytics", label: "Analytics" },
 ];
-
-const NOTIFICATION_STORAGE_KEY = "korum-notifications-v1";
-
-type AppNotification = {
-  id: string;
-  type: "referral";
-  title: string;
-  message: string;
-  createdAt: string;
-  read: boolean;
-};
-
-function readStoredNotifications() {
-  try {
-    const value: unknown = JSON.parse(localStorage.getItem(NOTIFICATION_STORAGE_KEY) || "[]");
-    if (!Array.isArray(value)) return [];
-
-    return value.filter((notification): notification is AppNotification => {
-      if (!notification || typeof notification !== "object") return false;
-      const candidate = notification as Partial<AppNotification>;
-      return typeof candidate.id === "string"
-        && candidate.type === "referral"
-        && typeof candidate.title === "string"
-        && typeof candidate.message === "string"
-        && typeof candidate.createdAt === "string"
-        && typeof candidate.read === "boolean";
-    }).slice(0, 10);
-  } catch {
-    return [];
-  }
-}
-
-function storeNotifications(notifications: AppNotification[]) {
-  try {
-    localStorage.setItem(NOTIFICATION_STORAGE_KEY, JSON.stringify(notifications));
-  } catch {}
-}
 
 function notificationTime(createdAt: string) {
   const elapsedMinutes = Math.max(0, Math.floor((Date.now() - Date.parse(createdAt)) / 60_000));
@@ -134,6 +104,22 @@ export default function Header() {
 
     void loadReferralNotification();
     return () => { cancelled = true; };
+  }, []);
+
+  useEffect(() => {
+    function showClientNotification(event: Event) {
+      const notification = (event as CustomEvent<unknown>).detail;
+      if (!isAppNotification(notification)) return;
+      setNotifications((current) => {
+        const next = [notification, ...current.filter((item) => item.id !== notification.id)].slice(0, 10);
+        storeNotifications(next);
+        return next;
+      });
+      setNotificationOpen(true);
+    }
+
+    window.addEventListener(NOTIFICATION_EVENT, showClientNotification);
+    return () => window.removeEventListener(NOTIFICATION_EVENT, showClientNotification);
   }, []);
 
   useEffect(() => {
@@ -232,7 +218,7 @@ export default function Header() {
                   <div className="notification-list">
                     {notifications.map((notification) => (
                       <article className={`notification-item${notification.read ? "" : " unread"}`} key={notification.id}>
-                        <span className="notification-success-icon" aria-hidden="true">✓</span>
+                        <span className="notification-success-icon" aria-hidden="true">{notification.type === "watchlist" ? "★" : "✓"}</span>
                         <div>
                           <strong>{notification.title}</strong>
                           <p>{notification.message}</p>

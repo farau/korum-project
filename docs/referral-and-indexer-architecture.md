@@ -13,7 +13,7 @@ Korum uses three distinct data layers. They intentionally do not duplicate the s
 
 | Layer | Responsibility | Source of truth |
 | --- | --- | --- |
-| Railway PostgreSQL `public.users` | Wallet profiles and short shareable referral codes | Korum application |
+| Railway PostgreSQL `public.users` and `public.user_watchlist` | Wallet profiles, short shareable referral codes, and user watchlists | Korum application |
 | `ReferralRegistry` | Permanent `user -> referrer` binding used by the protocol | Smart contract |
 | Railway PostgreSQL `indexer.*` | Queryable projections of contract events | Goldsky replaying on-chain events |
 
@@ -25,14 +25,14 @@ The application must never store a mutable `referred_by` relationship on `users`
 flowchart LR
   wallet[Connected wallet]
   app[Korum application]
-  users[(Railway PostgreSQL<br/>public.users)]
+  users[(Railway PostgreSQL<br/>public application tables)]
   contracts[Robinhood Testnet<br/>KorumFactory + ReferralRegistry]
   logs[Goldsky<br/>robinhood_testnet.raw_logs]
   decode[Decode once<br/>filter by event]
   indexer[(Railway PostgreSQL<br/>indexer schema)]
 
   wallet -->|sign-in and referral code| app
-  app -->|profile reads and writes| users
+  app -->|profile and watchlist reads/writes| users
   app -->|candidate referrer + protocol call| contracts
   contracts -->|ReferrerBound / CampCreated / VersusCreated| logs
   logs --> decode
@@ -148,6 +148,51 @@ Publication follows this sequence:
 7. Decode `VersusCreated` from the receipt for immediate transaction feedback, then apply the referral cookie lifecycle described above.
 
 Contract confirmation and read-model availability are separate milestones. A successful receipt proves creation on-chain; Goldsky subsequently consumes `CampCreated` and `VersusCreated` and projects them into Railway. The UI must tolerate indexing delay and must not treat a temporary missing database row as a failed contract transaction.
+
+## Trading write path
+
+Both `/vs/[id]` and `/explore` delegate contract interaction to `app/components/TokenTradePanel.tsx`. On Explore, each card keeps the interaction inline: the camp selector chooses the token, and Buy or Sell expands the compact trading controls directly inside that card. No overlay or route change is involved. Railway supplies the token address and display metadata, while every price-sensitive value is read from Robinhood Testnet at interaction time. Indexed rows are discovery data, not transaction authority.
+
+The panel reads:
+
+- the connected wallet's native ETH balance;
+- `VersusToken.decimals()`, `balanceOf(wallet)`, and `allowance(wallet, spender)`;
+- `KorumCore.getCurve(token)` to select the current venue;
+- `KorumCore.getConfig(curve.configId)` when the token has graduated and its pool key must be reconstructed.
+
+The curve status controls routing:
+
+| Status | Frontend behavior |
+| --- | --- |
+| `NONE (0)` | Reject the token as non-tradable. |
+| `TRADING (1)` | Quote and trade through `KorumCore`. |
+| `GRADUATING (2)` | Disable both actions until graduation finishes. |
+| `LIVE (3)` | Reconstruct the pool key and trade through `KorumRouter`. |
+
+On the bonding curve, buys call `quoteBuy(token, ethIn)` and sells call `quoteSell(token, tokenAmount)`. The displayed output and fee come directly from those views. A capped buy may return `ethAccepted < ethIn`; the difference is shown as an automatic refund, while the transaction still attaches the original input expected by `buy`.
+
+The pool venue has no Korum quote view. The frontend therefore performs a read-only simulation of `KorumRouter.swap` with `minAmountOut = 0` to obtain the router's exact returned output, including the hook behavior. Pool sales require the token allowance before this simulation can execute because the simulated router performs `transferFrom`; when necessary, the UI confirms the ERC-20 approval first, then simulates and submits the sale.
+
+Every trade derives `minAmountOut` from a fresh quote immediately before submission and applies a 1% slippage limit. It then simulates the final call with that minimum before opening the wallet. Curve sales approve `KorumCore`; pool sales approve `KorumRouter`. Pool buys attach native ETH exactly equal to `amountIn`, and all trades use the connected wallet as both caller and recipient.
+
+The candidate referrer resolved from the pending referral cookie is passed to `buy`, `sell`, or `swap`. After the final receipt succeeds, the frontend reads `ReferralRegistry.referrerOf(wallet)` and clears the cookie only when a permanent non-zero binding is confirmed. Balances, allowance, and curve status are refreshed after confirmation.
+
+The component never writes trading results to Railway. Contract events will be projected separately by the future Goldsky trading extension; until then, the wallet balance and current quote are authoritative for the trading form while aggregate charts remain explicitly unavailable.
+
+## Database-backed watchlist and notifications
+
+The watchlist is user-owned application data in Railway PostgreSQL, not an indexed blockchain fact. `public.user_watchlist` binds the authenticated `users.id` to `(chain_id, versus_id)`, with a composite primary key preventing duplicates and `ON DELETE CASCADE` removing preferences when a user is deleted. It intentionally has no foreign key to `indexer.versuses`: a Goldsky reindex or temporary projection removal must not erase the user's preference.
+
+`/api/watchlist` is the only browser-facing data boundary:
+
+- `GET` returns the authenticated wallet user's Versus IDs and their complete joined `indexer.versuses`/`indexer.versus_camps` projections for Robinhood Testnet;
+- `POST` verifies that the Versus exists in the Goldsky read model before inserting it;
+- `DELETE` removes the selected ID idempotently;
+- every operation requires the signed wallet session, and mutations enforce same-origin requests.
+
+`useWatchlist()` loads both membership and display data from that API and no longer reads or writes watchlist data in `localStorage`. The Watchlist page and Profile watchlist tab never resolve stored IDs against mock fixtures, preventing collisions between fixture IDs and on-chain Versus IDs. Mutations update mounted components optimistically, revert on API failure, and trigger a database refresh in other tabs through `BroadcastChannel`. Consequently, the watchlist follows the wallet across browsers and devices once that wallet authenticates.
+
+The star on an Explore card or table row and the star on `/vs/[id]` use the same database-backed toggle. Selecting an empty star adds the Versus; selecting its filled state removes it. After the server confirms either mutation, a `watchlist` notification is published to the shared header bell. Notification presentation history remains a browser UI concern, capped at ten entries under `korum-notifications-v1`; it is not the source of truth for watchlist membership.
 
 ## Indexed read model
 
@@ -275,7 +320,7 @@ Connection rules by runtime:
 
 Renaming a Railway environment does not require a YAML change because the YAML references a Goldsky secret by name. If Railway rotates the password, port, host, or database, update the Goldsky secret in place and verify the running sinks. For production, prefer a dedicated PostgreSQL writer role restricted to the `indexer` schema rather than sharing an application-owner credential.
 
-The application credential may read `indexer.*` and manage `public.users`; Goldsky should write only `indexer.*`. PostgreSQL permissions are the enforcement boundary. The schema naming convention alone is not a permission boundary.
+The application credential may read `indexer.*` and manage `public.users` plus `public.user_watchlist`; Goldsky should write only `indexer.*`. PostgreSQL permissions are the enforcement boundary. The schema naming convention alone is not a permission boundary.
 
 ## Checkpoints, backfill, and re-deployments
 
@@ -312,6 +357,7 @@ Run the transactional Railway schema smoke test locally:
 
 ```bash
 node --env-file=.env.local scripts/check-indexer-db.mjs
+node --env-file=.env.local scripts/check-watchlist-db.mjs
 ```
 
 The smoke test rolls its writes back. It verifies constraints and the expected versus/camp join, but it does not prove that Goldsky has observed a real contract event.
@@ -377,11 +423,13 @@ Use a separate pipeline when a new chain needs an independent lifecycle or when 
 | Browser-safe indexed Versus endpoint | `app/api/debates/route.ts` |
 | Live Explore feed | `app/explore/page.tsx`, `app/components/explore/*` |
 | Database read-model definition | `db/migrations/0002_create_indexer_read_model.sql` |
+| Watchlist schema and server adapter | `db/migrations/0003_create_user_watchlist.sql`, `app/lib/db/watchlist.ts` |
+| Authenticated watchlist endpoint and client hook | `app/api/watchlist/route.ts`, `app/hooks/useWatchlist.tsx` |
 | Contract addresses and deployment blocks | `contracts/deployments/46630.json` |
 | Canonical contract ABIs | `contracts/abis/*.json` |
 | Deployed Goldsky pipeline definition | `goldsky/pipelines/korum-robinhood-testnet.yaml` |
 | Indexer database smoke test | `scripts/check-indexer-db.mjs` |
-| End-to-end referral check | `scripts/check-auth-flow.mjs` |
+| End-to-end authentication, referral, and watchlist check | `scripts/check-auth-flow.mjs` |
 
 ## Alternatives rejected
 

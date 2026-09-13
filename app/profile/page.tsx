@@ -3,7 +3,6 @@ import PageWrapper from "../components/PageWrapper";
 import ProfileClient from "../components/ProfileClient";
 import { getWalletSession } from "../lib/auth/session";
 import { getUserForSession } from "../lib/db/users";
-import { getDebates } from "../lib/debates";
 
 export default async function ProfilePage() {
   const session = await getWalletSession();
@@ -14,7 +13,6 @@ export default async function ProfilePage() {
   return (
     <PageWrapper>
       <ProfileClient
-        debates={session ? getDebates() : []}
         profile={profile}
         sessionAddress={session?.address ?? null}
         sessionChainId={session?.chainId ?? null}

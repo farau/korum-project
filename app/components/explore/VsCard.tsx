@@ -3,8 +3,9 @@
 import React from "react";
 import Image from "next/image";
 import Link from "next/link";
-import type { Debate } from "../../lib/debates";
+import type { Debate, DebateToken } from "../../lib/debates";
 import { useWatchlist } from "../../hooks/useWatchlist";
+import TokenTradePanel, { type TradeMode } from "../TokenTradePanel";
 
 const creators = ["Yasmine", "Léo", "Sam", "Nina", "Ines", "Marco"];
 const qa = ["0.01", "0.05", "0.10"];
@@ -48,8 +49,9 @@ function tokenSymbol(name: string) {
   return `$${name.replace(/[^a-z0-9]/gi, "").slice(0, 4).toUpperCase()}`;
 }
 
-function getTokenA(debate: Debate) {
+function getTokenA(debate: Debate): DebateToken {
   return {
+    ...debate.tokenA,
     name: debate.tokenA?.name || debate.sideA,
     symbol: debate.tokenA?.symbol || debate.tokenASymbol || tokenSymbol(debate.sideA),
     image: debate.tokenA?.image || debate.imageA,
@@ -61,8 +63,9 @@ function getTokenA(debate: Debate) {
   };
 }
 
-function getTokenB(debate: Debate) {
+function getTokenB(debate: Debate): DebateToken {
   return {
+    ...debate.tokenB,
     name: debate.tokenB?.name || debate.sideB,
     symbol: debate.tokenB?.symbol || debate.tokenBSymbol || tokenSymbol(debate.sideB),
     image: debate.tokenB?.image || debate.imageB,
@@ -96,7 +99,7 @@ function Spark({ seed, down = false }: { seed: number; down?: boolean }) {
   );
 }
 
-export default function VsCard({ debate, index = 0 }: { debate: Debate; index?: number }) {
+export default function VsCard({ debate, index = 0, inlineTrading = false }: { debate: Debate; index?: number; inlineTrading?: boolean }) {
   const tokenA = getTokenA(debate);
   const tokenB = getTokenB(debate);
   const sideAPercentage = tokenA.marketCap && tokenB.marketCap ? Math.round((tokenA.marketCap / (tokenA.marketCap + tokenB.marketCap)) * 100) : debate.sideAPercentage || 50;
@@ -105,8 +108,10 @@ export default function VsCard({ debate, index = 0 }: { debate: Debate; index?: 
   const starred = has(debate.id);
   const ref = React.useRef<HTMLElement | null>(null);
   const [entered, setEntered] = React.useState(false);
-  const [mode, setMode] = React.useState<"buy" | "sell">("buy");
+  const [mode, setMode] = React.useState<TradeMode>("buy");
   const [side, setSide] = React.useState<"sideA" | "sideB">(leaderIsA ? "sideA" : "sideB");
+  const [tradeExpanded, setTradeExpanded] = React.useState(false);
+  const [tradeStatus, setTradeStatus] = React.useState("");
   const [failedImages, setFailedImages] = React.useState({ debateId: debate.id, sideA: false, sideB: false });
   const [now, setNow] = React.useState<number | null>(null);
   const badge = creatorBadge(index);
@@ -147,9 +152,17 @@ export default function VsCard({ debate, index = 0 }: { debate: Debate; index?: 
   const tokenBTimestamp = timestampMs(tokenB.launchedAt) ?? timestampMs(tokenB.launchTimestamp);
   const newestLaunchTimestamp = Math.max(tokenATimestamp ?? debateTimestamp ?? 0, tokenBTimestamp ?? debateTimestamp ?? 0) || debateTimestamp;
   const ageLabel = relativeAge(newestLaunchTimestamp, now, debate.createdMinutesAgo);
+  const selectedToken = side === "sideA" ? tokenA : tokenB;
+
+  function selectTradeMode(nextMode: TradeMode) {
+    setMode(nextMode);
+    setTradeStatus("");
+    if (inlineTrading) setTradeExpanded(true);
+  }
 
   return (
-    <article ref={ref} className={`vs-card mode-${mode}${entered ? " in" : ""}`}>
+    <>
+      <article ref={ref} className={`vs-card mode-${mode}${entered ? " in" : ""}`}>
       <Link href={`/vs/${debate.id}`} className="vs-card-link" aria-label={`${tokenA.name} vs ${tokenB.name}`}>
         <div className="vs-thumb-pair">
           <div className="thumb-square">
@@ -252,41 +265,62 @@ export default function VsCard({ debate, index = 0 }: { debate: Debate; index?: 
         </div>
 
         <div className="trade-toggle">
-          <button type="button" data-mode-btn="buy" className={mode === "buy" ? "active" : ""} onClick={() => setMode("buy")}>Buy</button>
-          <button type="button" data-mode-btn="sell" className={mode === "sell" ? "active" : ""} onClick={() => setMode("sell")}>Sell</button>
-        </div>
-
-        <div className="vs-quick-amount">
-          <span className="qa-label">Amount</span>
-          {qa.map((amount, amountIndex) => (
-            <button type="button" className={`qa-btn ${amountIndex === 0 ? "active" : ""}`} data-usd={`≈ ${fmtMoney(Number(amount) * 3200)}`} key={amount}>{amount}</button>
-          ))}
-          <button type="button" className="qa-btn qa-btn-max" data-usd="≈ max">MAX</button>
-          <span className="qa-unit">ETH</span>
+          <button type="button" data-mode-btn="buy" className={mode === "buy" ? "active" : ""} onClick={() => selectTradeMode("buy")}>Buy</button>
+          <button type="button" data-mode-btn="sell" className={mode === "sell" ? "active" : ""} onClick={() => selectTradeMode("sell")}>Sell</button>
         </div>
 
         <div className="vs-buy-row">
-          <button className={`vs-buy ${side === "sideA" ? "active" : ""}`} type="button" onClick={() => setSide("sideA")}>{tokenA.symbol}</button>
-          <button className={`vs-buy ${side === "sideB" ? "active" : ""}`} type="button" onClick={() => setSide("sideB")}>{tokenB.symbol}</button>
+          <button className={`vs-buy ${side === "sideA" ? "active" : ""}`} type="button" onClick={() => { setSide("sideA"); setTradeStatus(""); }}>{tokenA.symbol}</button>
+          <button className={`vs-buy ${side === "sideB" ? "active" : ""}`} type="button" onClick={() => { setSide("sideB"); setTradeStatus(""); }}>{tokenB.symbol}</button>
         </div>
 
-        <button type="button" className="vs-cta-buy">
-          <span className="vs-cta-label">{mode === "buy" ? "Buy" : "Sell"} {selected}</span>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
-            <line x1="5" y1="12" x2="19" y2="12" />
-            <polyline points="12 5 19 12 12 19" />
-          </svg>
-        </button>
+        {inlineTrading ? (
+          tradeExpanded ? (
+            <div className="vs-inline-trade">
+              <TokenTradePanel
+                key={`${selectedToken.address ?? selectedToken.symbol}-${mode}`}
+                token={selectedToken}
+                initialMode={mode}
+                compact
+                onStatus={setTradeStatus}
+              />
+              {tradeStatus ? <p className="vs-inline-trade-status" role="status">{tradeStatus}</p> : null}
+            </div>
+          ) : (
+            <p className="vs-inline-trade-hint">Select Buy or Sell to trade {selected} on this card.</p>
+          )
+        ) : (
+          <>
+            <div className="vs-quick-amount">
+              <span className="qa-label">Amount</span>
+              {qa.map((amount, amountIndex) => (
+                <button type="button" className={`qa-btn ${amountIndex === 0 ? "active" : ""}`} data-usd={`≈ ${fmtMoney(Number(amount) * 3200)}`} key={amount}>{amount}</button>
+              ))}
+              <button type="button" className="qa-btn qa-btn-max" data-usd="≈ max">MAX</button>
+              <span className="qa-unit">ETH</span>
+            </div>
+            <button type="button" className="vs-cta-buy">
+              <span className="vs-cta-label">{mode === "buy" ? "Buy" : "Sell"} {selected}</span>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="5" y1="12" x2="19" y2="12" />
+                <polyline points="12 5 19 12 12 19" />
+              </svg>
+            </button>
+          </>
+        )}
 
         <button
           type="button"
           className={`watchlist-mini ${starred ? "active" : ""}`}
           aria-label={starred ? "Remove from watchlist" : "Add to watchlist"}
-          onClick={() => toggle(debate.id)}
+          aria-pressed={starred}
+          title={starred ? "Remove from watchlist" : "Add to watchlist"}
+          onClick={() => toggle(debate.id, `${debate.sideA} vs ${debate.sideB}`)}
         >
           {starred ? "★" : "☆"}
         </button>
-      </div>
-    </article>
+        </div>
+      </article>
+    </>
   );
 }

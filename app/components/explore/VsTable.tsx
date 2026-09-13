@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import { useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import type { Debate } from "../../lib/debates";
@@ -23,15 +23,15 @@ export default function VsTable({ debates, ageLabel }: { debates: Debate[]; ageL
   const { has, toggle } = useWatchlist();
   return (
     <div className="vs-table-wrap" tabIndex={0} role="region" aria-label="Versus token market data">
-      <table className="vs-table">
-        <thead><tr>
-          <th scope="col">VS</th><th scope="col">Token</th><th scope="col">Graph</th>
-          {["MCap", "Age", "Vol 24h", "Traders", "5m", "1h", "6h", "24h"].map(label => <th scope="col" className="num" key={label}>{label}</th>)}
-          <th scope="col"><span className="sr-only">Watchlist</span></th>
-        </tr></thead>
-        {debates.map(debate => (
-          <tbody key={debate.id} className="table-matchup-group">
-            {(["A", "B"] as const).map((side, index) => {
+        <table className="vs-table">
+          <thead><tr>
+            <th scope="col">VS</th><th scope="col">Token</th><th scope="col">Graph</th>
+            {["MCap", "Age", "Vol 24h", "Traders", "5m", "1h", "6h", "24h"].map(label => <th scope="col" className="num" key={label}>{label}</th>)}
+            <th scope="col"><span className="sr-only">Watchlist</span></th>
+          </tr></thead>
+          {debates.map(debate => (
+            <tbody key={debate.id} className="table-matchup-group">
+              {(["A", "B"] as const).map((side, index) => {
               const token = side === "A" ? debate.tokenA : debate.tokenB;
               const name = token?.name || (side === "A" ? debate.sideA : debate.sideB);
               const symbol = token?.symbol || (side === "A" ? debate.tokenASymbol : debate.tokenBSymbol) || name;
@@ -56,12 +56,12 @@ export default function VsTable({ debates, ageLabel }: { debates: Debate[]; ageL
                 <td className="num">{money(token?.volume24h)}</td>
                 <td className="num">{token?.holders?.toLocaleString("en-US") ?? "—"}</td>
                 <td className="num"><Change value={token?.change5m} /></td><td className="num"><Change value={token?.change1h} /></td><td className="num"><Change value={token?.change6h} /></td><td className="num"><Change value={change} /></td>
-                {index === 0 && <td rowSpan={2} className="col-star"><button type="button" className={`table-star ${has(debate.id) ? "active" : ""}`} aria-label={`${has(debate.id) ? "Remove from" : "Add to"} watchlist: ${debate.sideA} vs ${debate.sideB}`} aria-pressed={has(debate.id)} onClick={() => toggle(debate.id)}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="m12 2.5 3 6.5 7 .9-5.2 4.9 1.4 7-6.2-3.5-6.2 3.5 1.4-7L2 9.9l7-.9z" /></svg></button></td>}
+                {index === 0 && <td rowSpan={2} className="col-star"><button type="button" className={`table-star ${has(debate.id) ? "active" : ""}`} aria-label={`${has(debate.id) ? "Remove from" : "Add to"} watchlist: ${debate.sideA} vs ${debate.sideB}`} aria-pressed={has(debate.id)} onClick={() => toggle(debate.id, `${debate.sideA} vs ${debate.sideB}`)}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="m12 2.5 3 6.5 7 .9-5.2 4.9 1.4 7-6.2-3.5-6.2 3.5 1.4-7L2 9.9l7-.9z" /></svg></button></td>}
               </tr>;
-            })}
-          </tbody>
-        ))}
-      </table>
+              })}
+            </tbody>
+          ))}
+        </table>
     </div>
   );
 }

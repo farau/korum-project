@@ -11,8 +11,8 @@ The current repository is a functional frontend prototype. It uses deterministic
 - Mock debates are available through the same typed data contract intended for the future API.
 - Wallet connection uses RainbowKit on Robinhood Chain and Robinhood Chain Testnet.
 - Profile access requires a valid server-side session created from a verified wallet signature.
-- Wallet identities and editable profile fields are persisted in a managed Railway PostgreSQL database.
-- Trading and VS creation controls are UI prototypes; they do not submit blockchain transactions yet.
+- Wallet identities, editable profile fields, and wallet-bound watchlists are persisted in a managed Railway PostgreSQL database.
+- Trading and VS creation submit simulated, wallet-confirmed transactions to the deployed Robinhood Testnet contracts.
 
 ## Main Features
 
@@ -25,7 +25,7 @@ The current repository is a functional frontend prototype. It uses deterministic
 - Live-style transaction ticker with green buy and red sell highlights.
 - Mock data switch for testing the Explore feed without a backend.
 - Dedicated empty state when mock data is disabled and the live source returns no versus.
-- Persistent local watchlist.
+- Persistent Railway-backed watchlist synchronized across authenticated wallet sessions.
 - Wallet-gated profile with information, activity, referral, badge, watchlist, and simulation tabs.
 - Unique six-character Base62 referral code permanently associated with the connected EVM wallet.
 - RainbowKit wallet modal with Wagmi SSR hydration.
@@ -47,7 +47,7 @@ The current repository is a functional frontend prototype. It uses deterministic
 | Linting | ESLint 9 with Next.js Core Web Vitals |
 | Fonts | Geist and Geist Mono through `next/font` |
 | Images | Next.js Image plus local reference assets |
-| Persistence | Browser `localStorage` for prototype state |
+| Persistence | Railway PostgreSQL for user data; browser storage for UI preferences and notification presentation |
 | Wallet | RainbowKit with Wagmi |
 | Authentication | Viem signature verification and signed server sessions |
 | Database | Managed PostgreSQL on Railway through the `postgres` driver |
@@ -117,7 +117,8 @@ If port `3000` is already occupied, Next.js selects the next available port and 
 | `npm run db:migrate` | Apply pending checksum-protected PostgreSQL migrations |
 | `npm run db:check` | Test wallet upsert and referral invariants inside a rolled-back transaction |
 | `npm run db:check:indexer` | Test referral and versus indexer projections inside a rolled-back transaction |
-| `npm run auth:check` | Exercise wallet authentication and profile persistence with a disposable test account |
+| `npm run db:check:watchlist` | Test watchlist storage, indexed resolution, and user cascade inside a rolled-back transaction |
+| `npm run auth:check` | Exercise wallet authentication, profile persistence, referrals, and watchlist API access with a disposable test account |
 | `npx tsc --noEmit` | Run a standalone TypeScript check |
 | `npx next typegen` | Regenerate typed App Router route definitions |
 
@@ -133,11 +134,12 @@ If port `3000` is already occupied, Next.js selects the next available port and 
 | `/concept` | Product mechanics, terminology, fees, and referrals |
 | `/analytics` | Protocol and market analytics |
 | `/create` | VS creation prototype |
-| `/watchlist` | Locally saved matchups |
+| `/watchlist` | Matchups saved for the authenticated wallet |
 | `/profile` | Wallet-gated account information, activity, referrals, badges, watchlist, and simulator |
 | `/privacy` | Privacy Policy |
 | `/terms` | Terms of Use |
 | `/api/debates` | Current JSON endpoint for the debate data contract |
+| `/api/watchlist` | Authenticated Railway-backed watchlist reads and mutations |
 | `/api/auth/challenge` | Creates a short-lived wallet sign-in challenge |
 | `/api/auth/verify` | Verifies the wallet signature and creates a session |
 | `/api/auth/session` | Reads or deletes the current wallet session |

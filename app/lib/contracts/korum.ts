@@ -4,7 +4,9 @@ import { robinhoodTestnet } from "wagmi/chains";
 
 import korumCoreAbiJson from "../../../contracts/abis/KorumCore.json";
 import korumFactoryAbiJson from "../../../contracts/abis/KorumFactory.json";
+import korumRouterAbiJson from "../../../contracts/abis/KorumRouter.json";
 import referralRegistryAbiJson from "../../../contracts/abis/ReferralRegistry.json";
+import versusTokenAbiJson from "../../../contracts/abis/VersusToken.json";
 import robinhoodTestnetDeployment from "../../../contracts/deployments/46630.json";
 
 export const KORUM_CHAIN = robinhoodTestnet;
@@ -17,6 +19,14 @@ export const KORUM_FACTORY_ADDRESS = getAddress(
   robinhoodTestnetDeployment.contracts.KorumFactory.address,
 ) as Address;
 
+export const KORUM_HOOK_ADDRESS = getAddress(
+  robinhoodTestnetDeployment.contracts.KorumHook.address,
+) as Address;
+
+export const KORUM_ROUTER_ADDRESS = getAddress(
+  robinhoodTestnetDeployment.contracts.KorumRouter.address,
+) as Address;
+
 export const REFERRAL_REGISTRY_ADDRESS = getAddress(
   robinhoodTestnetDeployment.contracts.ReferralRegistry.address,
 ) as Address;
@@ -25,4 +35,6 @@ export const REFERRAL_REGISTRY_ADDRESS = getAddress(
 // prevents components from duplicating addresses or hand-written fragments.
 export const KORUM_CORE_ABI = korumCoreAbiJson as Abi;
 export const KORUM_FACTORY_ABI = korumFactoryAbiJson as Abi;
+export const KORUM_ROUTER_ABI = korumRouterAbiJson as Abi;
 export const REFERRAL_REGISTRY_ABI = referralRegistryAbiJson as Abi;
+export const VERSUS_TOKEN_ABI = versusTokenAbiJson as Abi;

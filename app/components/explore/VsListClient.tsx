@@ -192,7 +192,7 @@ export default function VsListClient({ mockDebates, indexedDebates, indexedReadF
           </div>
         ) : view === "grid" ? (
           <div className="card-grid">
-            {filtered.map((debate, index) => <VsCard key={debate.id} debate={debate} index={index} />)}
+            {filtered.map((debate, index) => <VsCard key={debate.id} debate={debate} index={index} inlineTrading />)}
           </div>
         ) : (
           <VsTable debates={filtered} ageLabel={(debate) => `${ageHours(debate, now)}h ago`} />

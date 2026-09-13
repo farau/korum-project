@@ -90,6 +90,11 @@ function cookieHeader(...cookies) {
 }
 
 try {
+  const anonymousWatchlistResponse = await fetch(`${appUrl}/api/watchlist`);
+  if (anonymousWatchlistResponse.status !== 401) {
+    throw new Error("The watchlist API accepted an unauthenticated request.");
+  }
+
   const referralCode = await createReferrerUser();
   const referralEntryResponse = await fetch(`${appUrl}/explore?view=grid&ref=${referralCode}`, {
     redirect: "manual",
@@ -226,7 +231,63 @@ try {
     throw new Error("Authenticated profile update did not preserve the user identity.");
   }
 
-  process.stdout.write("Authentication and referral flow check passed: capture notification, resolution, self-referral rejection, signature, session, and profile updates are valid.\n");
+  const [indexedVersus] = await database`
+    SELECT
+      versus.versus_id::TEXT AS versus_id,
+      camp_a.name AS side_a,
+      camp_b.name AS side_b
+    FROM indexer.versuses versus
+    INNER JOIN indexer.versus_camps camp_a
+      ON camp_a.chain_id = versus.chain_id
+      AND camp_a.versus_id = versus.versus_id
+      AND camp_a.side = 0
+    INNER JOIN indexer.versus_camps camp_b
+      ON camp_b.chain_id = versus.chain_id
+      AND camp_b.versus_id = versus.versus_id
+      AND camp_b.side = 1
+    WHERE versus.chain_id = 46630
+    ORDER BY versus.created_at DESC
+    LIMIT 1
+  `;
+  if (!indexedVersus) throw new Error("No indexed Versus is available for the watchlist flow check.");
+  const versusId = Number(indexedVersus.versus_id);
+  if (!Number.isSafeInteger(versusId)) throw new Error("The indexed Versus ID is not safe for the frontend contract.");
+
+  const addWatchlistResponse = await fetch(`${appUrl}/api/watchlist`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Origin: appUrl, Cookie: sessionCookie },
+    body: JSON.stringify({ versusId }),
+  });
+  await jsonResponse(addWatchlistResponse);
+
+  const storedWatchlistResponse = await fetch(`${appUrl}/api/watchlist`, {
+    headers: { Cookie: sessionCookie },
+  });
+  const storedWatchlist = await jsonResponse(storedWatchlistResponse);
+  if (!storedWatchlist.ids.includes(versusId)) {
+    throw new Error("The authenticated watchlist did not return its stored Versus.");
+  }
+  const storedDebate = storedWatchlist.debates.find((debate) => debate.id === versusId);
+  if (storedDebate?.sideA !== indexedVersus.side_a || storedDebate?.sideB !== indexedVersus.side_b) {
+    throw new Error("The watchlist did not resolve its display data from the indexed Versus camps.");
+  }
+
+  const removeWatchlistResponse = await fetch(`${appUrl}/api/watchlist`, {
+    method: "DELETE",
+    headers: { "Content-Type": "application/json", Origin: appUrl, Cookie: sessionCookie },
+    body: JSON.stringify({ versusId }),
+  });
+  await jsonResponse(removeWatchlistResponse);
+
+  const clearedWatchlistResponse = await fetch(`${appUrl}/api/watchlist`, {
+    headers: { Cookie: sessionCookie },
+  });
+  const clearedWatchlist = await jsonResponse(clearedWatchlistResponse);
+  if (clearedWatchlist.ids.includes(versusId)) {
+    throw new Error("The authenticated watchlist retained a removed Versus.");
+  }
+
+  process.stdout.write("Authentication, referral, and watchlist flow check passed: protected reads, writes, removals, notifications, signature, session, and profile updates are valid.\n");
 } finally {
   await database`DELETE FROM users WHERE evm_wallet IN (${wallet}, ${referrerWallet})`;
   await database.end({ timeout: 5 });

@@ -1,8 +1,14 @@
 "use client";
-import React from 'react';
-import type { Debate } from '../lib/debates';
-import Link from 'next/link';
-import { useMock } from './MockProvider';
+
+import Link from "next/link";
+import Image from "next/image";
+import React, { useMemo, useState } from "react";
+
+import { useWatchlist } from "../hooks/useWatchlist";
+import type { Debate, DebateToken } from "../lib/debates";
+import { useMock } from "./MockProvider";
+import TokenTradePanel from "./TokenTradePanel";
+import styles from "./VsDetailClient.module.css";
 
 type VsDetailClientProps = {
   mockDebate?: Debate;
@@ -10,42 +16,289 @@ type VsDetailClientProps = {
   indexedReadFailed: boolean;
 };
 
+type InfoTab = "community" | "activity" | "holders" | "traders" | "creator" | "bubble" | "positions";
+const INFO_TABS: Array<{ id: InfoTab; label: string }> = [
+  { id: "community", label: "Community" },
+  { id: "activity", label: "Activity" },
+  { id: "holders", label: "Holders" },
+  { id: "traders", label: "Top Traders" },
+  { id: "creator", label: "Token Creator" },
+  { id: "bubble", label: "Bubble" },
+  { id: "positions", label: "My Positions" },
+];
+
+function ShareIcon() {
+  return <svg viewBox="0 0 69.04 69.06" fill="currentColor" aria-hidden="true"><path d="M14.93 61.32h39.11c2.98 0 5.67-.88 6.68-3.64.42-1.15.58-2.33.58-3.6l.02-15.76c0-2.16 1.79-3.76 3.8-3.77s3.83 1.59 3.84 3.77l.02 15.39c.85 8.85-6.46 16.15-15.31 15.29H15.35c-4.34.42-8.4-1.12-11.39-4.13C1.09 61.89-.38 57.83.08 53.54V15.54C-.38 11.26 1.1 7.16 3.96 4.23 6.96 1.1 11.01-.17 15.34.02l15.42.09c2.12.01 3.68 1.64 3.76 3.68s-1.45 3.92-3.6 3.93l-15.93.05c-2.88 0-5.57.82-6.61 3.49-.44 1.14-.64 2.27-.64 3.59v39.39c0 3.08 1.09 5.82 4.02 6.64 1.01.28 1.9.45 3.16.45Z" /><path d="m61.24 13.27-27.94 27.9c-1.55 1.55-3.99 1.35-5.39-.09-1.52-1.57-1.44-3.92.15-5.51L55.83 7.8 46 7.74c-2.18-.01-3.82-1.75-3.82-3.81S43.81.1 46.02.1h19c2.28-.01 3.97 1.68 3.96 3.95v19c-.01 2.21-1.79 3.84-3.86 3.83s-3.88-1.76-3.8-4l-.09-9.61Z" /></svg>;
+}
+
+function BellIcon() {
+  return <svg viewBox="0 0 56.88 69.06" fill="currentColor" aria-hidden="true"><path d="M56.59 58.01c-.75 3.46-13.02 5.11-17.74 5.49l-.69-2.38c3.91-.37 7.7-.92 11.42-2.23 1.28-.45 2.46-1.01 3.32-2.09-.64-.9-1.51-1.42-2.47-1.81-10.03-4.04-31.99-3.93-42.48-.58-1.55.49-3.01 1.12-4.19 2.36 3.57 3.26 10.12 3.74 14.99 4.37l-.69 2.35C13.17 63.14-.11 61.39 0 57.35l.15-5.76c.46-1.96 2.92-2.1 4.11-3.17 1.76-1.6 2.36-4.24 2.85-6.5l2.94-13.81c1.86-7.91 5.11-15.77 13.33-18.03-1.74-3.54.1-6.97 3.35-8.34C27.15 1.18 27.42-.01 28.35 0s1.42.84 1.67 1.74c2.64 1.02 4.52 3.43 4.01 6.4l-2.38-.44c.18-1.06-.69-3.23-2-3.08-.94.11-1.31.55-2.54.06-.81-.32-1.6 1.11-1.8 1.79-.23.8-.16 2.54.82 3.01 9.42-.7 15.24 3.33 18.65 11.99 2.93 7.5 3.38 15.5 5.74 23.39-4.56-.95-8.71-1.47-13.46-1.87 2.55-1.55 5.26-1.77 8.15-2.24l-2.03-10.09c-.99-4.94-2.71-10.2-6.13-13.8-.32-.33-.77-.41-1.08-.26-.23.11-.65.51-.63.96.34 6.55-19.35 27.26-21.13 28.83 10.36-1.13 20.67-1.19 30.97.41 3.7.58 11.23 2.3 11.48 4.75.21 2.07.4 4.3-.07 6.46Z" /><path d="M31.8 62.2c-.07 2 .06 3.98-1.54 5.5-2.07 1.96-5.75 1.81-7.5-.53-1.28-1.72-1.25-3.97-.45-6 .67-1.71 2.25-3.13 4.32-3.77v-3.12l3.53-.06.07 3.16c2.19.68 3.84 2.23 4.45 4 .8 2.33.67 4.79-1.08 6.58.19-2.16.34-4.22-1.8-5.75Z" /></svg>;
+}
+
+function StarIcon() {
+  return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" aria-hidden="true"><path d="m12 2.5 3 6.5 7 .9-5.2 4.9 1.4 7-6.2-3.5-6.2 3.5 1.4-7L2 9.9l7-.9z" /></svg>;
+}
+
+function CopyIcon() {
+  return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="9" y="9" width="12" height="12" rx="2" /><path d="M5 15V5a2 2 0 0 1 2-2h10" /></svg>;
+}
+
+function ExternalIcon() {
+  return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M14 3h7v7M10 14 21 3" /><path d="M21 14v5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5" /></svg>;
+}
+
+function ChartIcon() {
+  return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m3 17 5-5 4 3 6-8 3 3" /><path d="M3 3v18h18" /></svg>;
+}
+
+function shortAddress(address?: string) {
+  if (!address) return "Not available";
+  return address.length > 13 ? `${address.slice(0, 6)}…${address.slice(-4)}` : address;
+}
+
+function symbolLabel(symbol?: string) {
+  if (!symbol) return "$TOKEN";
+  return symbol.startsWith("$") ? symbol : `$${symbol}`;
+}
+
+function formatMoney(value?: number, available = true) {
+  if (!available || value == null) return "—";
+  return `$${Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 2 }).format(value)}`;
+}
+
+function formatCount(value?: number, available = true) {
+  if (!available || value == null) return "—";
+  return Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 1 }).format(value);
+}
+
+function formatAge(minutes: number) {
+  if (minutes < 60) return `${minutes}m ago`;
+  if (minutes < 1_440) return `${Math.round(minutes / 60)}h ago`;
+  return `${Math.round(minutes / 1_440)}d ago`;
+}
+
+function formatDate(value?: string) {
+  if (!value) return "Unknown";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "Unknown";
+  return `${new Intl.DateTimeFormat("en-US", { dateStyle: "medium", timeStyle: "short", timeZone: "UTC" }).format(date)} UTC`;
+}
+
+function getXUrl(socialsJson?: string) {
+  if (!socialsJson) return null;
+  try {
+    const value: unknown = JSON.parse(socialsJson);
+    if (!value || typeof value !== "object" || !("x" in value)) return null;
+    const x = (value as { x?: unknown }).x;
+    return typeof x === "string" && /^https:\/\/(?:www\.)?(?:x|twitter)\.com\//i.test(x) ? x : null;
+  } catch {
+    return null;
+  }
+}
+
+function hasMarketData(debate: Debate) {
+  const values = [debate.marketCapA, debate.marketCapB, debate.volume24h, debate.liquidity, debate.trades24h, debate.holderCount, debate.tokenA?.priceUsd, debate.tokenB?.priceUsd];
+  const histories = [debate.tokenA?.priceHistory, debate.tokenB?.priceHistory].flatMap((history) => history ?? []);
+  return values.some((value) => typeof value === "number" && value !== 0) || histories.some((value) => value !== 0);
+}
+
+async function copyText(value: string) {
+  await navigator.clipboard.writeText(value);
+}
+
+function PriceChart({ token, side, available }: { token: DebateToken; side: "a" | "b"; available: boolean }) {
+  const points = useMemo(() => {
+    const history = token.priceHistory ?? [];
+    if (!available || history.length < 2) return "";
+    const min = Math.min(...history);
+    const range = Math.max(...history) - min || 1;
+    return history.map((value, index) => `${(index * (600 / (history.length - 1))).toFixed(1)},${(150 - ((value - min) / range) * 120).toFixed(1)}`).join(" ");
+  }, [available, token.priceHistory]);
+
+  return (
+    <div className={styles.chartArea}>
+      <svg className={styles.chartGrid} viewBox="0 0 600 170" preserveAspectRatio="none" aria-hidden="true">
+        {[30, 75, 120, 165].map((y) => <line key={y} x1="0" y1={y} x2="600" y2={y} />)}
+        {[0, 150, 300, 450, 600].map((x) => <line key={x} x1={x} y1="0" x2={x} y2="170" />)}
+        {points ? <polyline className={side === "a" ? styles.chartLineA : styles.chartLineB} points={points} /> : null}
+      </svg>
+      {!available ? <div className={styles.chartEmpty}><span className={styles.chartEmptyIcon}><ChartIcon /></span><strong>Awaiting market data</strong><span>Price history will appear after trading events are indexed.</span></div> : null}
+    </div>
+  );
+}
+
+function TokenAvatar({ token, side }: { token: DebateToken; side: "a" | "b" }) {
+  const [failed, setFailed] = useState(false);
+  const source = token.image || token.imageRef;
+  return <span className={`${styles.tokenAvatar} ${side === "a" ? styles.tokenAvatarA : styles.tokenAvatarB}`}>{source && !failed ? <Image src={source} alt="" fill sizes="38px" unoptimized onError={() => setFailed(true)} /> : null}<span>{token.name.slice(0, 1).toUpperCase()}</span></span>;
+}
+
+function TokenPanel({ token, side, marketShare, marketAvailable, onStatus }: { token: DebateToken; side: "a" | "b"; marketShare: number; marketAvailable: boolean; onStatus: (message: string) => void }) {
+  const symbol = symbolLabel(token.symbol);
+
+  const handleCopy = async () => {
+    if (!token.address) return;
+    try {
+      await copyText(token.address);
+      onStatus(`${symbol} contract address copied.`);
+    } catch {
+      onStatus("Unable to access the clipboard.");
+    }
+  };
+
+  return (
+    <article className={styles.tokenPanel}>
+      <div className={styles.tokenHead}>
+        <TokenAvatar token={token} side={side} />
+        <div className={styles.tokenIdentity}><strong>{symbol}</strong><span>{token.name}</span></div>
+        {marketAvailable && marketShare >= 50 ? <span className={styles.leadingBadge}>LEADING</span> : null}
+        <button className={styles.addressButton} type="button" onClick={handleCopy} disabled={!token.address} title="Copy contract address"><span>{shortAddress(token.address)}</span><CopyIcon /></button>
+      </div>
+
+      <div className={`${styles.chartCard} ${marketAvailable && marketShare >= 50 ? styles.leadingCard : ""}`}>
+        <div className={styles.chartToolbar}>
+          <span className={styles.segmented}><button className={styles.selectedControl} type="button">Price</button><button type="button" disabled>MC</button></span>
+          <span className={styles.segmented}><button className={styles.selectedControl} type="button">USD</button><button type="button" disabled>ETH</button></span>
+          <span className={styles.timeframe}>5m</span>
+          <span className={styles.indexerState}><span /> Goldsky indexed</span>
+        </div>
+        <PriceChart token={token} side={side} available={marketAvailable} />
+        <div className={styles.periodRow} aria-label="Chart periods">{["1D", "7D", "30D", "180D"].map((period, index) => <button className={index === 0 ? styles.selectedControl : ""} type="button" key={period} disabled={!marketAvailable}>{period}</button>)}</div>
+        <div className={styles.marketStats}>
+          <div><span>Market cap</span><strong>{formatMoney(token.marketCap, marketAvailable)}</strong></div>
+          <div><span>Holders</span><strong>{formatCount(token.holders, marketAvailable)}</strong></div>
+          <div><span>24h volume</span><strong>{formatMoney(token.volume24h, marketAvailable)}</strong></div>
+        </div>
+      </div>
+
+      <TokenTradePanel token={token} onStatus={onStatus} />
+    </article>
+  );
+}
+
+function EmptyIndexedPanel({ title, children }: { title: string; children: React.ReactNode }) {
+  return <div className={styles.emptyPanel}><span className={styles.emptyPanelIcon}><ChartIcon /></span><strong>{title}</strong><p>{children}</p></div>;
+}
+
+function InfoPanel({ tab, debate, onStatus }: { tab: InfoTab; debate: Debate; onStatus: (message: string) => void }) {
+  if (tab === "community") {
+    return <div className={styles.communityPanel}><EmptyIndexedPanel title="The conversation starts here">Community messages will be enabled with token-gated participation in a future update.</EmptyIndexedPanel><textarea rows={3} maxLength={140} disabled placeholder={`Share your take on ${debate.sideA} vs ${debate.sideB}…`} /><button type="button" disabled>SEND</button></div>;
+  }
+
+  if (tab === "creator") {
+    return <div className={styles.creatorPanel}><span className={styles.creatorAvatar}>{debate.creatorAddress?.slice(2, 4).toUpperCase() || "KR"}</span><div><span>Created by</span><strong>{debate.creatorName || shortAddress(debate.creatorAddress)}</strong><small>{debate.creatorAddress}</small></div>{debate.creatorAddress ? <button type="button" onClick={() => copyText(debate.creatorAddress!).then(() => onStatus("Creator wallet copied.")).catch(() => onStatus("Unable to access the clipboard."))}><CopyIcon /> Copy wallet</button> : null}</div>;
+  }
+
+  const messages: Record<Exclude<InfoTab, "community" | "creator">, { title: string; body: string }> = {
+    activity: { title: "No indexed activity yet", body: "Buy and sell events will appear here after the trading-event pipeline is connected." },
+    holders: { title: "Holder distribution unavailable", body: "Goldsky currently indexes Versus creation metadata, but not token balances or holder snapshots." },
+    traders: { title: "Trader rankings unavailable", body: "Rankings require indexed swap activity and wallet-level aggregates." },
+    bubble: { title: "Ownership bubble map unavailable", body: "The map will be generated from indexed holder balances once that read model exists." },
+    positions: { title: "No indexed positions", body: "Wallet positions will be shown after token balances and market prices are available." },
+  };
+  return <EmptyIndexedPanel title={messages[tab].title}>{messages[tab].body}</EmptyIndexedPanel>;
+}
+
 export default function VsDetailClient({ mockDebate, indexedDebate, indexedReadFailed }: VsDetailClientProps) {
   const { mockEnabled } = useMock();
+  const { has, toggle } = useWatchlist();
+  const [activeTab, setActiveTab] = useState<InfoTab>("community");
+  const [tokenFilter, setTokenFilter] = useState<"both" | "a" | "b">("both");
+  const [shareOpen, setShareOpen] = useState(false);
+  const [statusMessage, setStatusMessage] = useState("");
   const debate = mockEnabled ? mockDebate : indexedDebate;
 
   if (!debate) {
-    return (
-      <div className="vs-detail" style={{ padding: 20 }}>
-        <Link href="/explore">← Back to Explore</Link>
-        <h1>{!mockEnabled && indexedReadFailed ? "Versus data is temporarily unavailable" : "Versus not found"}</h1>
-      </div>
-    );
+    return <div className={styles.notFound}><Link href="/explore">← Back to Explore</Link><h1>{!mockEnabled && indexedReadFailed ? "Versus data is temporarily unavailable" : "Versus not found"}</h1><p>{indexedReadFailed ? "The Railway indexer could not be reached. Please try again shortly." : "This Versus does not exist in the selected data source."}</p></div>;
   }
 
+  const tokenA: DebateToken = debate.tokenA ?? { name: debate.sideA, symbol: debate.tokenASymbol || debate.sideA, image: debate.imageA };
+  const tokenB: DebateToken = debate.tokenB ?? { name: debate.sideB, symbol: debate.tokenBSymbol || debate.sideB, image: debate.imageB };
+  const marketAvailable = hasMarketData(debate);
+  const sideAPercentage = marketAvailable ? Math.max(0, Math.min(100, debate.sideAPercentage ?? 50)) : 50;
+  const sideBPercentage = 100 - sideAPercentage;
+  const xUrl = getXUrl(debate.socialsJson);
+  const starred = has(debate.id);
+
+  const share = async () => {
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: `${debate.sideA} vs ${debate.sideB}`, text: debate.title, url: window.location.href });
+        setStatusMessage("Versus shared.");
+      } else {
+        await copyText(window.location.href);
+        setStatusMessage("Versus link copied.");
+      }
+    } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") return;
+      setStatusMessage("Unable to share this Versus.");
+    }
+    setShareOpen(false);
+  };
+
+  const copyLink = async () => {
+    try {
+      await copyText(window.location.href);
+      setStatusMessage("Versus link copied.");
+    } catch {
+      setStatusMessage("Unable to access the clipboard.");
+    }
+    setShareOpen(false);
+  };
+
+  const shareOnX = () => {
+    const text = `${debate.sideA} vs ${debate.sideB} — pick your side on Korum`;
+    window.open(`https://x.com/intent/post?text=${encodeURIComponent(text)}&url=${encodeURIComponent(window.location.href)}`, "_blank", "noopener,noreferrer");
+    setShareOpen(false);
+  };
+
   return (
-    <div className="vs-detail" style={{ padding: 20 }}>
-      <Link href="/explore">← Back to Explore</Link>
-      <h1>{debate.sideA} vs {debate.sideB}</h1>
-      <div style={{ display: 'flex', gap: 16 }}>
-        <div style={{ flex: 1 }}>
-          <div className="vs-thumb-pair">
-            <div className="vs-thumb vs-thumb-a">{debate.sideA}</div>
-            <div className="vs-thumb vs-thumb-b">{debate.sideB}</div>
+    <div className={styles.page}>
+      <section className={styles.hero}>
+        <div className={styles.wrap}>
+          <Link href="/explore" className={styles.backLink}>← Back to Explore</Link>
+          <div className={styles.titleRow}>
+            <div className={styles.titleBlock}><div className={styles.matchupLabel}><span>{symbolLabel(tokenA.symbol)}</span><b>VS</b><span>{symbolLabel(tokenB.symbol)}</span></div><h1><span className={sideAPercentage >= 50 && marketAvailable ? styles.heroLeader : ""}>{debate.sideA}</span> <em>vs</em> <span className={sideBPercentage > 50 && marketAvailable ? styles.heroLeader : ""}>{debate.sideB}</span></h1></div>
+            {xUrl ? <a className={styles.xLink} href={xUrl} target="_blank" rel="noreferrer" aria-label="Open the Versus X account">𝕏</a> : null}
+            <div className={styles.heroActions}>
+              <button className={`${styles.roundButton} ${starred ? styles.starred : ""}`} type="button" aria-pressed={starred} aria-label={starred ? "Remove from watchlist" : "Add to watchlist"} onClick={() => toggle(debate.id, `${debate.sideA} vs ${debate.sideB}`)}><StarIcon /></button>
+              <button className={styles.actionButton} type="button" onClick={() => setStatusMessage("Market alerts will be available after trading events are indexed.")}><BellIcon /> New Alert</button>
+              <div className={styles.shareMenuWrap}>
+                <button className={styles.actionButton} type="button" aria-expanded={shareOpen} onClick={() => setShareOpen((open) => !open)}>Share <ShareIcon /></button>
+                {shareOpen ? <div className={styles.shareMenu}><button type="button" onClick={copyLink}><CopyIcon /> Copy link</button><button type="button" onClick={shareOnX}>𝕏 Share on X</button><button type="button" onClick={share}><ExternalIcon /> More options</button></div> : null}
+              </div>
+            </div>
           </div>
-          <p>MCap A: ${Intl.NumberFormat('en-US').format(debate.marketCapA ?? 0)}</p>
-          <p>MCap B: ${Intl.NumberFormat('en-US').format(debate.marketCapB ?? 0)}</p>
-          <p>Volume: ${Intl.NumberFormat('en-US').format(debate.volume24h)}</p>
-          <p>Traders: {debate.participantCount}</p>
-        </div>
-        <div style={{ width: 320 }}>
-          <div className="trade-box" style={{ padding: 12, borderRadius: 12, background: 'var(--panel)' }}>
-            <h3>Actions</h3>
-            <button className="btn btn-solid" style={{ width: '100%', marginBottom: 8 }}>Buy {debate.sideA}</button>
-            <button className="btn btn-outline" style={{ width: '100%' }}>Buy {debate.sideB}</button>
+
+          <div className={styles.metaRow}><span className={styles.category}>{debate.category}</span><span>·</span><span>Launched {formatAge(debate.createdMinutesAgo)}</span><span>·</span><span>Created by <b>{debate.creatorName || shortAddress(debate.creatorAddress)}</b></span><span>·</span><span>Versus #{debate.id}</span></div>
+
+          <div className={styles.overview}>
+            <div className={styles.overviewLabels}><span className={sideAPercentage >= 50 && marketAvailable ? styles.leadingPill : ""}>{symbolLabel(tokenA.symbol)} · {sideAPercentage}%</span><span className={sideBPercentage > 50 && marketAvailable ? styles.leadingPill : ""}>{symbolLabel(tokenB.symbol)} · {sideBPercentage}%</span></div>
+            <div className={styles.meter} aria-label={`${sideAPercentage}% ${debate.sideA}, ${sideBPercentage}% ${debate.sideB}`}><span className={sideAPercentage >= 50 && marketAvailable ? styles.meterLeading : ""} style={{ width: `${sideAPercentage}%` }} /><span className={sideBPercentage > 50 && marketAvailable ? styles.meterLeading : ""} style={{ width: `${sideBPercentage}%` }} /></div>
           </div>
+
+          <div className={styles.debateCopy}><h2>{debate.title || `${debate.sideA} or ${debate.sideB}?`}</h2>{debate.description ? <p>{debate.description}</p> : null}</div>
+          {!marketAvailable ? <div className={styles.dataNotice}><span /> Creation metadata is live from Railway. Trading metrics are awaiting the next Goldsky pipeline extension.</div> : null}
         </div>
-      </div>
+      </section>
+
+      <section className={styles.content}>
+        <div className={styles.wrap}>
+          <div className={styles.panels}><TokenPanel token={tokenA} side="a" marketShare={sideAPercentage} marketAvailable={marketAvailable} onStatus={setStatusMessage} /><TokenPanel token={tokenB} side="b" marketShare={sideBPercentage} marketAvailable={marketAvailable} onStatus={setStatusMessage} /></div>
+
+          <div className={styles.infoCard}>
+            <div className={styles.infoTop}>
+              <div className={styles.infoTabs} role="tablist" aria-label="Versus information">{INFO_TABS.map((tab) => <button key={tab.id} type="button" role="tab" aria-selected={activeTab === tab.id} className={activeTab === tab.id ? styles.activeTab : ""} onClick={() => setActiveTab(tab.id)}>{tab.label}</button>)}</div>
+              <div className={styles.tokenFilter} aria-label="Filter by camp"><button type="button" className={tokenFilter === "both" ? styles.activeTab : ""} onClick={() => setTokenFilter("both")}>Both</button><button type="button" className={tokenFilter === "a" ? styles.activeTab : ""} onClick={() => setTokenFilter("a")}>{symbolLabel(tokenA.symbol)}</button><button type="button" className={tokenFilter === "b" ? styles.activeTab : ""} onClick={() => setTokenFilter("b")}>{symbolLabel(tokenB.symbol)}</button></div>
+            </div>
+            <div className={styles.infoBody} role="tabpanel"><InfoPanel tab={activeTab} debate={debate} onStatus={setStatusMessage} /></div>
+          </div>
+
+          <div className={styles.provenance}><span><b>Network</b>{tokenA.chainName || "Robinhood Chain Testnet"}</span><span><b>Created</b>{formatDate(debate.createdAtUtc || debate.createdAt)}</span><span><b>Data source</b>Goldsky → Railway PostgreSQL</span></div>
+        </div>
+      </section>
+
+      {statusMessage ? <button type="button" className={styles.toast} onClick={() => setStatusMessage("")}><strong>Korum</strong><span>{statusMessage}</span></button> : null}
     </div>
   );
 }

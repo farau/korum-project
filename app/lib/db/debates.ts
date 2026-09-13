@@ -31,6 +31,7 @@ type IndexedDebateRow = {
 type IndexedDebateOptions = {
   limit?: number;
   versusId?: string;
+  watchlistUserId?: string;
 };
 
 function publicAssetUrl(uri: string) {
@@ -166,14 +167,25 @@ function toDebate(row: IndexedDebateRow): Debate | null {
   };
 }
 
-async function readIndexedDebates({ limit = DEFAULT_LIMIT, versusId }: IndexedDebateOptions = {}) {
+async function readIndexedDebates({ limit = DEFAULT_LIMIT, versusId, watchlistUserId }: IndexedDebateOptions = {}) {
   const database = getDatabase();
   const safeLimit = Math.min(MAX_LIMIT, Math.max(1, Math.trunc(limit)));
+  const watchlistJoin = watchlistUserId ? `
+    INNER JOIN user_watchlist watchlist
+      ON watchlist.chain_id = v.chain_id
+      AND watchlist.versus_id = v.versus_id
+      AND watchlist.user_id = $2::uuid
+  ` : "";
   const versusPredicate = versusId ? "AND v.versus_id = $2::numeric" : "";
   const parameters: Array<string | number> = versusId
     ? [ROBINHOOD_TESTNET_CHAIN_ID, versusId, safeLimit]
-    : [ROBINHOOD_TESTNET_CHAIN_ID, safeLimit];
-  const limitParameter = versusId ? "$3" : "$2";
+    : watchlistUserId
+      ? [ROBINHOOD_TESTNET_CHAIN_ID, watchlistUserId, safeLimit]
+      : [ROBINHOOD_TESTNET_CHAIN_ID, safeLimit];
+  const limitParameter = versusId || watchlistUserId ? "$3" : "$2";
+  const orderBy = watchlistUserId
+    ? "watchlist.added_at DESC"
+    : "v.created_at DESC, v.versus_id DESC";
 
   const rows = await database.unsafe<IndexedDebateRow[]>(`
     SELECT
@@ -194,6 +206,7 @@ async function readIndexedDebates({ limit = DEFAULT_LIMIT, versusId }: IndexedDe
       camp_b.symbol AS "tokenBSymbol",
       camp_b.uri AS "tokenBUri"
     FROM indexer.versuses v
+    ${watchlistJoin}
     INNER JOIN indexer.versus_camps camp_a
       ON camp_a.chain_id = v.chain_id
       AND camp_a.versus_id = v.versus_id
@@ -204,7 +217,7 @@ async function readIndexedDebates({ limit = DEFAULT_LIMIT, versusId }: IndexedDe
       AND camp_b.side = 1
     WHERE v.chain_id = $1
       ${versusPredicate}
-    ORDER BY v.created_at DESC, v.versus_id DESC
+    ORDER BY ${orderBy}
     LIMIT ${limitParameter}
   `, parameters);
 
@@ -220,3 +233,7 @@ export const getIndexedDebateById = cache(async (versusId: string) => {
   const debates = await readIndexedDebates({ limit: 1, versusId });
   return debates[0] ?? null;
 });
+
+export async function getIndexedWatchlistDebates(userId: string) {
+  return readIndexedDebates({ limit: MAX_LIMIT, watchlistUserId: userId });
+}
