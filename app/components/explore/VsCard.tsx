@@ -4,6 +4,7 @@ import React from "react";
 import Image from "next/image";
 import Link from "next/link";
 import type { Debate, DebateToken } from "../../lib/debates";
+import { formatMarketValue } from "../../lib/markets/format";
 import { useWatchlist } from "../../hooks/useWatchlist";
 import TokenTradePanel, { type TradeMode } from "../TokenTradePanel";
 
@@ -19,11 +20,7 @@ function debateVolume(debate: Debate) {
 }
 
 function debateParticipants(debate: Debate) {
-  return debate.holderCount ?? debate.participantCount ?? 0;
-}
-
-function fmtMoney(value: number) {
-  return `$${Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 1 }).format(value)}`;
+  return debate.participantCount ?? 0;
 }
 
 function fmtAgeFromMinutes(minutes: number) {
@@ -84,17 +81,16 @@ function creatorBadge(index: number) {
   return { label: "NEW CREATOR", className: "new" };
 }
 
-function Spark({ seed, down = false }: { seed: number; down?: boolean }) {
-  const roundCoord = (value: number) => Number(value.toFixed(3));
-  const points = Array.from({ length: 7 }, (_, index) => {
-    const x = index * 21;
-    const wave = Math.sin((index + seed) * 1.35) * 6;
-    const y = down ? 8 + index * 1.7 + wave : 18 - index * 1.5 + wave;
-    return `${x},${roundCoord(Math.max(4, Math.min(20, y)))}`;
-  }).join(" ");
+function Spark({ series }: { series?: number[] }) {
+  const values = series?.slice(-24) ?? [];
+  const min = values.length ? Math.min(...values) : 0;
+  const range = values.length ? Math.max(...values) - min || 1 : 1;
+  const points = values.length > 1
+    ? values.map((value, index) => `${index * 130 / (values.length - 1)},${20 - ((value - min) / range) * 16}`).join(" ")
+    : "";
   return (
     <svg className="vs-mini-spark" viewBox="0 0 130 22" preserveAspectRatio="none" fill="none" aria-hidden>
-      <polyline points={points} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+      {points ? <polyline points={points} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /> : null}
     </svg>
   );
 }
@@ -102,6 +98,7 @@ function Spark({ seed, down = false }: { seed: number; down?: boolean }) {
 export default function VsCard({ debate, index = 0, inlineTrading = false }: { debate: Debate; index?: number; inlineTrading?: boolean }) {
   const tokenA = getTokenA(debate);
   const tokenB = getTokenB(debate);
+  const currency = debate.marketCurrency ?? "USD";
   const sideAPercentage = tokenA.marketCap && tokenB.marketCap ? Math.round((tokenA.marketCap / (tokenA.marketCap + tokenB.marketCap)) * 100) : debate.sideAPercentage || 50;
   const leaderIsA = sideAPercentage >= 50;
   const { toggle, has } = useWatchlist();
@@ -145,8 +142,8 @@ export default function VsCard({ debate, index = 0, inlineTrading = false }: { d
   const creatorName = debate.creatorName || creators[index % creators.length];
   const creatorRankLabel = debate.creatorRankLabel || badge.label;
   const creatorRankClass = debate.creatorRankClass || badge.className;
-  const changeA24h = tokenA.change24h ?? 2.4 + index * 0.7;
-  const changeB24h = tokenB.change24h ?? -1.1 - index * 0.4;
+  const changeA24h = tokenA.change24h ?? 0;
+  const changeB24h = tokenB.change24h ?? 0;
   const debateTimestamp = timestampMs(debate.launchedAtUtc || debate.launchedAt || debate.createdAtUtc || debate.createdAt) ?? timestampMs(debate.launchTimestamp ?? debate.createdAtTimestamp);
   const tokenATimestamp = timestampMs(tokenA.launchedAt) ?? timestampMs(tokenA.launchTimestamp);
   const tokenBTimestamp = timestampMs(tokenB.launchedAt) ?? timestampMs(tokenB.launchTimestamp);
@@ -174,6 +171,7 @@ export default function VsCard({ debate, index = 0, inlineTrading = false }: { d
                   alt={debate.sideA}
                   fill
                   sizes="(max-width: 560px) 50vw, (max-width: 1180px) 17vw, 150px"
+                  loading={index === 0 ? "eager" : "lazy"}
                   unoptimized
                   onError={() => setFailedImages((current) => ({ debateId: debate.id, sideA: true, sideB: current.debateId === debate.id ? current.sideB : false }))}
                 />
@@ -191,6 +189,7 @@ export default function VsCard({ debate, index = 0, inlineTrading = false }: { d
                   alt={debate.sideB}
                   fill
                   sizes="(max-width: 560px) 50vw, (max-width: 1180px) 17vw, 150px"
+                  loading={index === 0 ? "eager" : "lazy"}
                   unoptimized
                   onError={() => setFailedImages((current) => ({ debateId: debate.id, sideA: current.debateId === debate.id ? current.sideA : false, sideB: true }))}
                 />
@@ -215,17 +214,17 @@ export default function VsCard({ debate, index = 0, inlineTrading = false }: { d
         <div className="vs-chart-row">
           <div className={`vs-chart-col a ${leaderIsA ? "leading" : ""}`}>
             <div className="chart-head">
-              <span className="price">{fmtMoney(tokenA.marketCap || totalMarketCap(debate) / 2)}</span>
+              <span className="price">{formatMarketValue(tokenA.marketCap ?? totalMarketCap(debate) / 2, currency, 1)}</span>
               <span className={changeA24h >= 0 ? "chg up" : "chg down"}>{changeA24h >= 0 ? "+" : ""}{changeA24h.toFixed(1)}%</span>
             </div>
-            <Spark seed={index + 1} />
+            <Spark series={tokenA.priceHistory} />
           </div>
           <div className={`vs-chart-col b ${!leaderIsA ? "leading" : ""}`}>
             <div className="chart-head">
               <span className={changeB24h >= 0 ? "chg up" : "chg down"}>{changeB24h >= 0 ? "+" : ""}{changeB24h.toFixed(1)}%</span>
-              <span className="price">{fmtMoney(tokenB.marketCap || totalMarketCap(debate) / 2)}</span>
+              <span className="price">{formatMarketValue(tokenB.marketCap ?? totalMarketCap(debate) / 2, currency, 1)}</span>
             </div>
-            <Spark seed={index + 4} down />
+            <Spark series={tokenB.priceHistory} />
           </div>
         </div>
 
@@ -245,7 +244,7 @@ export default function VsCard({ debate, index = 0, inlineTrading = false }: { d
               <rect x="10.3" y="9" width="3.4" height="11" />
               <rect x="16.6" y="4" width="3.4" height="16" />
             </svg>
-            <span className="stat-text"><span className="lbl">Total market cap</span><span className="val">{fmtMoney(totalMarketCap(debate))}</span></span>
+            <span className="stat-text"><span className="lbl">Total MCAP</span><span className="val">{formatMarketValue(totalMarketCap(debate), currency, 1)}</span></span>
           </div>
           <div className="stat-item">
             <svg className="stat-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -260,7 +259,7 @@ export default function VsCard({ debate, index = 0, inlineTrading = false }: { d
             <svg className="stat-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
               <path d="M3 16l5-6 4 3 5-7 4 4" />
             </svg>
-            <span className="stat-text"><span className="lbl">Vol 24h</span><span className="val">{fmtMoney(debateVolume(debate))}</span></span>
+            <span className="stat-text"><span className="lbl">Vol 24h</span><span className="val">{formatMarketValue(debateVolume(debate), currency, 1)}</span></span>
           </div>
         </div>
 
@@ -294,7 +293,7 @@ export default function VsCard({ debate, index = 0, inlineTrading = false }: { d
             <div className="vs-quick-amount">
               <span className="qa-label">Amount</span>
               {qa.map((amount, amountIndex) => (
-                <button type="button" className={`qa-btn ${amountIndex === 0 ? "active" : ""}`} data-usd={`≈ ${fmtMoney(Number(amount) * 3200)}`} key={amount}>{amount}</button>
+                <button type="button" className={`qa-btn ${amountIndex === 0 ? "active" : ""}`} data-usd={`≈ ${formatMarketValue(Number(amount) * 3200, "USD")}`} key={amount}>{amount}</button>
               ))}
               <button type="button" className="qa-btn qa-btn-max" data-usd="≈ max">MAX</button>
               <span className="qa-unit">ETH</span>

@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { getWalletSession, isSameOriginRequest } from "../../lib/auth/session";
-import { getUserForSession, updateUserBio } from "../../lib/db/users";
+import { getUserForSession, updateUserBio, updateUserDisplayName } from "../../lib/db/users";
 
 export async function GET() {
   const session = await getWalletSession();
@@ -40,21 +40,39 @@ export async function PATCH(request: NextRequest) {
     }
 
     const fields = Object.keys(body);
-    if (fields.length !== 1 || fields[0] !== "bio") {
-      return NextResponse.json({ error: "Only the profile bio can currently be updated." }, { status: 400 });
+    if (fields.length !== 1 || (fields[0] !== "bio" && fields[0] !== "displayName")) {
+      return NextResponse.json({ error: "Only one supported profile field can be updated at a time." }, { status: 400 });
     }
 
-    const suppliedBio = (body as { bio?: unknown }).bio;
-    if (suppliedBio !== null && typeof suppliedBio !== "string") {
-      return NextResponse.json({ error: "The profile bio must be a string or null." }, { status: 400 });
+    let user;
+    if (fields[0] === "displayName") {
+      const suppliedDisplayName = (body as { displayName?: unknown }).displayName;
+      if (suppliedDisplayName !== null && typeof suppliedDisplayName !== "string") {
+        return NextResponse.json({ error: "The username must be a string or null." }, { status: 400 });
+      }
+
+      const normalizedDisplayName = typeof suppliedDisplayName === "string"
+        ? suppliedDisplayName.trim().replace(/\s+/g, " ") || null
+        : null;
+      if (normalizedDisplayName && (normalizedDisplayName.length < 2 || normalizedDisplayName.length > 32)) {
+        return NextResponse.json({ error: "The username must contain between 2 and 32 characters." }, { status: 400 });
+      }
+
+      user = await updateUserDisplayName(session.userId, session.address, normalizedDisplayName);
+    } else {
+      const suppliedBio = (body as { bio?: unknown }).bio;
+      if (suppliedBio !== null && typeof suppliedBio !== "string") {
+        return NextResponse.json({ error: "The profile bio must be a string or null." }, { status: 400 });
+      }
+
+      const normalizedBio = typeof suppliedBio === "string" ? suppliedBio.trim() || null : null;
+      if (normalizedBio && normalizedBio.length > 160) {
+        return NextResponse.json({ error: "The profile bio cannot exceed 160 characters." }, { status: 400 });
+      }
+
+      user = await updateUserBio(session.userId, session.address, normalizedBio);
     }
 
-    const normalizedBio = typeof suppliedBio === "string" ? suppliedBio.trim() || null : null;
-    if (normalizedBio && normalizedBio.length > 160) {
-      return NextResponse.json({ error: "The profile bio cannot exceed 160 characters." }, { status: 400 });
-    }
-
-    const user = await updateUserBio(session.userId, session.address, normalizedBio);
     if (!user) {
       return NextResponse.json({ error: "Wallet profile not found." }, { status: 404 });
     }

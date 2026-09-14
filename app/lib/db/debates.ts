@@ -1,13 +1,16 @@
 import "server-only";
 
 import { cache } from "react";
+import { KORUM_CHAIN, KORUM_CHAIN_ID } from "../../config/korum-network";
 import type { Debate } from "../debates";
+import { redisCacheKey, rememberJson, type CacheDiagnostic } from "../cache/redis";
+import { getEthUsdQuote } from "../markets/quote-usd";
+import { marketValueWei, percentageChange, tokenPriceWad, unitsNumber } from "../markets/math";
 import { getDatabase } from "./client";
 
-const ROBINHOOD_TESTNET_CHAIN_ID = 46630;
-const ROBINHOOD_TESTNET_NAME = "Robinhood Chain Testnet";
 const DEFAULT_LIMIT = 100;
 const MAX_LIMIT = 250;
+export const INDEXED_DEBATES_CACHE_SECONDS = 15;
 
 type IndexedDebateRow = {
   chainId: number;
@@ -26,6 +29,39 @@ type IndexedDebateRow = {
   tokenBName: string;
   tokenBSymbol: string;
   tokenBUri: string;
+  tokenATotalSupply: string;
+  tokenACirculatingSupply: string;
+  tokenAAdjustedFdvSupply: string;
+  tokenAGraduationEth: string;
+  tokenASqrtPriceX96: string | null;
+  tokenARealEth: string | null;
+  tokenAReserve: string | null;
+  tokenACumulativeVolume: string | null;
+  tokenAResidual: string | null;
+  tokenAProjectedResidual: string;
+  tokenACurveStatus: number;
+  tokenAGraduationDisabled: boolean;
+  tokenAVolume24h: string;
+  tokenATrades24h: number;
+  tokenATraderCount: number;
+  tokenAPriceHistory: string[] | null;
+  tokenBTotalSupply: string;
+  tokenBCirculatingSupply: string;
+  tokenBAdjustedFdvSupply: string;
+  tokenBGraduationEth: string;
+  tokenBSqrtPriceX96: string | null;
+  tokenBRealEth: string | null;
+  tokenBReserve: string | null;
+  tokenBCumulativeVolume: string | null;
+  tokenBResidual: string | null;
+  tokenBProjectedResidual: string;
+  tokenBCurveStatus: number;
+  tokenBGraduationDisabled: boolean;
+  tokenBVolume24h: string;
+  tokenBTrades24h: number;
+  tokenBTraderCount: number;
+  tokenBPriceHistory: string[] | null;
+  versusTraderCount: number;
 };
 
 type IndexedDebateOptions = {
@@ -51,7 +87,76 @@ function creatorLabel(wallet: string) {
   return wallet.length > 12 ? `${wallet.slice(0, 6)}…${wallet.slice(-4)}` : wallet;
 }
 
-function toDebate(row: IndexedDebateRow): Debate | null {
+type IndexedCampMarket = {
+  totalSupply: string;
+  circulatingSupply: string;
+  adjustedFdvSupply: string;
+  graduationEth: string;
+  sqrtPriceX96: string | null;
+  realEth: string | null;
+  reserve: string | null;
+  cumulativeVolume: string | null;
+  residual: string | null;
+  projectedResidual: string;
+  curveStatus: number;
+  graduationDisabled: boolean;
+  volume24h: string;
+  trades24h: number;
+  traderCount: number;
+  priceHistory: string[] | null;
+};
+
+function campMarket(input: IndexedCampMarket, quoteUsd: number | null) {
+  const priceEth = unitsNumber(tokenPriceWad(input.sqrtPriceX96));
+  const marketCapEth = unitsNumber(marketValueWei(input.sqrtPriceX96, input.circulatingSupply));
+  const fdvEth = unitsNumber(marketValueWei(input.sqrtPriceX96, input.adjustedFdvSupply));
+  const volume24hEth = unitsNumber(input.volume24h) ?? 0;
+  const priceHistoryEth = (input.priceHistory ?? [])
+    .slice()
+    .reverse()
+    .flatMap((sqrtPrice) => {
+      const price = unitsNumber(tokenPriceWad(sqrtPrice));
+      return price === null ? [] : [price];
+    });
+  const multiplier = quoteUsd ?? 1;
+  const displayedHistory = priceHistoryEth.map((price) => price * multiplier);
+  const totalSupply = unitsNumber(input.totalSupply) ?? 0;
+  const circulatingSupply = unitsNumber(input.circulatingSupply) ?? 0;
+  const lockedSupply = unitsNumber(input.residual ?? input.projectedResidual) ?? 0;
+  const realEth = unitsNumber(input.realEth) ?? 0;
+  const graduationEth = unitsNumber(input.graduationEth) ?? 0;
+  const reserve = unitsNumber(input.reserve) ?? totalSupply;
+
+  return {
+    priceEth,
+    priceUsd: priceEth !== null && quoteUsd !== null ? priceEth * quoteUsd : undefined,
+    marketCapEth,
+    marketCap: marketCapEth === null ? undefined : marketCapEth * multiplier,
+    fdvEth,
+    fdv: fdvEth === null ? undefined : fdvEth * multiplier,
+    volume24hEth,
+    volume24h: volume24hEth * multiplier,
+    totalSupply,
+    circulatingSupply,
+    lockedSupply,
+    realEth,
+    reserve,
+    cumulativeVolumeEth: unitsNumber(input.cumulativeVolume) ?? 0,
+    curveStatus: input.curveStatus,
+    graduationDisabled: input.graduationDisabled,
+    graduationProgress: input.curveStatus === 3
+      ? 100
+      : graduationEth > 0
+        ? Math.max(0, Math.min(100, (realEth / graduationEth) * 100))
+        : 0,
+    trades24h: input.trades24h,
+    traderCount: input.traderCount,
+    priceHistory: displayedHistory,
+    change24h: percentageChange(displayedHistory),
+  };
+}
+
+function toDebate(row: IndexedDebateRow, quoteUsd: number | null): Debate | null {
   const id = Number(row.versusId);
   if (!Number.isSafeInteger(id) || id < 0) {
     console.error(`Indexed versus ${row.versusId} cannot be represented safely by the current frontend ID contract.`);
@@ -63,7 +168,46 @@ function toDebate(row: IndexedDebateRow): Debate | null {
   const createdMinutesAgo = Math.max(0, Math.floor((Date.now() - createdAtTimestamp) / 60_000));
   const imageA = publicAssetUrl(row.tokenAUri);
   const imageB = publicAssetUrl(row.tokenBUri);
-  const flatHistory = [0, 0, 0, 0, 0, 0, 0];
+  const marketA = campMarket({
+    totalSupply: row.tokenATotalSupply,
+    circulatingSupply: row.tokenACirculatingSupply,
+    adjustedFdvSupply: row.tokenAAdjustedFdvSupply,
+    graduationEth: row.tokenAGraduationEth,
+    sqrtPriceX96: row.tokenASqrtPriceX96,
+    realEth: row.tokenARealEth,
+    reserve: row.tokenAReserve,
+    cumulativeVolume: row.tokenACumulativeVolume,
+    residual: row.tokenAResidual,
+    projectedResidual: row.tokenAProjectedResidual,
+    curveStatus: row.tokenACurveStatus,
+    graduationDisabled: row.tokenAGraduationDisabled,
+    volume24h: row.tokenAVolume24h,
+    trades24h: row.tokenATrades24h,
+    traderCount: row.tokenATraderCount,
+    priceHistory: row.tokenAPriceHistory,
+  }, quoteUsd);
+  const marketB = campMarket({
+    totalSupply: row.tokenBTotalSupply,
+    circulatingSupply: row.tokenBCirculatingSupply,
+    adjustedFdvSupply: row.tokenBAdjustedFdvSupply,
+    graduationEth: row.tokenBGraduationEth,
+    sqrtPriceX96: row.tokenBSqrtPriceX96,
+    realEth: row.tokenBRealEth,
+    reserve: row.tokenBReserve,
+    cumulativeVolume: row.tokenBCumulativeVolume,
+    residual: row.tokenBResidual,
+    projectedResidual: row.tokenBProjectedResidual,
+    curveStatus: row.tokenBCurveStatus,
+    graduationDisabled: row.tokenBGraduationDisabled,
+    volume24h: row.tokenBVolume24h,
+    trades24h: row.tokenBTrades24h,
+    traderCount: row.tokenBTraderCount,
+    priceHistory: row.tokenBPriceHistory,
+  }, quoteUsd);
+  const totalMarketCap = (marketA.marketCap ?? 0) + (marketB.marketCap ?? 0);
+  const sideAPercentage = totalMarketCap > 0
+    ? Math.round(((marketA.marketCap ?? 0) / totalMarketCap) * 100)
+    : 50;
 
   return {
     id,
@@ -73,21 +217,23 @@ function toDebate(row: IndexedDebateRow): Debate | null {
     sideA: row.tokenAName,
     sideB: row.tokenBName,
     category: row.category,
-    sideAPercentage: 50,
-    volume24h: 0,
+    sideAPercentage,
+    volume24h: marketA.volume24h + marketB.volume24h,
     liquidity: 0,
-    trades24h: 0,
-    participantCount: 0,
-    holderCount: 0,
+    trades24h: marketA.trades24h + marketB.trades24h,
+    participantCount: row.versusTraderCount,
     createdMinutesAgo,
-    marketCapA: 0,
-    marketCapB: 0,
+    marketCapA: marketA.marketCap,
+    marketCapB: marketB.marketCap,
+    quoteSymbol: "ETH",
+    quoteUsd: quoteUsd ?? undefined,
+    marketCurrency: quoteUsd === null ? "ETH" : "USD",
     imageA,
     imageB,
     tokenASymbol: row.tokenASymbol,
     tokenBSymbol: row.tokenBSymbol,
-    changeA24h: 0,
-    changeB24h: 0,
+    changeA24h: marketA.change24h,
+    changeB24h: marketB.change24h,
     createdAt,
     createdAtUtc: createdAt,
     createdAtTimestamp,
@@ -105,7 +251,7 @@ function toDebate(row: IndexedDebateRow): Debate | null {
       slug: row.tokenASymbol.toLowerCase(),
       address: row.tokenAAddress,
       chainId: row.chainId,
-      chainName: ROBINHOOD_TESTNET_NAME,
+      chainName: KORUM_CHAIN.name,
       decimals: 18,
       image: imageA,
       imageRef: imageA,
@@ -116,20 +262,37 @@ function toDebate(row: IndexedDebateRow): Debate | null {
       createdAt,
       createdAtUtc: createdAt,
       createdAtTimestamp,
-      price: 0,
-      priceUsd: 0,
-      marketCap: 0,
+      price: marketA.priceEth ?? undefined,
+      priceEth: marketA.priceEth ?? undefined,
+      priceUsd: marketA.priceUsd,
+      supply: marketA.totalSupply,
+      circulatingSupply: marketA.circulatingSupply,
+      lockedSupply: marketA.lockedSupply,
+      marketCap: marketA.marketCap,
+      marketCapEth: marketA.marketCapEth ?? undefined,
+      fdv: marketA.fdv,
+      fdvEth: marketA.fdvEth ?? undefined,
+      quoteSymbol: "ETH",
+      quoteUsd: quoteUsd ?? undefined,
+      marketCurrency: quoteUsd === null ? "ETH" : "USD",
+      curveStatus: marketA.curveStatus,
+      graduationDisabled: marketA.graduationDisabled,
+      graduationProgress: marketA.graduationProgress,
+      curveRealEth: marketA.realEth,
+      curveTokenReserve: marketA.reserve,
+      cumulativeVolumeEth: marketA.cumulativeVolumeEth,
       liquidity: 0,
-      volume24h: 0,
-      holders: 0,
-      trades24h: 0,
+      volume24h: marketA.volume24h,
+      volume24hEth: marketA.volume24hEth,
+      traderCount: marketA.traderCount,
+      trades24h: marketA.trades24h,
       buys24h: 0,
       sells24h: 0,
-      change24h: 0,
+      change24h: marketA.change24h,
       change5m: 0,
       change1h: 0,
       change6h: 0,
-      priceHistory: flatHistory,
+      priceHistory: marketA.priceHistory,
     },
     tokenB: {
       id: `${row.chainId}:${row.versusId}:1`,
@@ -138,7 +301,7 @@ function toDebate(row: IndexedDebateRow): Debate | null {
       slug: row.tokenBSymbol.toLowerCase(),
       address: row.tokenBAddress,
       chainId: row.chainId,
-      chainName: ROBINHOOD_TESTNET_NAME,
+      chainName: KORUM_CHAIN.name,
       decimals: 18,
       image: imageB,
       imageRef: imageB,
@@ -149,20 +312,37 @@ function toDebate(row: IndexedDebateRow): Debate | null {
       createdAt,
       createdAtUtc: createdAt,
       createdAtTimestamp,
-      price: 0,
-      priceUsd: 0,
-      marketCap: 0,
+      price: marketB.priceEth ?? undefined,
+      priceEth: marketB.priceEth ?? undefined,
+      priceUsd: marketB.priceUsd,
+      supply: marketB.totalSupply,
+      circulatingSupply: marketB.circulatingSupply,
+      lockedSupply: marketB.lockedSupply,
+      marketCap: marketB.marketCap,
+      marketCapEth: marketB.marketCapEth ?? undefined,
+      fdv: marketB.fdv,
+      fdvEth: marketB.fdvEth ?? undefined,
+      quoteSymbol: "ETH",
+      quoteUsd: quoteUsd ?? undefined,
+      marketCurrency: quoteUsd === null ? "ETH" : "USD",
+      curveStatus: marketB.curveStatus,
+      graduationDisabled: marketB.graduationDisabled,
+      graduationProgress: marketB.graduationProgress,
+      curveRealEth: marketB.realEth,
+      curveTokenReserve: marketB.reserve,
+      cumulativeVolumeEth: marketB.cumulativeVolumeEth,
       liquidity: 0,
-      volume24h: 0,
-      holders: 0,
-      trades24h: 0,
+      volume24h: marketB.volume24h,
+      volume24hEth: marketB.volume24hEth,
+      traderCount: marketB.traderCount,
+      trades24h: marketB.trades24h,
       buys24h: 0,
       sells24h: 0,
-      change24h: 0,
+      change24h: marketB.change24h,
       change5m: 0,
       change1h: 0,
       change6h: 0,
-      priceHistory: flatHistory,
+      priceHistory: marketB.priceHistory,
     },
   };
 }
@@ -178,16 +358,16 @@ async function readIndexedDebates({ limit = DEFAULT_LIMIT, versusId, watchlistUs
   ` : "";
   const versusPredicate = versusId ? "AND v.versus_id = $2::numeric" : "";
   const parameters: Array<string | number> = versusId
-    ? [ROBINHOOD_TESTNET_CHAIN_ID, versusId, safeLimit]
+    ? [KORUM_CHAIN_ID, versusId, safeLimit]
     : watchlistUserId
-      ? [ROBINHOOD_TESTNET_CHAIN_ID, watchlistUserId, safeLimit]
-      : [ROBINHOOD_TESTNET_CHAIN_ID, safeLimit];
+      ? [KORUM_CHAIN_ID, watchlistUserId, safeLimit]
+      : [KORUM_CHAIN_ID, safeLimit];
   const limitParameter = versusId || watchlistUserId ? "$3" : "$2";
   const orderBy = watchlistUserId
     ? "watchlist.added_at DESC"
     : "v.created_at DESC, v.versus_id DESC";
 
-  const rows = await database.unsafe<IndexedDebateRow[]>(`
+  const rowsPromise = database.unsafe<IndexedDebateRow[]>(`
     SELECT
       v.chain_id::INTEGER AS "chainId",
       v.versus_id::TEXT AS "versusId",
@@ -204,7 +384,40 @@ async function readIndexedDebates({ limit = DEFAULT_LIMIT, versusId, watchlistUs
       camp_b.token_address AS "tokenBAddress",
       camp_b.name AS "tokenBName",
       camp_b.symbol AS "tokenBSymbol",
-      camp_b.uri AS "tokenBUri"
+      camp_b.uri AS "tokenBUri",
+      market_a.total_supply::TEXT AS "tokenATotalSupply",
+      market_a.circulating_supply::TEXT AS "tokenACirculatingSupply",
+      market_a.adjusted_fdv_supply::TEXT AS "tokenAAdjustedFdvSupply",
+      market_a.graduation_eth::TEXT AS "tokenAGraduationEth",
+      market_a.sqrt_price_x96_after::TEXT AS "tokenASqrtPriceX96",
+      market_a.real_eth_after::TEXT AS "tokenARealEth",
+      market_a.token_reserve_after::TEXT AS "tokenAReserve",
+      market_a.cumulative_volume_after::TEXT AS "tokenACumulativeVolume",
+      market_a.token_residual::TEXT AS "tokenAResidual",
+      market_a.projected_token_residual::TEXT AS "tokenAProjectedResidual",
+      market_a.curve_status::INTEGER AS "tokenACurveStatus",
+      market_a.graduation_disabled AS "tokenAGraduationDisabled",
+      stats_a.volume_24h AS "tokenAVolume24h",
+      stats_a.trades_24h AS "tokenATrades24h",
+      stats_a.trader_count AS "tokenATraderCount",
+      stats_a.price_history AS "tokenAPriceHistory",
+      market_b.total_supply::TEXT AS "tokenBTotalSupply",
+      market_b.circulating_supply::TEXT AS "tokenBCirculatingSupply",
+      market_b.adjusted_fdv_supply::TEXT AS "tokenBAdjustedFdvSupply",
+      market_b.graduation_eth::TEXT AS "tokenBGraduationEth",
+      market_b.sqrt_price_x96_after::TEXT AS "tokenBSqrtPriceX96",
+      market_b.real_eth_after::TEXT AS "tokenBRealEth",
+      market_b.token_reserve_after::TEXT AS "tokenBReserve",
+      market_b.cumulative_volume_after::TEXT AS "tokenBCumulativeVolume",
+      market_b.token_residual::TEXT AS "tokenBResidual",
+      market_b.projected_token_residual::TEXT AS "tokenBProjectedResidual",
+      market_b.curve_status::INTEGER AS "tokenBCurveStatus",
+      market_b.graduation_disabled AS "tokenBGraduationDisabled",
+      stats_b.volume_24h AS "tokenBVolume24h",
+      stats_b.trades_24h AS "tokenBTrades24h",
+      stats_b.trader_count AS "tokenBTraderCount",
+      stats_b.price_history AS "tokenBPriceHistory",
+      stats_versus.trader_count AS "versusTraderCount"
     FROM indexer.versuses v
     ${watchlistJoin}
     INNER JOIN indexer.versus_camps camp_a
@@ -215,24 +428,109 @@ async function readIndexedDebates({ limit = DEFAULT_LIMIT, versusId, watchlistUs
       ON camp_b.chain_id = v.chain_id
       AND camp_b.versus_id = v.versus_id
       AND camp_b.side = 1
+    INNER JOIN indexer.camp_market_state market_a
+      ON market_a.chain_id = camp_a.chain_id
+      AND market_a.token_address = camp_a.token_address
+    INNER JOIN indexer.camp_market_state market_b
+      ON market_b.chain_id = camp_b.chain_id
+      AND market_b.token_address = camp_b.token_address
+    LEFT JOIN LATERAL (
+      SELECT
+        COALESCE(SUM(trade.eth_gross) FILTER (
+          WHERE trade.traded_at >= NOW() - INTERVAL '24 hours'
+        ), 0)::TEXT AS volume_24h,
+        COUNT(*) FILTER (
+          WHERE trade.traded_at >= NOW() - INTERVAL '24 hours'
+        )::INTEGER AS trades_24h,
+        COUNT(DISTINCT NULLIF(trade.trader_address, '0x0000000000000000000000000000000000000000'))::INTEGER AS trader_count,
+        ARRAY(
+          SELECT history.sqrt_price_x96_after::TEXT
+          FROM indexer.camp_trades history
+          WHERE history.chain_id = camp_a.chain_id
+            AND history.token_address = camp_a.token_address
+            AND history.traded_at >= NOW() - INTERVAL '24 hours'
+          ORDER BY history.block_number DESC, history.log_index DESC
+          LIMIT 96
+        ) AS price_history
+      FROM indexer.camp_trades trade
+      WHERE trade.chain_id = camp_a.chain_id
+        AND trade.token_address = camp_a.token_address
+    ) stats_a ON TRUE
+    LEFT JOIN LATERAL (
+      SELECT
+        COALESCE(SUM(trade.eth_gross) FILTER (
+          WHERE trade.traded_at >= NOW() - INTERVAL '24 hours'
+        ), 0)::TEXT AS volume_24h,
+        COUNT(*) FILTER (
+          WHERE trade.traded_at >= NOW() - INTERVAL '24 hours'
+        )::INTEGER AS trades_24h,
+        COUNT(DISTINCT NULLIF(trade.trader_address, '0x0000000000000000000000000000000000000000'))::INTEGER AS trader_count,
+        ARRAY(
+          SELECT history.sqrt_price_x96_after::TEXT
+          FROM indexer.camp_trades history
+          WHERE history.chain_id = camp_b.chain_id
+            AND history.token_address = camp_b.token_address
+            AND history.traded_at >= NOW() - INTERVAL '24 hours'
+          ORDER BY history.block_number DESC, history.log_index DESC
+          LIMIT 96
+        ) AS price_history
+      FROM indexer.camp_trades trade
+      WHERE trade.chain_id = camp_b.chain_id
+        AND trade.token_address = camp_b.token_address
+    ) stats_b ON TRUE
+    LEFT JOIN LATERAL (
+      SELECT COUNT(DISTINCT NULLIF(trade.trader_address, '0x0000000000000000000000000000000000000000'))::INTEGER AS trader_count
+      FROM indexer.camp_trades trade
+      WHERE trade.chain_id = v.chain_id
+        AND trade.token_address IN (camp_a.token_address, camp_b.token_address)
+    ) stats_versus ON TRUE
     WHERE v.chain_id = $1
       ${versusPredicate}
     ORDER BY ${orderBy}
     LIMIT ${limitParameter}
   `, parameters);
 
-  return rows.map(toDebate).filter((debate): debate is Debate => debate !== null);
+  const [rows, quote] = await Promise.all([rowsPromise, getEthUsdQuote()]);
+
+  return rows
+    .map((row) => toDebate(row, quote?.value ?? null))
+    .filter((debate): debate is Debate => debate !== null);
 }
 
-export const getIndexedDebates = cache(async (limit = DEFAULT_LIMIT) => {
-  return readIndexedDebates({ limit });
-});
+async function getCachedIndexedDebates(limit: number, diagnostic?: CacheDiagnostic) {
+  const safeLimit = Math.min(MAX_LIMIT, Math.max(1, Math.trunc(limit)));
+  return rememberJson(
+    redisCacheKey("debates", "list", safeLimit),
+    INDEXED_DEBATES_CACHE_SECONDS,
+    () => readIndexedDebates({ limit: safeLimit }),
+    diagnostic,
+  );
+}
 
-export const getIndexedDebateById = cache(async (versusId: string) => {
+export const getIndexedDebates = cache((limit = DEFAULT_LIMIT) => getCachedIndexedDebates(limit));
+
+export function getIndexedDebatesWithDiagnostic(diagnostic: CacheDiagnostic, limit = DEFAULT_LIMIT) {
+  return getCachedIndexedDebates(limit, diagnostic);
+}
+
+async function getCachedIndexedDebateById(versusId: string, diagnostic?: CacheDiagnostic) {
   if (!/^\d{1,78}$/.test(versusId)) return null;
-  const debates = await readIndexedDebates({ limit: 1, versusId });
-  return debates[0] ?? null;
-});
+  return rememberJson(
+    redisCacheKey("debates", "detail", versusId),
+    INDEXED_DEBATES_CACHE_SECONDS,
+    async () => {
+      const debates = await readIndexedDebates({ limit: 1, versusId });
+      return debates[0] ?? null;
+    },
+    diagnostic,
+  );
+}
+
+export const getIndexedDebateById = cache((versusId: string) => getCachedIndexedDebateById(versusId));
+
+export function getIndexedDebateByIdWithDiagnostic(versusId: string, diagnostic: CacheDiagnostic) {
+  return getCachedIndexedDebateById(versusId, diagnostic);
+}
 
 export async function getIndexedWatchlistDebates(userId: string) {
   return readIndexedDebates({ limit: MAX_LIMIT, watchlistUserId: userId });

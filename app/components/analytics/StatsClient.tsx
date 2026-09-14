@@ -2,6 +2,7 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 import { useMock } from "../../components/MockProvider";
+import { useIndexedDebates } from "../../hooks/useIndexedMarkets";
 import MetricGlyph from "./MetricGlyph";
 import type { Debate } from "../../lib/debates";
 
@@ -127,26 +128,13 @@ function StatCard({ value, label, icon }: { value: string; label: string; icon: 
 
 export default function StatsClient({ debates }: { debates: Debate[] }) {
   const { mockEnabled, hydrated } = useMock();
-  const [liveData, setLiveData] = useState<Debate[] | null>(null);
+  const liveDebates = useIndexedDebates(undefined, !mockEnabled);
   const [period, setPeriod] = useState<"day" | "week" | "month">("day");
 
-  useEffect(() => {
-    if (mockEnabled) return;
-    fetch("/api/debates")
-      .then(async (response) => {
-        if (!response.ok) throw new Error(`Unable to load live versus (${response.status}).`);
-        const data: unknown = await response.json();
-        if (!Array.isArray(data)) throw new Error("The live versus response is invalid.");
-        return data as Debate[];
-      })
-      .then((data) => setLiveData(data))
-      .catch(() => setLiveData([]));
-  }, [mockEnabled, debates]);
-
-  const src = mockEnabled ? debates : liveData ?? emptyDebates;
+  const src = mockEnabled ? debates : liveDebates.data ?? emptyDebates;
   const totalVolume = src.reduce((sum, debate) => sum + debate.volume24h, 0);
   const participantCount = src.reduce((sum, debate) => sum + debate.participantCount, 0);
-  const trades = Math.round(participantCount * 3.6);
+  const trades = src.reduce((sum, debate) => sum + (debate.trades24h ?? 0), 0);
   const avgTrade = trades ? totalVolume / trades : 0;
   const annualVolume = totalVolume * 18;
   const weeklyVolume = totalVolume * 0.42;

@@ -8,6 +8,7 @@ import { getDatabase } from "./client";
 type UserRow = {
   id: string;
   evmWallet: string;
+  displayName: string | null;
   referralCode: string;
   profileBio: string | null;
   avatarObjectKey: string | null;
@@ -49,6 +50,7 @@ function toUserProfile(row: UserRow): UserProfile {
   return {
     id: row.id,
     evmWallet: row.evmWallet as `0x${string}`,
+    displayName: row.displayName,
     referralCode: row.referralCode,
     bio: row.profileBio,
     avatar: row.avatarObjectKey && row.avatarMimeType && row.avatarUpdatedAt
@@ -75,6 +77,7 @@ function toUserProfile(row: UserRow): UserProfile {
 const userColumns = `
   id,
   evm_wallet AS "evmWallet",
+  display_name AS "displayName",
   referral_code AS "referralCode",
   profile_bio AS "profileBio",
   avatar_object_key AS "avatarObjectKey",
@@ -137,6 +140,19 @@ export async function updateUserBio(userId: string, address: `0x${string}`, bio:
     WHERE id = $1 AND evm_wallet = $2
     RETURNING ${userColumns}
   `, [userId, evmWallet, bio]);
+
+  return rows[0] ? toUserProfile(rows[0]) : null;
+}
+
+export async function updateUserDisplayName(userId: string, address: `0x${string}`, displayName: string | null) {
+  const database = getDatabase();
+  const evmWallet = normalizeWallet(address);
+  const rows = await database.unsafe<UserRow[]>(`
+    UPDATE users
+    SET display_name = $3, updated_at = NOW()
+    WHERE id = $1 AND evm_wallet = $2
+    RETURNING ${userColumns}
+  `, [userId, evmWallet, displayName]);
 
   return rows[0] ? toUserProfile(rows[0]) : null;
 }

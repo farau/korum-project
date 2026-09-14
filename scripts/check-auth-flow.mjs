@@ -231,6 +231,16 @@ try {
     throw new Error("Authenticated profile update did not preserve the user identity.");
   }
 
+  const displayNameResponse = await fetch(`${appUrl}/api/profile`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", Origin: appUrl, Cookie: sessionCookie },
+    body: JSON.stringify({ displayName: "  Korum   Tester  " }),
+  });
+  const namedProfile = await jsonResponse(displayNameResponse);
+  if (namedProfile.user.id !== profile.user.id || namedProfile.user.displayName !== "Korum Tester") {
+    throw new Error("Authenticated username update was not normalized or persisted.");
+  }
+
   const [indexedVersus] = await database`
     SELECT
       versus.versus_id::TEXT AS versus_id,

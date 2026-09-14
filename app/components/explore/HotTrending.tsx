@@ -3,6 +3,8 @@
 import React from "react";
 import Link from "next/link";
 import type { Debate } from "../../lib/debates";
+import { useIndexedDebates } from "../../hooks/useIndexedMarkets";
+import { formatMarketValue } from "../../lib/markets/format";
 import { useMock } from "../MockProvider";
 
 function FireIcon({ className = "ht-fire" }: { className?: string }) {
@@ -13,13 +15,10 @@ function FireIcon({ className = "ht-fire" }: { className?: string }) {
   );
 }
 
-function fmtMoney(value: number) {
-  return `$${Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 1 }).format(value)}`;
-}
-
 export default function HotTrending({ mockDebates, indexedDebates }: { mockDebates: Debate[]; indexedDebates: Debate[] }) {
   const { mockEnabled } = useMock();
-  const debates = [...(mockEnabled ? mockDebates : indexedDebates)]
+  const liveDebates = useIndexedDebates(indexedDebates, !mockEnabled);
+  const debates = [...(mockEnabled ? mockDebates : liveDebates.data ?? indexedDebates)]
     .sort((a, b) => b.volume24h - a.volume24h)
     .slice(0, 6);
 
@@ -42,12 +41,12 @@ export default function HotTrending({ mockDebates, indexedDebates }: { mockDebat
                   <div className="ht-half side-a">
                     <div className="ht-token ht-token-a">{debate.sideA.charAt(0)}</div>
                     <span className={`ht-badge ht-pct ${sideAPercentage >= 50 ? "up" : "down"}`}>{sideAPercentage}%</span>
-                    <span className="ht-badge ht-mcap">MCAP <b>{fmtMoney(debate.marketCapA || 0)}</b></span>
+                    <span className="ht-badge ht-mcap">MCAP <b>{formatMarketValue(debate.marketCapA ?? 0, debate.marketCurrency ?? "USD", 1)}</b></span>
                     <span className="ht-name">{debate.sideA}</span>
                   </div>
                   <div className="ht-half side-b">
                     <div className="ht-token ht-token-b">{debate.sideB.charAt(0)}</div>
-                    <span className="ht-badge ht-mcap">MCAP <b>{fmtMoney(debate.marketCapB || 0)}</b></span>
+                    <span className="ht-badge ht-mcap">MCAP <b>{formatMarketValue(debate.marketCapB ?? 0, debate.marketCurrency ?? "USD", 1)}</b></span>
                     <span className={`ht-badge ht-pct ${sideAPercentage < 50 ? "up" : "down"}`}>{100 - sideAPercentage}%</span>
                     <span className="ht-name">{debate.sideB}</span>
                   </div>

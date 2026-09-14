@@ -92,10 +92,36 @@ function DataPending() {
 }
 
 function InformationPanel({ profile, onProfileChange }: { profile: UserProfile; onProfileChange: (profile: UserProfile) => void }) {
+  const [editingDisplayName, setEditingDisplayName] = useState(false);
+  const [displayName, setDisplayName] = useState(profile.displayName ?? "");
+  const [savingDisplayName, setSavingDisplayName] = useState(false);
+  const [displayNameError, setDisplayNameError] = useState<string | null>(null);
   const [editingBio, setEditingBio] = useState(false);
   const [bio, setBio] = useState(profile.bio ?? "");
   const [savingBio, setSavingBio] = useState(false);
   const [bioError, setBioError] = useState<string | null>(null);
+
+  async function saveDisplayName() {
+    setSavingDisplayName(true);
+    setDisplayNameError(null);
+    try {
+      const response = await fetch("/api/profile", {
+        method: "PATCH",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ displayName }),
+      });
+      const result = await response.json() as { user?: UserProfile; error?: string };
+      if (!response.ok || !result.user) throw new Error(result.error || "Unable to update the username.");
+      setDisplayName(result.user.displayName ?? "");
+      onProfileChange(result.user);
+      setEditingDisplayName(false);
+    } catch (error) {
+      setDisplayNameError(error instanceof Error ? error.message : "Unable to update the username.");
+    } finally {
+      setSavingDisplayName(false);
+    }
+  }
 
   async function saveBio() {
     setSavingBio(true);
@@ -124,9 +150,9 @@ function InformationPanel({ profile, onProfileChange }: { profile: UserProfile; 
         <h2>Account information</h2>
         <p>Wallet identity and account access in one place.</p>
         <div className="profile-account-grid">
-          <div className="profile-field">
-            <span><small>Wallet profile</small><strong>{shortenAddress(profile.evmWallet)}</strong></span>
-            <span className="profile-status-pill">Connected</span>
+          <div className={`profile-field profile-editable-field${editingDisplayName ? " editing" : ""}`}>
+            <span><small>Username</small>{editingDisplayName ? <input aria-label="Username" autoComplete="nickname" maxLength={32} value={displayName} onChange={(event) => setDisplayName(event.target.value)} /> : <strong>{profile.displayName || "Choose a username"}</strong>}</span>
+            {editingDisplayName ? <span className="profile-bio-actions"><button type="button" disabled={savingDisplayName} onClick={saveDisplayName}>{savingDisplayName ? "Saving..." : "Save"}</button><button type="button" disabled={savingDisplayName} onClick={() => { setDisplayName(profile.displayName ?? ""); setDisplayNameError(null); setEditingDisplayName(false); }}>Cancel</button></span> : <button type="button" className="profile-copy-button" onClick={() => setEditingDisplayName(true)} aria-label="Edit username" title="Edit username"><Icon name="edit" /></button>}
           </div>
           <div className="profile-field profile-field-disabled" aria-disabled="true">
             <span><small>Profile picture</small><strong>{profile.avatar ? "Image stored" : "No image"}</strong></span>
@@ -135,7 +161,7 @@ function InformationPanel({ profile, onProfileChange }: { profile: UserProfile; 
           <div className="profile-field">
             <span><small>Member since</small><strong>{formatUtcDate(profile.createdAt)}</strong></span>
           </div>
-          <div className={`profile-field profile-bio-field${editingBio ? " editing" : ""}`}>
+          <div className={`profile-field profile-editable-field profile-bio-field${editingBio ? " editing" : ""}`}>
             <span><small>Profile bio</small>{editingBio ? <input aria-label="Profile bio" maxLength={160} value={bio} onChange={(event) => setBio(event.target.value)} /> : <strong>{profile.bio || "No bio set"}</strong>}</span>
             {editingBio ? <span className="profile-bio-actions"><button type="button" disabled={savingBio} onClick={saveBio}>{savingBio ? "Saving..." : "Save"}</button><button type="button" disabled={savingBio} onClick={() => { setBio(profile.bio ?? ""); setBioError(null); setEditingBio(false); }}>Cancel</button></span> : <button type="button" className="profile-copy-button" onClick={() => setEditingBio(true)} aria-label="Edit profile bio" title="Edit profile bio"><Icon name="edit" /></button>}
           </div>
@@ -148,6 +174,7 @@ function InformationPanel({ profile, onProfileChange }: { profile: UserProfile; 
             <CopyButton value={profile.evmWallet} label="Copy wallet address" />
           </div>
         </div>
+        {displayNameError ? <p className="profile-field-error" role="alert">{displayNameError}</p> : null}
         {bioError ? <p className="profile-field-error" role="alert">{bioError}</p> : null}
       </section>
 
@@ -340,7 +367,7 @@ export default function ProfileClient({ profile, sessionAddress, sessionChainId 
   return (
     <div className="page profile-page">
       <section className="profile-reference-hero">
-        <div className="wrap"><div className="profile-reference-card"><div className="profile-avatar-hex" aria-hidden="true">{walletInitial(address)}</div><div className="profile-reference-main"><h1>{shortenAddress(address)}</h1><p>{currentProfile.bio || "Profile linked to your connected EVM wallet."}</p><div className="profile-reference-badges"><span>Wallet verified</span><span>{chainName(sessionChainId)}</span></div></div></div></div>
+        <div className="wrap"><div className="profile-reference-card"><div className="profile-avatar-hex" aria-hidden="true">{walletInitial(address)}</div><div className="profile-reference-main"><h1>{currentProfile.displayName || shortenAddress(address)}</h1><p>{currentProfile.bio || "Profile linked to your connected EVM wallet."}</p><div className="profile-reference-badges"><span>Wallet verified</span><span>{chainName(sessionChainId)}</span></div></div></div></div>
       </section>
       <section className="profile-reference-content">
         <div className="wrap">

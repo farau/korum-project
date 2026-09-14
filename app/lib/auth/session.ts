@@ -2,6 +2,7 @@ import "server-only";
 
 import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import { cookies } from "next/headers";
+import { KORUM_CHAIN_ID } from "../../config/korum-network";
 
 const SESSION_LIFETIME_SECONDS = 60 * 60 * 12;
 const CHALLENGE_LIFETIME_SECONDS = 60 * 5;
@@ -125,7 +126,7 @@ export function readWalletSession(token: string | undefined) {
   const validUserId = typeof session?.userId === "string"
     && /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(session.userId);
   const validAddress = typeof session?.address === "string" && /^0x[0-9a-fA-F]{40}$/.test(session.address);
-  const validChainId = Number.isSafeInteger(session?.chainId) && Number(session?.chainId) > 0;
+  const validChainId = session?.chainId === KORUM_CHAIN_ID;
   if (!session || !validUserId || !validAddress || !validChainId) {
     return null;
   }

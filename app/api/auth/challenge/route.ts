@@ -1,5 +1,6 @@
 import { getAddress, isAddress } from "viem";
 import { NextResponse, type NextRequest } from "next/server";
+import { KORUM_CHAIN_ID } from "../../../config/korum-network";
 import {
   CHALLENGE_COOKIE_NAME,
   challengeCookieOptions,
@@ -10,8 +11,6 @@ import {
   isSameOriginRequest,
   readWalletNonce,
 } from "../../../lib/auth/session";
-
-const SUPPORTED_CHAIN_IDS = new Set([4663, 46630]);
 
 export function GET(request: NextRequest) {
   if (!isSameOriginRequest(request)) {
@@ -48,7 +47,7 @@ export async function POST(request: NextRequest) {
     }
 
     const chainId = Number(body.chainId);
-    if (!Number.isInteger(chainId) || !SUPPORTED_CHAIN_IDS.has(chainId)) {
+    if (!Number.isInteger(chainId) || chainId !== KORUM_CHAIN_ID) {
       return NextResponse.json({ error: "Unsupported network." }, { status: 400 });
     }
 

@@ -7,7 +7,8 @@ integration data shared by the frontend, scripts, and indexer configuration.
 contracts/
 ├── abis/                   JSON ABI arrays, one file per contract
 └── deployments/            Public addresses grouped by chain ID
-    └── 46630.json          Robinhood Chain Testnet
+    ├── 4663.json           Robinhood Chain mainnet placeholder
+    └── 46630.json          Robinhood Chain Testnet deployment
 ```
 
 ## ABIs
@@ -24,9 +25,10 @@ array, not the complete compiler artifact.
 Contract addresses are public configuration and should be committed. They must
 not be stored in `.env` files or repeated inside React components.
 
-Each network has one manifest named after its numeric chain ID. Add a new file,
-such as `4663.json`, when the Korum mainnet deployment exists. Never reuse the
-testnet Korum addresses as mainnet defaults.
+Each network has one manifest named after its numeric chain ID. `4663.json`
+intentionally contains `null` values until the Korum mainnet deployment exists.
+The contract adapter fails immediately when `mainnet` is selected with an
+incomplete manifest. Never reuse the testnet Korum addresses as mainnet defaults.
 
 The `deploymentBlock` values are intentionally `null` until they are verified
 from the deployment transactions. They must be filled before an indexer

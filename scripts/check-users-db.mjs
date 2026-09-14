@@ -79,6 +79,16 @@ try {
     throw new Error("Referral code is not a six-character Base62 identifier.");
   }
 
+  const [namedUser] = await connection`
+    UPDATE users
+    SET display_name = ${"Korum Tester"}, updated_at = NOW()
+    WHERE id = ${first.id}
+    RETURNING display_name
+  `;
+  if (namedUser.display_name !== "Korum Tester") {
+    throw new Error("The editable username was not persisted.");
+  }
+
   await connection.unsafe("SAVEPOINT referral_collision_check");
   try {
     await connection`
@@ -92,7 +102,7 @@ try {
     await connection.unsafe("ROLLBACK TO SAVEPOINT referral_collision_check");
   }
 
-  process.stdout.write("Users schema check passed: atomic upsert, stable codes, and referral uniqueness are valid.\n");
+  process.stdout.write("Users schema check passed: atomic upsert, editable username, stable codes, and referral uniqueness are valid.\n");
 } finally {
   await connection.unsafe("ROLLBACK").catch(() => undefined);
   connection.release();

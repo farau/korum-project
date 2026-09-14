@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   BaseError,
   formatUnits,
@@ -23,6 +24,14 @@ import {
 } from "wagmi";
 
 import type { DebateToken } from "../lib/debates";
+import { formatTokenAmount } from "../lib/markets/format";
+import {
+  INDEXED_DEBATES_QUERY_KEY,
+  INDEXED_DEBATE_QUERY_KEY,
+  RECENT_MARKET_TRADES_QUERY_KEY,
+  TOKEN_CHART_QUERY_KEY,
+  TOKEN_TRADES_QUERY_KEY,
+} from "../hooks/useIndexedMarkets";
 import {
   KORUM_CHAIN,
   KORUM_CORE_ABI,
@@ -78,9 +87,7 @@ function symbolLabel(symbol?: string) {
 }
 
 function trimUnits(value: bigint, decimals: number, maximumFractionDigits = 6) {
-  const [integer, fraction = ""] = formatUnits(value, decimals).split(".");
-  const trimmedFraction = fraction.slice(0, maximumFractionDigits).replace(/0+$/, "");
-  return trimmedFraction ? `${integer}.${trimmedFraction}` : integer;
+  return formatTokenAmount(formatUnits(value, decimals), maximumFractionDigits);
 }
 
 function compactBalance(value: bigint | undefined, decimals: number) {
@@ -121,6 +128,7 @@ export default function TokenTradePanel({
   initialMode?: TradeMode;
   compact?: boolean;
 }) {
+  const queryClient = useQueryClient();
   const { address, isConnected } = useAccount();
   const { authenticated, authenticating, connect } = useWallet();
   const chainId = useChainId();
@@ -478,6 +486,13 @@ export default function TokenTradePanel({
 
       setTransactionStep("success");
       onStatus(`${mode === "buy" ? "Purchase" : "Sale"} confirmed for ${symbol}.`);
+      void Promise.all([
+        queryClient.invalidateQueries({ queryKey: INDEXED_DEBATES_QUERY_KEY }),
+        queryClient.invalidateQueries({ queryKey: [INDEXED_DEBATE_QUERY_KEY] }),
+        queryClient.invalidateQueries({ queryKey: [TOKEN_CHART_QUERY_KEY, tokenAddress.toLowerCase()] }),
+        queryClient.invalidateQueries({ queryKey: [TOKEN_TRADES_QUERY_KEY] }),
+        queryClient.invalidateQueries({ queryKey: [RECENT_MARKET_TRADES_QUERY_KEY] }),
+      ]);
       await Promise.all([refetchEthBalance(), refetchTokenBalance(), refetchAllowance(), refetchCurve()]);
       await clearConsumedReferral();
     } catch (error) {

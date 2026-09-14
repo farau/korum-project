@@ -2,10 +2,18 @@
 
 import Link from "next/link";
 import Image from "next/image";
+import { useQuery } from "@tanstack/react-query";
 import React, { useMemo, useState } from "react";
 
 import { useWatchlist } from "../hooks/useWatchlist";
+import { KORUM_CHAIN } from "../config/korum-network";
+import {
+  TOKEN_CHART_QUERY_KEY,
+  TOKEN_TRADES_QUERY_KEY,
+  useIndexedDebate,
+} from "../hooks/useIndexedMarkets";
 import type { Debate, DebateToken } from "../lib/debates";
+import { formatMarketValue, formatTokenAmount, formatTokenPrice } from "../lib/markets/format";
 import { useMock } from "./MockProvider";
 import TokenTradePanel from "./TokenTradePanel";
 import styles from "./VsDetailClient.module.css";
@@ -17,6 +25,37 @@ type VsDetailClientProps = {
 };
 
 type InfoTab = "community" | "activity" | "holders" | "traders" | "creator" | "bubble" | "positions";
+type ChartRange = "1h" | "1d" | "7d" | "30d" | "180d";
+type ChartResponse = {
+  points: Array<{ price: number }>;
+  quoteUsd: number | null;
+};
+type MarketTrade = {
+  id: string;
+  venue: "curve" | "pool";
+  side: "buy" | "sell";
+  tokenAmount: string;
+  quoteAmount: string;
+  account: string;
+  transactionHash: string;
+  timestamp: number;
+  tokenSymbol: string;
+};
+
+const CHART_RANGES: Array<{ value: ChartRange; label: string }> = [
+  { value: "1h", label: "1H" },
+  { value: "1d", label: "1D" },
+  { value: "7d", label: "7D" },
+  { value: "30d", label: "30D" },
+  { value: "180d", label: "180D" },
+];
+const CHART_REFRESH_MS: Record<ChartRange, number> = {
+  "1h": 5_000,
+  "1d": 15_000,
+  "7d": 30_000,
+  "30d": 60_000,
+  "180d": 300_000,
+};
 const INFO_TABS: Array<{ id: InfoTab; label: string }> = [
   { id: "community", label: "Community" },
   { id: "activity", label: "Activity" },
@@ -61,11 +100,6 @@ function symbolLabel(symbol?: string) {
   return symbol.startsWith("$") ? symbol : `$${symbol}`;
 }
 
-function formatMoney(value?: number, available = true) {
-  if (!available || value == null) return "—";
-  return `$${Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 2 }).format(value)}`;
-}
-
 function formatCount(value?: number, available = true) {
   if (!available || value == null) return "—";
   return Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 1 }).format(value);
@@ -96,24 +130,27 @@ function getXUrl(socialsJson?: string) {
   }
 }
 
-function hasMarketData(debate: Debate) {
-  const values = [debate.marketCapA, debate.marketCapB, debate.volume24h, debate.liquidity, debate.trades24h, debate.holderCount, debate.tokenA?.priceUsd, debate.tokenB?.priceUsd];
-  const histories = [debate.tokenA?.priceHistory, debate.tokenB?.priceHistory].flatMap((history) => history ?? []);
+function hasTokenMarketData(token?: DebateToken) {
+  const values = [token?.marketCap, token?.volume24h, token?.trades24h, token?.priceEth];
+  const histories = token?.priceHistory ?? [];
   return values.some((value) => typeof value === "number" && value !== 0) || histories.some((value) => value !== 0);
+}
+
+function hasMarketData(debate: Debate) {
+  return hasTokenMarketData(debate.tokenA) || hasTokenMarketData(debate.tokenB);
 }
 
 async function copyText(value: string) {
   await navigator.clipboard.writeText(value);
 }
 
-function PriceChart({ token, side, available }: { token: DebateToken; side: "a" | "b"; available: boolean }) {
+function PriceChart({ history, side, available }: { history: number[]; side: "a" | "b"; available: boolean }) {
   const points = useMemo(() => {
-    const history = token.priceHistory ?? [];
     if (!available || history.length < 2) return "";
     const min = Math.min(...history);
     const range = Math.max(...history) - min || 1;
     return history.map((value, index) => `${(index * (600 / (history.length - 1))).toFixed(1)},${(150 - ((value - min) / range) * 120).toFixed(1)}`).join(" ");
-  }, [available, token.priceHistory]);
+  }, [available, history]);
 
   return (
     <div className={styles.chartArea}>
@@ -135,6 +172,38 @@ function TokenAvatar({ token, side }: { token: DebateToken; side: "a" | "b" }) {
 
 function TokenPanel({ token, side, marketShare, marketAvailable, onStatus }: { token: DebateToken; side: "a" | "b"; marketShare: number; marketAvailable: boolean; onStatus: (message: string) => void }) {
   const symbol = symbolLabel(token.symbol);
+  const currency = token.marketCurrency ?? "USD";
+  const [range, setRange] = useState<ChartRange>("1d");
+  const displayedPrice = currency === "USD" ? token.priceUsd : token.priceEth;
+  const curveLabel = token.curveStatus === 3
+    ? "Pool live"
+    : token.curveStatus === 2
+      ? "Graduating"
+      : token.graduationDisabled
+        ? "Curve reopened"
+        : "Bonding curve";
+
+  const validTokenAddress = token.address && /^0x[0-9a-fA-F]{40}$/.test(token.address)
+    ? token.address.toLowerCase()
+    : null;
+  const chartQuery = useQuery({
+    queryKey: [TOKEN_CHART_QUERY_KEY, validTokenAddress, range],
+    queryFn: async () => {
+      const response = await fetch(`/api/markets/${validTokenAddress}/chart?range=${range}`);
+      if (!response.ok) throw new Error("Market chart request failed.");
+      return response.json() as Promise<ChartResponse>;
+    },
+    enabled: Boolean(validTokenAddress && marketAvailable),
+    refetchInterval: CHART_REFRESH_MS[range],
+    refetchIntervalInBackground: false,
+    refetchOnWindowFocus: true,
+    retry: 1,
+  });
+  const history = useMemo(() => {
+    if (!chartQuery.data) return token.priceHistory ?? [];
+    const quoteUsd = chartQuery.data.quoteUsd ?? token.quoteUsd;
+    return chartQuery.data.points.map((point) => currency === "USD" && quoteUsd ? point.price * quoteUsd : point.price);
+  }, [chartQuery.data, currency, token.priceHistory, token.quoteUsd]);
 
   const handleCopy = async () => {
     if (!token.address) return;
@@ -158,16 +227,19 @@ function TokenPanel({ token, side, marketShare, marketAvailable, onStatus }: { t
       <div className={`${styles.chartCard} ${marketAvailable && marketShare >= 50 ? styles.leadingCard : ""}`}>
         <div className={styles.chartToolbar}>
           <span className={styles.segmented}><button className={styles.selectedControl} type="button">Price</button><button type="button" disabled>MC</button></span>
-          <span className={styles.segmented}><button className={styles.selectedControl} type="button">USD</button><button type="button" disabled>ETH</button></span>
-          <span className={styles.timeframe}>5m</span>
+          <span className={styles.segmented}><button className={styles.selectedControl} type="button">{currency}</button><button type="button" disabled>{currency === "USD" ? "ETH" : "USD"}</button></span>
+          <span className={styles.timeframe}>{range.toUpperCase()}</span>
           <span className={styles.indexerState}><span /> Goldsky indexed</span>
         </div>
-        <PriceChart token={token} side={side} available={marketAvailable} />
-        <div className={styles.periodRow} aria-label="Chart periods">{["1D", "7D", "30D", "180D"].map((period, index) => <button className={index === 0 ? styles.selectedControl : ""} type="button" key={period} disabled={!marketAvailable}>{period}</button>)}</div>
+        <PriceChart history={history} side={side} available={marketAvailable && !chartQuery.isLoading} />
+        <div className={styles.periodRow} aria-label="Chart periods">{CHART_RANGES.map((period) => <button className={period.value === range ? styles.selectedControl : ""} type="button" key={period.value} disabled={!marketAvailable} onClick={() => setRange(period.value)}>{period.label}</button>)}</div>
         <div className={styles.marketStats}>
-          <div><span>Market cap</span><strong>{formatMoney(token.marketCap, marketAvailable)}</strong></div>
-          <div><span>Holders</span><strong>{formatCount(token.holders, marketAvailable)}</strong></div>
-          <div><span>24h volume</span><strong>{formatMoney(token.volume24h, marketAvailable)}</strong></div>
+          <div><span>Current price</span><strong>{marketAvailable ? formatTokenPrice(displayedPrice, currency) : "—"}</strong></div>
+          <div><span>Market cap</span><strong>{marketAvailable ? formatMarketValue(token.marketCap, currency) : "—"}</strong></div>
+          <div><span>Adjusted FDV</span><strong>{marketAvailable ? formatMarketValue(token.fdv, currency) : "—"}</strong></div>
+          <div><span>{curveLabel}</span><strong>{token.graduationProgress == null || !marketAvailable ? "—" : `${formatCount(token.graduationProgress)}%`}</strong></div>
+          <div><span>24h volume</span><strong>{marketAvailable ? formatMarketValue(token.volume24h, currency) : "—"}</strong></div>
+          <div><span>24h trades</span><strong>{formatCount(token.trades24h, marketAvailable)}</strong></div>
         </div>
       </div>
 
@@ -180,7 +252,51 @@ function EmptyIndexedPanel({ title, children }: { title: string; children: React
   return <div className={styles.emptyPanel}><span className={styles.emptyPanelIcon}><ChartIcon /></span><strong>{title}</strong><p>{children}</p></div>;
 }
 
-function InfoPanel({ tab, debate, onStatus }: { tab: InfoTab; debate: Debate; onStatus: (message: string) => void }) {
+function MarketActivity({ debate, tokenFilter }: { debate: Debate; tokenFilter: "both" | "a" | "b" }) {
+  const tokenA = debate.tokenA;
+  const tokenB = debate.tokenB;
+  const candidates = [
+    ...(tokenFilter !== "b" && tokenA ? [tokenA] : []),
+    ...(tokenFilter !== "a" && tokenB ? [tokenB] : []),
+  ].filter((token): token is DebateToken & { address: string } => Boolean(token.address && /^0x[0-9a-fA-F]{40}$/.test(token.address)));
+  const activityQueryKey = candidates.map((token) => token.address.toLowerCase()).sort().join(":");
+  const activityQuery = useQuery({
+    queryKey: [TOKEN_TRADES_QUERY_KEY, activityQueryKey, 30],
+    queryFn: async () => {
+      const results = await Promise.all(candidates.map(async (token) => {
+        const response = await fetch(`/api/markets/${token.address}/trades?limit=30`);
+        if (!response.ok) throw new Error("Market trades request failed.");
+        const payload = await response.json() as { trades: Array<Omit<MarketTrade, "tokenSymbol">> };
+        return payload.trades.map((trade) => ({ ...trade, tokenSymbol: symbolLabel(token.symbol) }));
+      }));
+      return results.flat().sort((a, b) => b.timestamp - a.timestamp).slice(0, 30);
+    },
+    enabled: candidates.length > 0,
+    refetchInterval: 5_000,
+    refetchIntervalInBackground: false,
+    refetchOnWindowFocus: true,
+    retry: 1,
+  });
+  const trades = candidates.length === 0 ? [] : activityQuery.data ?? null;
+
+  if (trades === null) return <EmptyIndexedPanel title="Loading indexed activity">Reading recent curve and pool trades from Railway.</EmptyIndexedPanel>;
+  if (trades.length === 0) return <EmptyIndexedPanel title="No indexed activity yet">Trades will appear here as soon as Goldsky indexes the first on-chain event.</EmptyIndexedPanel>;
+
+  return <div className={styles.activityList}>{trades.map((trade) => {
+    const quoteEth = Number(trade.quoteAmount);
+    const quoteUsd = Number.isFinite(quoteEth) && debate.quoteUsd ? quoteEth * debate.quoteUsd : null;
+    return <article className={styles.activityRow} key={`${trade.tokenSymbol}:${trade.id}`}>
+      <span className={`${styles.activitySide} ${trade.side === "buy" ? styles.activityBuy : styles.activitySell}`}>{trade.side}</span>
+      <div><strong>{trade.tokenSymbol}</strong><span>{formatTokenAmount(trade.tokenAmount)} tokens</span></div>
+      <div><strong>{Number.isFinite(quoteEth) ? `${quoteEth.toLocaleString("en-US", { maximumFractionDigits: 6 })} ETH` : "—"}</strong><span>{quoteUsd === null ? "ETH quote" : formatMarketValue(quoteUsd, "USD")}</span></div>
+      <span className={styles.activityVenue}>{trade.venue}</span>
+      <div><strong>{shortAddress(trade.account)}</strong><span>{new Date(trade.timestamp * 1_000).toLocaleString("en-US")}</span></div>
+      <a href={`${KORUM_CHAIN.blockExplorers.default.url}/tx/${trade.transactionHash}`} target="_blank" rel="noreferrer" aria-label="Open transaction"><ExternalIcon /></a>
+    </article>;
+  })}</div>;
+}
+
+function InfoPanel({ tab, debate, tokenFilter, onStatus }: { tab: InfoTab; debate: Debate; tokenFilter: "both" | "a" | "b"; onStatus: (message: string) => void }) {
   if (tab === "community") {
     return <div className={styles.communityPanel}><EmptyIndexedPanel title="The conversation starts here">Community messages will be enabled with token-gated participation in a future update.</EmptyIndexedPanel><textarea rows={3} maxLength={140} disabled placeholder={`Share your take on ${debate.sideA} vs ${debate.sideB}…`} /><button type="button" disabled>SEND</button></div>;
   }
@@ -189,8 +305,10 @@ function InfoPanel({ tab, debate, onStatus }: { tab: InfoTab; debate: Debate; on
     return <div className={styles.creatorPanel}><span className={styles.creatorAvatar}>{debate.creatorAddress?.slice(2, 4).toUpperCase() || "KR"}</span><div><span>Created by</span><strong>{debate.creatorName || shortAddress(debate.creatorAddress)}</strong><small>{debate.creatorAddress}</small></div>{debate.creatorAddress ? <button type="button" onClick={() => copyText(debate.creatorAddress!).then(() => onStatus("Creator wallet copied.")).catch(() => onStatus("Unable to access the clipboard."))}><CopyIcon /> Copy wallet</button> : null}</div>;
   }
 
+  if (tab === "activity") return <MarketActivity debate={debate} tokenFilter={tokenFilter} />;
+
   const messages: Record<Exclude<InfoTab, "community" | "creator">, { title: string; body: string }> = {
-    activity: { title: "No indexed activity yet", body: "Buy and sell events will appear here after the trading-event pipeline is connected." },
+    activity: { title: "No indexed activity yet", body: "Trades will appear here after their on-chain events are indexed." },
     holders: { title: "Holder distribution unavailable", body: "Goldsky currently indexes Versus creation metadata, but not token balances or holder snapshots." },
     traders: { title: "Trader rankings unavailable", body: "Rankings require indexed swap activity and wallet-level aggregates." },
     bubble: { title: "Ownership bubble map unavailable", body: "The map will be generated from indexed holder balances once that read model exists." },
@@ -201,20 +319,25 @@ function InfoPanel({ tab, debate, onStatus }: { tab: InfoTab; debate: Debate; on
 
 export default function VsDetailClient({ mockDebate, indexedDebate, indexedReadFailed }: VsDetailClientProps) {
   const { mockEnabled } = useMock();
+  const versusId = String(indexedDebate?.id ?? mockDebate?.id ?? "");
+  const liveDebate = useIndexedDebate(versusId, indexedDebate, !mockEnabled);
   const { has, toggle } = useWatchlist();
   const [activeTab, setActiveTab] = useState<InfoTab>("community");
   const [tokenFilter, setTokenFilter] = useState<"both" | "a" | "b">("both");
   const [shareOpen, setShareOpen] = useState(false);
   const [statusMessage, setStatusMessage] = useState("");
-  const debate = mockEnabled ? mockDebate : indexedDebate;
+  const debate = mockEnabled ? mockDebate : liveDebate.data ?? indexedDebate;
+  const currentIndexedReadFailed = !debate && (indexedReadFailed || liveDebate.isError);
 
   if (!debate) {
-    return <div className={styles.notFound}><Link href="/explore">← Back to Explore</Link><h1>{!mockEnabled && indexedReadFailed ? "Versus data is temporarily unavailable" : "Versus not found"}</h1><p>{indexedReadFailed ? "The Railway indexer could not be reached. Please try again shortly." : "This Versus does not exist in the selected data source."}</p></div>;
+    return <div className={styles.notFound}><Link href="/explore">← Back to Explore</Link><h1>{!mockEnabled && currentIndexedReadFailed ? "Versus data is temporarily unavailable" : "Versus not found"}</h1><p>{currentIndexedReadFailed ? "The Railway indexer could not be reached. Please try again shortly." : "This Versus does not exist in the selected data source."}</p></div>;
   }
 
   const tokenA: DebateToken = debate.tokenA ?? { name: debate.sideA, symbol: debate.tokenASymbol || debate.sideA, image: debate.imageA };
   const tokenB: DebateToken = debate.tokenB ?? { name: debate.sideB, symbol: debate.tokenBSymbol || debate.sideB, image: debate.imageB };
   const marketAvailable = hasMarketData(debate);
+  const tokenAMarketAvailable = hasTokenMarketData(tokenA);
+  const tokenBMarketAvailable = hasTokenMarketData(tokenB);
   const sideAPercentage = marketAvailable ? Math.max(0, Math.min(100, debate.sideAPercentage ?? 50)) : 50;
   const sideBPercentage = 100 - sideAPercentage;
   const xUrl = getXUrl(debate.socialsJson);
@@ -278,20 +401,20 @@ export default function VsDetailClient({ mockDebate, indexedDebate, indexedReadF
           </div>
 
           <div className={styles.debateCopy}><h2>{debate.title || `${debate.sideA} or ${debate.sideB}?`}</h2>{debate.description ? <p>{debate.description}</p> : null}</div>
-          {!marketAvailable ? <div className={styles.dataNotice}><span /> Creation metadata is live from Railway. Trading metrics are awaiting the next Goldsky pipeline extension.</div> : null}
+          {!marketAvailable ? <div className={styles.dataNotice}><span /> Market events are being backfilled by Goldsky. Creation metadata remains available from Railway.</div> : null}
         </div>
       </section>
 
       <section className={styles.content}>
         <div className={styles.wrap}>
-          <div className={styles.panels}><TokenPanel token={tokenA} side="a" marketShare={sideAPercentage} marketAvailable={marketAvailable} onStatus={setStatusMessage} /><TokenPanel token={tokenB} side="b" marketShare={sideBPercentage} marketAvailable={marketAvailable} onStatus={setStatusMessage} /></div>
+          <div className={styles.panels}><TokenPanel token={tokenA} side="a" marketShare={sideAPercentage} marketAvailable={tokenAMarketAvailable} onStatus={setStatusMessage} /><TokenPanel token={tokenB} side="b" marketShare={sideBPercentage} marketAvailable={tokenBMarketAvailable} onStatus={setStatusMessage} /></div>
 
           <div className={styles.infoCard}>
             <div className={styles.infoTop}>
               <div className={styles.infoTabs} role="tablist" aria-label="Versus information">{INFO_TABS.map((tab) => <button key={tab.id} type="button" role="tab" aria-selected={activeTab === tab.id} className={activeTab === tab.id ? styles.activeTab : ""} onClick={() => setActiveTab(tab.id)}>{tab.label}</button>)}</div>
               <div className={styles.tokenFilter} aria-label="Filter by camp"><button type="button" className={tokenFilter === "both" ? styles.activeTab : ""} onClick={() => setTokenFilter("both")}>Both</button><button type="button" className={tokenFilter === "a" ? styles.activeTab : ""} onClick={() => setTokenFilter("a")}>{symbolLabel(tokenA.symbol)}</button><button type="button" className={tokenFilter === "b" ? styles.activeTab : ""} onClick={() => setTokenFilter("b")}>{symbolLabel(tokenB.symbol)}</button></div>
             </div>
-            <div className={styles.infoBody} role="tabpanel"><InfoPanel tab={activeTab} debate={debate} onStatus={setStatusMessage} /></div>
+            <div className={styles.infoBody} role="tabpanel"><InfoPanel tab={activeTab} debate={debate} tokenFilter={tokenFilter} onStatus={setStatusMessage} /></div>
           </div>
 
           <div className={styles.provenance}><span><b>Network</b>{tokenA.chainName || "Robinhood Chain Testnet"}</span><span><b>Created</b>{formatDate(debate.createdAtUtc || debate.createdAt)}</span><span><b>Data source</b>Goldsky → Railway PostgreSQL</span></div>

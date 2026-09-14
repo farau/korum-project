@@ -1,35 +1,40 @@
 import type { Abi, Address } from "viem";
-import { getAddress } from "viem";
-import { robinhoodTestnet } from "wagmi/chains";
+import { getAddress, isAddress, zeroAddress } from "viem";
 
+import { KORUM_CHAIN, KORUM_NETWORK } from "../../config/korum-network";
 import korumCoreAbiJson from "../../../contracts/abis/KorumCore.json";
 import korumFactoryAbiJson from "../../../contracts/abis/KorumFactory.json";
 import korumRouterAbiJson from "../../../contracts/abis/KorumRouter.json";
 import referralRegistryAbiJson from "../../../contracts/abis/ReferralRegistry.json";
 import versusTokenAbiJson from "../../../contracts/abis/VersusToken.json";
+import robinhoodMainnetDeployment from "../../../contracts/deployments/4663.json";
 import robinhoodTestnetDeployment from "../../../contracts/deployments/46630.json";
 
-export const KORUM_CHAIN = robinhoodTestnet;
+export { KORUM_CHAIN };
 
-export const KORUM_CORE_ADDRESS = getAddress(
-  robinhoodTestnetDeployment.contracts.KorumCore.address,
-) as Address;
+const deployment = KORUM_NETWORK === "mainnet"
+  ? robinhoodMainnetDeployment
+  : robinhoodTestnetDeployment;
 
-export const KORUM_FACTORY_ADDRESS = getAddress(
-  robinhoodTestnetDeployment.contracts.KorumFactory.address,
-) as Address;
+function deployedAddress(contractName: keyof typeof deployment.contracts) {
+  const address = deployment.contracts[contractName].address;
+  if (!address || !isAddress(address) || address.toLowerCase() === zeroAddress) {
+    throw new Error(
+      `${contractName} is not deployed for ${KORUM_CHAIN.name}. Complete contracts/deployments/${KORUM_CHAIN.id}.json before selecting this network.`,
+    );
+  }
+  return getAddress(address) as Address;
+}
 
-export const KORUM_HOOK_ADDRESS = getAddress(
-  robinhoodTestnetDeployment.contracts.KorumHook.address,
-) as Address;
+export const KORUM_CORE_ADDRESS = deployedAddress("KorumCore");
 
-export const KORUM_ROUTER_ADDRESS = getAddress(
-  robinhoodTestnetDeployment.contracts.KorumRouter.address,
-) as Address;
+export const KORUM_FACTORY_ADDRESS = deployedAddress("KorumFactory");
 
-export const REFERRAL_REGISTRY_ADDRESS = getAddress(
-  robinhoodTestnetDeployment.contracts.ReferralRegistry.address,
-) as Address;
+export const KORUM_HOOK_ADDRESS = deployedAddress("KorumHook");
+
+export const KORUM_ROUTER_ADDRESS = deployedAddress("KorumRouter");
+
+export const REFERRAL_REGISTRY_ADDRESS = deployedAddress("ReferralRegistry");
 
 // The JSON files are the canonical deployed ABIs. Keeping these imports here
 // prevents components from duplicating addresses or hand-written fragments.

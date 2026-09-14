@@ -4,11 +4,8 @@ import { useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import type { Debate } from "../../lib/debates";
+import { formatMarketValue } from "../../lib/markets/format";
 import { useWatchlist } from "../../hooks/useWatchlist";
-
-function money(value?: number) {
-  return value == null ? "—" : `$${Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 1 }).format(value)}`;
-}
 
 function Change({ value }: { value?: number }) {
   return value == null ? <span className="muted">—</span> : <span className={value >= 0 ? "buy" : "sell"}>{value >= 0 ? "+" : ""}{value.toFixed(1)}%</span>;
@@ -37,6 +34,7 @@ export default function VsTable({ debates, ageLabel }: { debates: Debate[]; ageL
               const symbol = token?.symbol || (side === "A" ? debate.tokenASymbol : debate.tokenBSymbol) || name;
               const change = token?.change24h ?? (side === "A" ? debate.changeA24h : debate.changeB24h);
               const series = token?.priceHistory;
+              const currency = debate.marketCurrency ?? "USD";
               const min = series?.length ? Math.min(...series) : 0;
               const range = series?.length ? Math.max(...series) - min || 1 : 1;
               return <tr className="table-token-row" key={side}>
@@ -51,10 +49,10 @@ export default function VsTable({ debates, ageLabel }: { debates: Debate[]; ageL
                 </td>}
                 <td><Link href={`/vs/${debate.id}`} className="table-vs-link"><TokenImage src={token?.image || token?.imageRef || (side === "A" ? debate.imageA : debate.imageB)} name={name} /><span className="table-vs-title">{symbol}</span></Link></td>
                 <td>{series && series.length > 1 ? <svg className={`table-spark ${series[series.length - 1] >= series[0] ? "buy" : "sell"}`} viewBox="0 0 84 28" role="img" aria-label={`${name} price trend`}><polyline fill="none" stroke="currentColor" strokeWidth="1.4" points={series.map((value, i) => `${i * 84 / (series.length - 1)},${25 - (value - min) / range * 22}`).join(" ")} /></svg> : <span className="muted">—</span>}</td>
-                <td className="num table-mcap">{money(token?.marketCap ?? (side === "A" ? debate.marketCapA : debate.marketCapB))}</td>
+                <td className="num table-mcap">{formatMarketValue(token?.marketCap ?? (side === "A" ? debate.marketCapA : debate.marketCapB), currency, 1)}</td>
                 <td className="num muted">{ageLabel(debate)}</td>
-                <td className="num">{money(token?.volume24h)}</td>
-                <td className="num">{token?.holders?.toLocaleString("en-US") ?? "—"}</td>
+                <td className="num">{formatMarketValue(token?.volume24h, currency, 1)}</td>
+                <td className="num">{token?.traderCount?.toLocaleString("en-US") ?? "—"}</td>
                 <td className="num"><Change value={token?.change5m} /></td><td className="num"><Change value={token?.change1h} /></td><td className="num"><Change value={token?.change6h} /></td><td className="num"><Change value={change} /></td>
                 {index === 0 && <td rowSpan={2} className="col-star"><button type="button" className={`table-star ${has(debate.id) ? "active" : ""}`} aria-label={`${has(debate.id) ? "Remove from" : "Add to"} watchlist: ${debate.sideA} vs ${debate.sideB}`} aria-pressed={has(debate.id)} onClick={() => toggle(debate.id, `${debate.sideA} vs ${debate.sideB}`)}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="m12 2.5 3 6.5 7 .9-5.2 4.9 1.4 7-6.2-3.5-6.2 3.5 1.4-7L2 9.9l7-.9z" /></svg></button></td>}
               </tr>;

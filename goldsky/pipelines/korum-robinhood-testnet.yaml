@@ -2,7 +2,9 @@ name: korum-robinhood-testnet-indexer
 resource_size: s
 
 sources:
-  korum_logs:
+  # Renaming the source resets its checkpoint so historical Core/Hook events
+  # are backfilled after expanding the contract-address filter.
+  korum_protocol_logs_v2:
     type: dataset
     dataset_name: robinhood_testnet.raw_logs
     version: 1.1.0
@@ -11,7 +13,9 @@ sources:
     filter: >-
       block_number >= 116108291
       AND address IN (
+        '0x08e1f34e0fb10a0339ecba8cba2021ea2bb1171e',
         '0x18d70d9ca430747b81e6afb667abdc923b16b417',
+        '0x63bab3ba5bdfc46d65fcaf3beacf8ee94438e0cc',
         '0xe72f5f1d4c6793c67f962e2e8c36ee1f0750a24c'
       )
 
@@ -21,32 +25,23 @@ transforms:
     primary_key: id
     sql: |
       SELECT
-        _gs_log_decode('[{"anonymous":false,"inputs":[{"indexed":true,"name":"user","type":"address"},{"indexed":true,"name":"referrer","type":"address"},{"indexed":false,"name":"at","type":"uint64"}],"name":"ReferrerBound","type":"event"},{"anonymous":false,"inputs":[{"indexed":true,"name":"versusId","type":"uint256"},{"indexed":true,"name":"creator","type":"address"},{"indexed":true,"name":"configId","type":"uint32"},{"indexed":false,"name":"creatorFeeRecipient","type":"address"},{"indexed":false,"name":"tokenA","type":"address"},{"indexed":false,"name":"tokenB","type":"address"},{"indexed":false,"name":"createdAt","type":"uint64"},{"indexed":false,"name":"title","type":"string"},{"indexed":false,"name":"description","type":"string"},{"indexed":false,"name":"category","type":"string"},{"indexed":false,"name":"socialsJson","type":"string"}],"name":"VersusCreated","type":"event"},{"anonymous":false,"inputs":[{"indexed":true,"name":"versusId","type":"uint256"},{"indexed":true,"name":"token","type":"address"},{"indexed":false,"name":"side","type":"uint8"},{"indexed":false,"name":"name","type":"string"},{"indexed":false,"name":"symbol","type":"string"},{"indexed":false,"name":"uri","type":"string"},{"indexed":false,"name":"virtualEth","type":"uint128"},{"indexed":false,"name":"graduationEth","type":"uint128"},{"indexed":false,"name":"totalSupply","type":"uint256"}],"name":"CampCreated","type":"event"}]', topics, `data`) AS `decoded`,
-        id,
-        block_number,
-        block_hash,
-        transaction_hash,
-        log_index,
-        address,
-        block_timestamp,
-        _gs_op
-      FROM korum_logs
+        _gs_log_decode('[{"anonymous":false,"inputs":[{"indexed":true,"name":"token","type":"address"},{"indexed":false,"name":"at","type":"uint64"}],"name":"CurveReopened","type":"event"},{"anonymous":false,"inputs":[{"indexed":true,"name":"token","type":"address"},{"indexed":false,"name":"poolId","type":"bytes32"},{"indexed":false,"name":"sqrtPriceX96","type":"uint160"},{"indexed":false,"name":"ethDeposited","type":"uint128"},{"indexed":false,"name":"tokensDeposited","type":"uint256"},{"indexed":false,"name":"positionTokenId","type":"uint256"},{"indexed":false,"name":"ethResidual","type":"uint128"},{"indexed":false,"name":"tokenResidual","type":"uint256"},{"indexed":false,"name":"at","type":"uint64"}],"name":"Graduated","type":"event"},{"anonymous":false,"inputs":[{"indexed":true,"name":"token","type":"address"},{"indexed":false,"name":"at","type":"uint64"}],"name":"GraduationPending","type":"event"},{"anonymous":false,"inputs":[{"indexed":true,"name":"token","type":"address"},{"indexed":true,"name":"trader","type":"address"},{"indexed":true,"name":"referrer","type":"address"},{"indexed":false,"name":"venue","type":"uint8"},{"indexed":false,"name":"kind","type":"uint8"},{"indexed":false,"name":"isBuy","type":"bool"},{"indexed":false,"name":"ethGross","type":"uint128"},{"indexed":false,"name":"tokenAmount","type":"uint256"},{"indexed":false,"name":"feeTotal","type":"uint128"},{"indexed":false,"name":"feeCreator","type":"uint128"},{"indexed":false,"name":"feeReferrer","type":"uint128"},{"indexed":false,"name":"feePlatform","type":"uint128"},{"indexed":false,"name":"tierFeeBps","type":"uint16"},{"indexed":false,"name":"tierCreatorShareBps","type":"uint16"},{"indexed":false,"name":"snipeTaxBps","type":"uint16"},{"indexed":false,"name":"sqrtPriceX96After","type":"uint160"},{"indexed":false,"name":"realEthAfter","type":"uint128"},{"indexed":false,"name":"tokenReserveAfter","type":"uint256"},{"indexed":false,"name":"cumulativeVolumeAfter","type":"uint128"}],"name":"Trade","type":"event"},{"anonymous":false,"inputs":[{"indexed":true,"name":"versusId","type":"uint256"},{"indexed":true,"name":"token","type":"address"},{"indexed":false,"name":"side","type":"uint8"},{"indexed":false,"name":"name","type":"string"},{"indexed":false,"name":"symbol","type":"string"},{"indexed":false,"name":"uri","type":"string"},{"indexed":false,"name":"virtualEth","type":"uint128"},{"indexed":false,"name":"graduationEth","type":"uint128"},{"indexed":false,"name":"totalSupply","type":"uint256"}],"name":"CampCreated","type":"event"},{"anonymous":false,"inputs":[{"indexed":true,"name":"versusId","type":"uint256"},{"indexed":true,"name":"creator","type":"address"},{"indexed":true,"name":"configId","type":"uint32"},{"indexed":false,"name":"creatorFeeRecipient","type":"address"},{"indexed":false,"name":"tokenA","type":"address"},{"indexed":false,"name":"tokenB","type":"address"},{"indexed":false,"name":"createdAt","type":"uint64"},{"indexed":false,"name":"title","type":"string"},{"indexed":false,"name":"description","type":"string"},{"indexed":false,"name":"category","type":"string"},{"indexed":false,"name":"socialsJson","type":"string"}],"name":"VersusCreated","type":"event"},{"anonymous":false,"inputs":[{"indexed":true,"name":"user","type":"address"},{"indexed":true,"name":"referrer","type":"address"},{"indexed":false,"name":"at","type":"uint64"}],"name":"ReferrerBound","type":"event"}]', topics, `data`) AS `decoded`,
+        id, block_number, block_hash, transaction_hash, log_index, address,
+        block_timestamp, _gs_op
+      FROM korum_protocol_logs_v2
 
   referral_bindings:
     type: sql
     primary_key: user_wallet
     sql: |
-      SELECT
-        CAST(46630 AS BIGINT) AS chain_id,
+      SELECT CAST(46630 AS BIGINT) AS chain_id,
         lower(address) AS registry_address,
         lower(decoded.event_params[1]) AS user_wallet,
         lower(decoded.event_params[2]) AS referrer_wallet,
         to_timestamp(CAST(decoded.event_params[3] AS BIGINT)) AS bound_at,
         lower(transaction_hash) AS transaction_hash,
-        lower(block_hash) AS block_hash,
-        block_number,
-        CAST(log_index AS INT) AS log_index,
-        _gs_op
+        lower(block_hash) AS block_hash, block_number,
+        CAST(log_index AS INT) AS log_index, _gs_op
       FROM decoded_korum_events
       WHERE decoded.event_signature = 'ReferrerBound'
 
@@ -54,8 +49,7 @@ transforms:
     type: sql
     primary_key: versus_id
     sql: |
-      SELECT
-        CAST(46630 AS BIGINT) AS chain_id,
+      SELECT CAST(46630 AS BIGINT) AS chain_id,
         to_u256(decoded.event_params[1]) AS versus_id,
         lower(address) AS factory_address,
         lower(decoded.event_params[2]) AS creator_wallet,
@@ -69,10 +63,8 @@ transforms:
         decoded.event_params[10] AS category,
         decoded.event_params[11] AS socials_json,
         lower(transaction_hash) AS transaction_hash,
-        lower(block_hash) AS block_hash,
-        block_number,
-        CAST(log_index AS INT) AS log_index,
-        _gs_op
+        lower(block_hash) AS block_hash, block_number,
+        CAST(log_index AS INT) AS log_index, _gs_op
       FROM decoded_korum_events
       WHERE decoded.event_signature = 'VersusCreated'
 
@@ -80,8 +72,7 @@ transforms:
     type: sql
     primary_key: token_address
     sql: |
-      SELECT
-        CAST(46630 AS BIGINT) AS chain_id,
+      SELECT CAST(46630 AS BIGINT) AS chain_id,
         to_u256(decoded.event_params[1]) AS versus_id,
         CAST(decoded.event_params[3] AS SMALLINT) AS side,
         lower(decoded.event_params[2]) AS token_address,
@@ -93,12 +84,116 @@ transforms:
         to_u256(decoded.event_params[9]) AS total_supply,
         to_timestamp(block_timestamp) AS block_timestamp,
         lower(transaction_hash) AS transaction_hash,
-        lower(block_hash) AS block_hash,
-        block_number,
-        CAST(log_index AS INT) AS log_index,
-        _gs_op
+        lower(block_hash) AS block_hash, block_number,
+        CAST(log_index AS INT) AS log_index, _gs_op
       FROM decoded_korum_events
       WHERE decoded.event_signature = 'CampCreated'
+
+  camp_trades:
+    type: sql
+    primary_key: event_id
+    sql: |
+      SELECT id AS event_id, CAST(46630 AS BIGINT) AS chain_id,
+        lower(decoded.event_params[1]) AS token_address,
+        lower(decoded.event_params[2]) AS trader_address,
+        lower(decoded.event_params[3]) AS referrer_address,
+        CAST(decoded.event_params[4] AS SMALLINT) AS venue,
+        CAST(decoded.event_params[5] AS SMALLINT) AS kind,
+        CAST(decoded.event_params[6] AS BOOLEAN) AS is_buy,
+        to_u256(decoded.event_params[7]) AS eth_gross,
+        to_u256(decoded.event_params[8]) AS token_amount,
+        to_u256(decoded.event_params[9]) AS fee_total,
+        to_u256(decoded.event_params[10]) AS fee_creator,
+        to_u256(decoded.event_params[11]) AS fee_referrer,
+        to_u256(decoded.event_params[12]) AS fee_platform,
+        CAST(decoded.event_params[13] AS INT) AS tier_fee_bps,
+        CAST(decoded.event_params[14] AS INT) AS tier_creator_share_bps,
+        CAST(decoded.event_params[15] AS INT) AS snipe_tax_bps,
+        to_u256(decoded.event_params[16]) AS sqrt_price_x96_after,
+        to_u256(decoded.event_params[17]) AS real_eth_after,
+        to_u256(decoded.event_params[18]) AS token_reserve_after,
+        to_u256(decoded.event_params[19]) AS cumulative_volume_after,
+        to_timestamp(block_timestamp) AS traded_at,
+        lower(transaction_hash) AS transaction_hash,
+        lower(block_hash) AS block_hash, block_number,
+        CAST(log_index AS INT) AS log_index, _gs_op
+      FROM decoded_korum_events
+      WHERE decoded.event_signature = 'Trade'
+
+  graduation_pending_events:
+    type: sql
+    primary_key: event_id
+    sql: |
+      SELECT id AS event_id, CAST(46630 AS BIGINT) AS chain_id,
+        lower(decoded.event_params[1]) AS token_address,
+        'graduation_pending' AS event_type, CAST(2 AS SMALLINT) AS curve_status,
+        FALSE AS graduation_disabled,
+        to_timestamp(CAST(decoded.event_params[2] AS BIGINT)) AS happened_at,
+        lower(transaction_hash) AS transaction_hash,
+        lower(block_hash) AS block_hash, block_number,
+        CAST(log_index AS INT) AS log_index, _gs_op
+      FROM decoded_korum_events
+      WHERE decoded.event_signature = 'GraduationPending'
+
+  graduated_lifecycle_events:
+    type: sql
+    primary_key: event_id
+    sql: |
+      SELECT id AS event_id, CAST(46630 AS BIGINT) AS chain_id,
+        lower(decoded.event_params[1]) AS token_address,
+        'graduated' AS event_type, CAST(3 AS SMALLINT) AS curve_status,
+        FALSE AS graduation_disabled,
+        to_timestamp(CAST(decoded.event_params[9] AS BIGINT)) AS happened_at,
+        lower(transaction_hash) AS transaction_hash,
+        lower(block_hash) AS block_hash, block_number,
+        CAST(log_index AS INT) AS log_index, _gs_op
+      FROM decoded_korum_events
+      WHERE decoded.event_signature = 'Graduated'
+
+  curve_reopened_events:
+    type: sql
+    primary_key: event_id
+    sql: |
+      SELECT id AS event_id, CAST(46630 AS BIGINT) AS chain_id,
+        lower(decoded.event_params[1]) AS token_address,
+        'curve_reopened' AS event_type, CAST(1 AS SMALLINT) AS curve_status,
+        TRUE AS graduation_disabled,
+        to_timestamp(CAST(decoded.event_params[2] AS BIGINT)) AS happened_at,
+        lower(transaction_hash) AS transaction_hash,
+        lower(block_hash) AS block_hash, block_number,
+        CAST(log_index AS INT) AS log_index, _gs_op
+      FROM decoded_korum_events
+      WHERE decoded.event_signature = 'CurveReopened'
+
+  camp_curve_lifecycle:
+    type: sql
+    primary_key: event_id
+    sql: |
+      SELECT * FROM graduation_pending_events
+      UNION ALL
+      SELECT * FROM graduated_lifecycle_events
+      UNION ALL
+      SELECT * FROM curve_reopened_events
+
+  camp_graduations:
+    type: sql
+    primary_key: token_address
+    sql: |
+      SELECT CAST(46630 AS BIGINT) AS chain_id,
+        lower(decoded.event_params[1]) AS token_address,
+        lower(decoded.event_params[2]) AS pool_id,
+        to_u256(decoded.event_params[3]) AS sqrt_price_x96,
+        to_u256(decoded.event_params[4]) AS eth_deposited,
+        to_u256(decoded.event_params[5]) AS tokens_deposited,
+        to_u256(decoded.event_params[6]) AS position_token_id,
+        to_u256(decoded.event_params[7]) AS eth_residual,
+        to_u256(decoded.event_params[8]) AS token_residual,
+        to_timestamp(CAST(decoded.event_params[9] AS BIGINT)) AS graduated_at,
+        lower(transaction_hash) AS transaction_hash,
+        lower(block_hash) AS block_hash, block_number,
+        CAST(log_index AS INT) AS log_index, _gs_op
+      FROM decoded_korum_events
+      WHERE decoded.event_signature = 'Graduated'
 
 sinks:
   referral_bindings_postgres:
@@ -124,3 +219,27 @@ sinks:
     table: versus_camps
     secret_name: KORUM_STAGING_RAILWAY_POSTGRES
     primary_key: chain_id,versus_id,side
+
+  camp_trades_postgres:
+    type: postgres
+    from: camp_trades
+    schema: indexer
+    table: camp_trades
+    secret_name: KORUM_STAGING_RAILWAY_POSTGRES
+    primary_key: chain_id,transaction_hash,log_index
+
+  camp_curve_lifecycle_postgres:
+    type: postgres
+    from: camp_curve_lifecycle
+    schema: indexer
+    table: camp_curve_lifecycle
+    secret_name: KORUM_STAGING_RAILWAY_POSTGRES
+    primary_key: chain_id,transaction_hash,log_index
+
+  camp_graduations_postgres:
+    type: postgres
+    from: camp_graduations
+    schema: indexer
+    table: camp_graduations
+    secret_name: KORUM_STAGING_RAILWAY_POSTGRES
+    primary_key: chain_id,token_address

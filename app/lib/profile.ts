@@ -1,6 +1,7 @@
 export type UserProfile = {
   id: string;
   evmWallet: `0x${string}`;
+  displayName: string | null;
   referralCode: string;
   bio: string | null;
   avatar: {

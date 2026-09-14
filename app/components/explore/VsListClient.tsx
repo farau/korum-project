@@ -4,10 +4,14 @@ import React, { useEffect, useMemo, useState } from "react";
 import VsCard from "./VsCard";
 import VsTable from "./VsTable";
 import type { Debate } from "../../lib/debates";
+import { useIndexedDebates } from "../../hooks/useIndexedMarkets";
 import { useMock } from "../MockProvider";
 import { useExploreSearch } from "./ExploreSearchProvider";
 
 type SortMode = "trending" | "marketCap" | "volume" | "holders" | "recent";
+type PaginationItem = number | "start-ellipsis" | "end-ellipsis";
+
+const PAGE_SIZE = 12;
 
 const sortLabels: Array<{ value: SortMode; label: string }> = [
   { value: "trending", label: "Trending" },
@@ -26,7 +30,7 @@ function debateVolume(debate: Debate) {
 }
 
 function debateParticipants(debate: Debate) {
-  return debate.holderCount ?? debate.participantCount ?? 0;
+  return debate.participantCount ?? 0;
 }
 
 function timestampMs(value?: string | number) {
@@ -68,6 +72,69 @@ function matchesSearch(debate: Debate, query: string) {
   return normalizeSearch(value).includes(query) || compactSearch(value).includes(compactSearch(query));
 }
 
+function paginationItems(currentPage: number, totalPages: number): PaginationItem[] {
+  if (totalPages <= 7) return Array.from({ length: totalPages }, (_, index) => index + 1);
+
+  const items: PaginationItem[] = [1];
+  const start = Math.max(2, currentPage - 1);
+  const end = Math.min(totalPages - 1, currentPage + 1);
+  if (start > 2) items.push("start-ellipsis");
+  for (let page = start; page <= end; page += 1) items.push(page);
+
+  if (end < totalPages - 1) items.push("end-ellipsis");
+  items.push(totalPages);
+  return items;
+}
+
+function PaginatedResults({ debates, view, now }: { debates: Debate[]; view: "grid" | "table"; now: number | null }) {
+  const [currentPage, setCurrentPage] = useState(1);
+  const totalPages = Math.ceil(debates.length / PAGE_SIZE);
+  const pageStart = (currentPage - 1) * PAGE_SIZE;
+  const pageDebates = debates.slice(pageStart, pageStart + PAGE_SIZE);
+
+  function goToPage(page: number) {
+    setCurrentPage(Math.max(1, Math.min(page, totalPages)));
+    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    document.querySelector(".explore-page .grid-section")?.scrollIntoView({ behavior: reducedMotion ? "auto" : "smooth", block: "start" });
+  }
+
+  return (
+    <>
+      {view === "grid" ? (
+        <div className="card-grid">
+          {pageDebates.map((debate, index) => <VsCard key={debate.id} debate={debate} index={pageStart + index} inlineTrading />)}
+        </div>
+      ) : (
+        <VsTable debates={pageDebates} ageLabel={(debate) => `${ageHours(debate, now)}h ago`} />
+      )}
+
+      {totalPages > 1 ? (
+        <nav className="explore-pagination" aria-label="Explore results pagination">
+          <p className="explore-pagination-status">
+            Showing {pageStart + 1}–{Math.min(pageStart + PAGE_SIZE, debates.length)} of {debates.length} Versus
+          </p>
+          <div className="explore-pagination-controls">
+            <button type="button" className="explore-pagination-nav" disabled={currentPage === 1} onClick={() => goToPage(currentPage - 1)} aria-label="Previous page">← <span>Previous</span></button>
+            {paginationItems(currentPage, totalPages).map((item) => typeof item === "number" ? (
+              <button
+                type="button"
+                className={`explore-pagination-page${item === currentPage ? " active" : ""}`}
+                aria-current={item === currentPage ? "page" : undefined}
+                aria-label={`Page ${item}`}
+                onClick={() => goToPage(item)}
+                key={item}
+              >
+                {item}
+              </button>
+            ) : <span className="explore-pagination-ellipsis" aria-hidden="true" key={item}>…</span>)}
+            <button type="button" className="explore-pagination-nav" disabled={currentPage === totalPages} onClick={() => goToPage(currentPage + 1)} aria-label="Next page"><span>Next</span> →</button>
+          </div>
+        </nav>
+      ) : null}
+    </>
+  );
+}
+
 type VsListClientProps = {
   mockDebates: Debate[];
   indexedDebates: Debate[];
@@ -76,12 +143,15 @@ type VsListClientProps = {
 
 export default function VsListClient({ mockDebates, indexedDebates, indexedReadFailed }: VsListClientProps) {
   const { mockEnabled } = useMock();
+  const liveDebates = useIndexedDebates(indexedDebates, !mockEnabled);
   const { query, category } = useExploreSearch();
   const [sortMode, setSortMode] = useState<SortMode>("trending");
   const [menuOpen, setMenuOpen] = useState(false);
   const [view, setView] = useState<"grid" | "table">("grid");
   const [now, setNow] = useState<number | null>(null);
-  const indexedFeedEmpty = indexedDebates.length === 0;
+  const currentIndexedDebates = liveDebates.data ?? indexedDebates;
+  const currentIndexedReadFailed = currentIndexedDebates.length === 0 && (indexedReadFailed || liveDebates.isError);
+  const indexedFeedEmpty = currentIndexedDebates.length === 0;
 
   useEffect(() => {
     const syncNow = () => setNow(Date.now());
@@ -94,7 +164,7 @@ export default function VsListClient({ mockDebates, indexedDebates, indexedReadF
   }, []);
 
   const filtered = useMemo(() => {
-    const debates = mockEnabled ? mockDebates : indexedDebates;
+    const debates = mockEnabled ? mockDebates : currentIndexedDebates;
     const normalizedQuery = normalizeSearch(query);
     const list = category === "HotTake"
       ? [...debates].sort((a, b) => debateVolume(b) - debateVolume(a)).slice(0, 12)
@@ -104,8 +174,10 @@ export default function VsListClient({ mockDebates, indexedDebates, indexedReadF
     if (sortMode === "volume") searchedList.sort((a, b) => debateVolume(b) - debateVolume(a));
     if (sortMode === "holders") searchedList.sort((a, b) => debateParticipants(b) - debateParticipants(a));
     if (sortMode === "recent") searchedList.sort((a, b) => newestTimestamp(b) - newestTimestamp(a));
-    return searchedList.slice(0, sortMode === "trending" ? 12 : debates.length);
-  }, [category, indexedDebates, mockDebates, mockEnabled, query, sortMode]);
+    return searchedList;
+  }, [category, currentIndexedDebates, mockDebates, mockEnabled, query, sortMode]);
+
+  const paginationKey = `${mockEnabled ? "mock" : "indexed"}:${category}:${query}:${sortMode}:${filtered.map((debate) => debate.id).join(",")}`;
 
   return (
     <section className="grid-section">
@@ -176,26 +248,22 @@ export default function VsListClient({ mockDebates, indexedDebates, indexedReadF
           </div>
         </div>
 
-        {!mockEnabled && filtered.length === 0 ? (
+        {filtered.length === 0 ? (
           <div className="explore-empty-versus" role="status">
             <span className="explore-empty-versus-icon" aria-hidden="true">VS</span>
-            <h2>{indexedReadFailed
+            <h2>{!mockEnabled && currentIndexedReadFailed
               ? "Live versus are temporarily unavailable"
-              : indexedFeedEmpty
+              : !mockEnabled && indexedFeedEmpty
                 ? "No versus available yet"
                 : "No matching versus"}</h2>
-            <p>{indexedReadFailed
+            <p>{!mockEnabled && currentIndexedReadFailed
               ? "Explore could not read the Railway indexer. Try again shortly or enable Mock data to preview the feed."
-              : indexedFeedEmpty
+              : !mockEnabled && indexedFeedEmpty
                 ? "Goldsky has not projected any complete versus yet. Enable Mock data to preview the feed."
                 : "Try a different search, category, or sorting option."}</p>
           </div>
-        ) : view === "grid" ? (
-          <div className="card-grid">
-            {filtered.map((debate, index) => <VsCard key={debate.id} debate={debate} index={index} inlineTrading />)}
-          </div>
         ) : (
-          <VsTable debates={filtered} ageLabel={(debate) => `${ageHours(debate, now)}h ago`} />
+          <PaginatedResults debates={filtered} view={view} now={now} key={paginationKey} />
         )}
       </div>
     </section>

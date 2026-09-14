@@ -1,0 +1,21 @@
+{
+  "chainId": 4663,
+  "network": "robinhood-mainnet",
+  "status": "not-deployed",
+  "contracts": {
+    "KorumCore": { "address": null, "deploymentBlock": null },
+    "KorumFactory": { "address": null, "deploymentBlock": null },
+    "KorumHook": { "address": null, "deploymentBlock": null },
+    "KorumRouter": { "address": null, "deploymentBlock": null },
+    "FeeEscrow": { "address": null, "deploymentBlock": null },
+    "ReferralRegistry": { "address": null, "deploymentBlock": null },
+    "LiquidityLocker": { "address": null, "deploymentBlock": null }
+  },
+  "dependencies": {
+    "PoolManager": null,
+    "PositionManager": null,
+    "StateView": null,
+    "Quoter": null,
+    "Permit2": null
+  }
+}

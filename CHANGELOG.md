@@ -32,6 +32,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Versioned contract artifact structure for shared ABIs and chain-specific deployment addresses.
 - Frontend-ready `VersusToken` ABI with standard ERC-20 reads, approvals, transfers, events, and token metadata URI.
 - Authenticated profile bio updates with strict server-side validation.
+- Authenticated editable usernames persisted with wallet profiles in Railway.
 - Complete responsive Korum application shell with shared header and footer.
 - Canonical Explore page with animated grid lines, pointer halo, search, category filters, sorting, grid view, and table view.
 - Interactive VS cards with token imagery, market data, sparklines, percentage meters, watchlist actions, and separate buy and sell states.
@@ -54,10 +55,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Contract-backed Versus creation page with live launch configuration and cost reads, token/camp setup, responsive preview, wallet network switching, transaction simulation, `createVersus` publication, receipt decoding, and referral finalization.
 - Server-only Railway reader that joins indexed Versus records with both camps and maps complete projections to the frontend data contract.
 - Live indexed Versus feed in Explore, including camp metadata, media, token addresses, creator information, and creation timestamps.
+- Responsive Explore pagination with 12 Versus per page across grid, table, search, filters, sorting, and mock datasets.
 - Contract-backed trading panels on each Versus token with live ETH/token balances, on-chain buy and sell quotes, 1% minimum-output protection, wallet network switching, ERC-20 approval handling, receipt confirmation, and explorer links.
 - Inline Explore trading controls shared with the Versus detail flow, opened directly in Buy or Sell mode and kept inside each card without navigation or overlays.
 - Automatic trading-venue selection between the active `KorumCore` bonding curve and the graduated Uniswap pool through `KorumRouter`.
 - Authenticated Railway-backed `user_watchlist` storage with protected read, add, and remove endpoints and transactional schema coverage.
+- Goldsky trade and curve-lifecycle projections for both the pre-bonding `KorumCore` venue and post-bonding `KorumHook` venue, with Railway-backed chart and recent-trade APIs.
+- Indexed current prices, 24-hour volumes, trader counts, market caps, adjusted FDVs, graduation progress, and selectable 1-hour through 180-day price histories across Explore and Versus detail pages.
+- Server-only Alchemy ETH/USD quotes with a short cache and an explicit ETH fallback when no quote is available.
+- Explicit `testnet`/`mainnet` network selection shared by wallet configuration, contract artifacts, Railway reads, explorer links, and watchlists.
+- Official Robinhood RPC transport with a server-only, read-method-restricted Alchemy fallback endpoint that keeps API credentials out of browser bundles.
+- Private Railway Redis service and a server-only, network-scoped cache shared by web replicas for ETH/USD quotes, Explore projections, Versus details, market charts, and recent trades.
+- Redis-backed JSON-RPC rate limiting shared across replicas, with hashed client identifiers, batch-aware accounting, response budget headers, and an in-process fallback when Redis is unavailable.
+- Visibility-aware reactive refreshes for Explore, Analytics, Versus details, charts, and the open Activity tab through shared TanStack Query keys and Redis-backed endpoints.
+- A cache-backed `/api/debates/[id]` endpoint for refreshing one Versus without reloading the page or querying the blockchain.
+- A global Redis-backed recent-trade endpoint and Railway timeline index for the live Explore buy/sell ticker.
+- A bounded client-side ticker queue that reveals polled trades sequentially instead of rendering each polling batch simultaneously.
+- `X-Korum-Cache` and `X-Korum-Cache-Layer` response headers on public Versus and market APIs for Redis hit, miss, bypass, and in-process deduplication diagnostics.
 
 ### Changed
 
@@ -86,8 +100,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Removed personal first-name and last-name fields from the wallet profile experience.
 - Translated the complete Versus creation interface to English and consolidated its page-specific styles into globally loaded, `create-`-prefixed selectors.
 - Made Railway-indexed Versus data the default source across Explore, matchup details, Watchlist, and Analytics, with fixture data available only through the explicit Mock data control.
-- Kept market and trading metrics neutral until Goldsky indexes the events required to calculate them.
+- Replaced neutral market placeholders with metrics calculated from indexed `Trade` events and exact curve/graduation state.
 - Centralized the deployed router, hook, and Versus token contract artifacts in the shared frontend contract adapter.
+- Added short public HTTP cache and stale-while-revalidate policies matching the Redis TTLs for indexed debate, chart, and trade endpoints.
 
 ### Fixed
 
@@ -127,6 +142,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Converted decoded Solidity `uint128` and `uint256` event parameters to Goldsky `U256` values before PostgreSQL writes, unblocking exact `NUMERIC` inserts for versus IDs and camp launch values.
 - Kept Wagmi's cookie-restored account state hidden until browser mount, preventing wallet controls and trading panels from producing hydration mismatches.
 - Resolved watchlist entries against their Railway-indexed Versus and camp rows instead of same-numbered mock fixtures.
+- Excluded the exact `Graduated.tokenResidual` locked supply from post-graduation market-cap and adjusted-FDV calculations instead of treating 100% of token supply as circulating.
+- Removed the implicit `NODE_ENV` chain switch so a production build cannot silently select mainnet while still using testnet contract addresses and indexer rows.
+- Corrected Explore trader totals to use distinct indexed trade wallets instead of the unavailable holder-count placeholder, including per-camp counts in table view.
+- Kept pre-bonding market cap tied to tokens actually released from the curve, while exposing the broader protocol-adjusted valuation only as Adjusted FDV.
+- Replaced the Analytics trade-count estimate with the indexed 24-hour trade totals and invalidated active market queries after confirmed transactions.
 
 ## [0.1.0] - 2026-08-31
 

@@ -40,6 +40,13 @@ const tokenA = "0x7777777777777777777777777777777777777777";
 const tokenB = "0x8888888888888888888888888888888888888888";
 const transactionHash = `0x${"a".repeat(64)}`;
 const blockHash = `0x${"b".repeat(64)}`;
+const graduationTransactionHash = `0x${"c".repeat(64)}`;
+const graduationBlockHash = `0x${"d".repeat(64)}`;
+const poolId = `0x${"e".repeat(64)}`;
+const sqrtPriceX96 = "79228162514264337593543950336";
+const totalSupply = "1000000000000000000000000000";
+const tokenResidual = "81632653000000000000000000";
+const expectedCirculatingSupply = "918367347000000000000000000";
 const eventTime = new Date("2026-09-09T12:00:00.000Z");
 
 try {
@@ -74,7 +81,7 @@ try {
         transaction_hash, block_hash, block_number, log_index
       ) VALUES (
         ${chainId}, ${versusId}, ${camp.side}, ${camp.token}, ${camp.name}, ${camp.symbol}, ${camp.uri},
-        ${"1000000000000000000"}, ${"5000000000000000000"}, ${"1000000000000000000000000000"}, ${eventTime},
+        ${"1000000000000000000"}, ${"5000000000000000000"}, ${totalSupply}, ${eventTime},
         ${transactionHash}, ${blockHash}, ${101}, ${camp.logIndex}
       )
       ON CONFLICT (chain_id, versus_id, side) DO UPDATE SET
@@ -114,6 +121,48 @@ try {
       ingested_at = NOW()
   `;
 
+  await connection`
+    INSERT INTO indexer.camp_trades (
+      event_id, chain_id, token_address, trader_address, referrer_address,
+      venue, kind, is_buy, eth_gross, token_amount, fee_total,
+      fee_creator, fee_referrer, fee_platform, tier_fee_bps,
+      tier_creator_share_bps, snipe_tax_bps, sqrt_price_x96_after,
+      real_eth_after, token_reserve_after, cumulative_volume_after,
+      traded_at, transaction_hash, block_hash, block_number, log_index
+    ) VALUES (
+      ${"smoke-trade-a"}, ${chainId}, ${tokenA}, ${userWallet}, ${referrerWallet},
+      ${0}, ${0}, ${true}, ${"100000000000000000"}, ${"1000000000000000000000"}, ${"30"},
+      ${"10"}, ${"10"}, ${"10"}, ${100},
+      ${5000}, ${0}, ${sqrtPriceX96},
+      ${"5000000000000000000"}, ${"285714286000000000000000000"}, ${"100000000000000000"},
+      ${eventTime}, ${transactionHash}, ${blockHash}, ${101}, ${4}
+    )
+  `;
+
+  await connection`
+    INSERT INTO indexer.camp_curve_lifecycle (
+      event_id, chain_id, token_address, event_type, curve_status,
+      graduation_disabled, happened_at, transaction_hash, block_hash,
+      block_number, log_index
+    ) VALUES (
+      ${"smoke-graduated-a"}, ${chainId}, ${tokenA}, ${"graduated"}, ${3},
+      ${false}, ${eventTime}, ${graduationTransactionHash}, ${graduationBlockHash},
+      ${102}, ${0}
+    )
+  `;
+
+  await connection`
+    INSERT INTO indexer.camp_graduations (
+      chain_id, token_address, pool_id, sqrt_price_x96, eth_deposited,
+      tokens_deposited, position_token_id, eth_residual, token_residual,
+      graduated_at, transaction_hash, block_hash, block_number, log_index
+    ) VALUES (
+      ${chainId}, ${tokenA}, ${poolId}, ${sqrtPriceX96}, ${"5000000000000000000"},
+      ${"204081633000000000000000000"}, ${1}, ${0}, ${tokenResidual},
+      ${eventTime}, ${graduationTransactionHash}, ${graduationBlockHash}, ${102}, ${1}
+    )
+  `;
+
   const [projection] = await connection`
     SELECT
       v.title,
@@ -132,14 +181,34 @@ try {
     WHERE chain_id = ${chainId} AND user_wallet = ${userWallet}
   `;
 
+  const [market] = await connection`
+    SELECT
+      curve_status,
+      token_residual::TEXT AS token_residual,
+      circulating_supply::TEXT AS circulating_supply,
+      adjusted_fdv_supply::TEXT AS adjusted_fdv_supply,
+      real_eth_after::TEXT AS real_eth_after
+    FROM indexer.camp_market_state
+    WHERE chain_id = ${chainId} AND token_address = ${tokenA}
+  `;
+
   if (projection?.title !== "Camp A vs Camp B" || projection.camp_count !== 2) {
     throw new Error("Versus projection did not join its two camps.");
   }
   if (projection.sides.join(",") !== "0,1" || binding?.referrer_wallet !== referrerWallet) {
     throw new Error("Indexer projection values do not match their source events.");
   }
+  if (
+    market?.curve_status !== 3
+    || market.token_residual !== tokenResidual
+    || market.circulating_supply !== expectedCirculatingSupply
+    || market.adjusted_fdv_supply !== expectedCirculatingSupply
+    || market.real_eth_after !== "5000000000000000000"
+  ) {
+    throw new Error("Graduated market state does not exclude the exact locked token residual.");
+  }
 
-  process.stdout.write("Indexer schema check passed: referral and versus projections are valid.\n");
+  process.stdout.write("Indexer schema check passed: referral, versus, trade, and graduated supply projections are valid.\n");
 } finally {
   await connection.unsafe("ROLLBACK").catch(() => undefined);
   connection.release();

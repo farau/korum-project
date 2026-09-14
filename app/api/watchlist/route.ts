@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { KORUM_CHAIN_ID } from "../../config/korum-network";
 import { getWalletSession, isSameOriginRequest } from "../../lib/auth/session";
 import {
   addUserWatchlistItem,
@@ -7,8 +8,6 @@ import {
   removeUserWatchlistItem,
 } from "../../lib/db/watchlist";
 import { getIndexedWatchlistDebates } from "../../lib/db/debates";
-
-const WATCHLIST_CHAIN_ID = 46630;
 
 function unauthorized() {
   return NextResponse.json({ error: "Authentication required." }, { status: 401 });
@@ -31,7 +30,7 @@ export async function GET() {
 
   try {
     const [ids, debates] = await Promise.all([
-      getUserWatchlist(session.userId, WATCHLIST_CHAIN_ID),
+      getUserWatchlist(session.userId, KORUM_CHAIN_ID),
       getIndexedWatchlistDebates(session.userId),
     ]);
     return NextResponse.json({ ids, debates });
@@ -52,7 +51,7 @@ export async function POST(request: Request) {
   if (versusId === null) return NextResponse.json({ error: "A valid Versus ID is required." }, { status: 400 });
 
   try {
-    const exists = await addUserWatchlistItem(session.userId, WATCHLIST_CHAIN_ID, versusId);
+    const exists = await addUserWatchlistItem(session.userId, KORUM_CHAIN_ID, versusId);
     if (!exists) return NextResponse.json({ error: "Versus not found." }, { status: 404 });
     return NextResponse.json({ added: true, versusId }, { status: 201 });
   } catch (error) {
@@ -72,7 +71,7 @@ export async function DELETE(request: Request) {
   if (versusId === null) return NextResponse.json({ error: "A valid Versus ID is required." }, { status: 400 });
 
   try {
-    await removeUserWatchlistItem(session.userId, WATCHLIST_CHAIN_ID, versusId);
+    await removeUserWatchlistItem(session.userId, KORUM_CHAIN_ID, versusId);
     return NextResponse.json({ removed: true, versusId });
   } catch (error) {
     console.error("Unable to remove the watchlist item.", error);

@@ -1,7 +1,7 @@
 # Referral and Indexer Architecture
 
 Status: accepted  
-Last updated: 2026-09-12
+Last updated: 2026-09-14
 
 ## Purpose
 
@@ -13,7 +13,7 @@ Korum uses three distinct data layers. They intentionally do not duplicate the s
 
 | Layer | Responsibility | Source of truth |
 | --- | --- | --- |
-| Railway PostgreSQL `public.users` and `public.user_watchlist` | Wallet profiles, short shareable referral codes, and user watchlists | Korum application |
+| Railway PostgreSQL `public.users` and `public.user_watchlist` | Wallet profiles, editable usernames, short shareable referral codes, and user watchlists | Korum application |
 | `ReferralRegistry` | Permanent `user -> referrer` binding used by the protocol | Smart contract |
 | Railway PostgreSQL `indexer.*` | Queryable projections of contract events | Goldsky replaying on-chain events |
 
@@ -26,7 +26,7 @@ flowchart LR
   wallet[Connected wallet]
   app[Korum application]
   users[(Railway PostgreSQL<br/>public application tables)]
-  contracts[Robinhood Testnet<br/>KorumFactory + ReferralRegistry]
+  contracts[Robinhood Testnet<br/>Factory + Registry + Core + Hook]
   logs[Goldsky<br/>robinhood_testnet.raw_logs]
   decode[Decode once<br/>filter by event]
   indexer[(Railway PostgreSQL<br/>indexer schema)]
@@ -34,7 +34,7 @@ flowchart LR
   wallet -->|sign-in and referral code| app
   app -->|profile and watchlist reads/writes| users
   app -->|candidate referrer + protocol call| contracts
-  contracts -->|ReferrerBound / CampCreated / VersusCreated| logs
+  contracts -->|Metadata, referral, Trade, and lifecycle events| logs
   logs --> decode
   decode -->|PostgreSQL upserts| indexer
   indexer -->|server-side reads only| app
@@ -126,7 +126,7 @@ Post-graduation swaps must go through `KorumRouter`. Routing directly through th
 
 The `/create` route is the first complete protocol-write interface. Its Server Component reads any pending referral for the verified wallet session and passes that server-resolved value to the client form. The browser cannot provide an arbitrary referrer wallet through the form.
 
-Frontend contract access is centralized in `app/lib/contracts/korum.ts`. This module imports the canonical ABIs from `contracts/abis/`, loads Robinhood Testnet addresses from `contracts/deployments/46630.json`, normalizes those addresses with Viem, and exports the shared chain, address, and ABI constants. Components must use this adapter instead of duplicating addresses or hand-written ABI fragments.
+Frontend contract access is centralized in `app/lib/contracts/korum.ts`. This module imports the canonical ABIs from `contracts/abis/`, loads the deployment manifest selected by `NEXT_PUBLIC_KORUM_NETWORK`, normalizes its addresses with Viem, and exports the shared chain, address, and ABI constants. Components must use this adapter instead of duplicating addresses or hand-written ABI fragments.
 
 Before allowing publication, `CreateVersusForm` reads live protocol state through Wagmi:
 
@@ -139,7 +139,7 @@ The form validates the debate metadata, distinct camp names and symbols, initial
 
 Publication follows this sequence:
 
-1. Require a connected, application-authenticated wallet and switch it to Robinhood Testnet when necessary.
+1. Require a connected, application-authenticated wallet and switch it to the configured Korum chain when necessary.
 2. Generate a cryptographically random `bytes32` salt and build the exact `VersusParams` payload, with the connected wallet as `creatorFeeRecipient`.
 3. Resolve the candidate referrer from the pending server-validated attribution, or use `address(0)` when none exists.
 4. Call `KorumFactory.previewCost(params)` immediately before submission so the attached native value is based on the final payload and current contract state.
@@ -151,7 +151,7 @@ Contract confirmation and read-model availability are separate milestones. A suc
 
 ## Trading write path
 
-Both `/vs/[id]` and `/explore` delegate contract interaction to `app/components/TokenTradePanel.tsx`. On Explore, each card keeps the interaction inline: the camp selector chooses the token, and Buy or Sell expands the compact trading controls directly inside that card. No overlay or route change is involved. Railway supplies the token address and display metadata, while every price-sensitive value is read from Robinhood Testnet at interaction time. Indexed rows are discovery data, not transaction authority.
+Both `/vs/[id]` and `/explore` delegate contract interaction to `app/components/TokenTradePanel.tsx`. On Explore, each card keeps the interaction inline: the camp selector chooses the token, and Buy or Sell expands the compact trading controls directly inside that card. No overlay or route change is involved. Railway supplies the token address and display metadata, while every price-sensitive value is read from the configured Korum chain at interaction time. Indexed rows are discovery data, not transaction authority.
 
 The panel reads:
 
@@ -177,7 +177,89 @@ Every trade derives `minAmountOut` from a fresh quote immediately before submiss
 
 The candidate referrer resolved from the pending referral cookie is passed to `buy`, `sell`, or `swap`. After the final receipt succeeds, the frontend reads `ReferralRegistry.referrerOf(wallet)` and clears the cookie only when a permanent non-zero binding is confirmed. Balances, allowance, and curve status are refreshed after confirmation.
 
-The component never writes trading results to Railway. Contract events will be projected separately by the future Goldsky trading extension; until then, the wallet balance and current quote are authoritative for the trading form while aggregate charts remain explicitly unavailable.
+The component never writes trading results to Railway. Goldsky independently projects confirmed `Trade` events into the historical read model. Wallet balances, live curve status, and the immediately simulated quote remain authoritative for submitting a transaction; the indexed projection is authoritative only for historical charts and aggregates.
+
+## Market-data architecture
+
+Korum stores the protocol's trade events rather than periodic price snapshots. This is viable because every confirmed trade is an immutable, auditable market fact and the event already carries the post-trade state required by the UI. Goldsky listens to the identical `Trade` signature on both emitters:
+
+| Venue | Emitter | Stored value |
+| --- | --- | --- |
+| Pre-bonding curve | `KorumCore` | `venue = 0`, exposed by APIs as `"curve"` |
+| Graduated pool | `KorumHook` | `venue = 1`, exposed by APIs as `"pool"` |
+
+The venue must never be inferred from time or contract status. Keeping the event field allows a single continuous price history across graduation while retaining the boundary between the two execution mechanisms.
+
+`Trade.sqrtPriceX96After` uses the protocol's ETH-as-currency0 convention. The server derives the token price in ETH with exact integer arithmetic:
+
+```text
+tokenPriceWad = (2^192 × 10^18) / sqrtPriceX96After²
+```
+
+The application does not ask Alchemy to rediscover protocol trades. Goldsky provides the exhaustive replayable history and Railway provides aggregation and pagination. Alchemy supplies the independent ETH/USD quote through its Prices API. The response keeps `quoteSymbol: "ETH"` and `quoteUsd` separate from every ETH-denominated market value so clients can reproduce or update the conversion. If `ALCHEMY_API_KEY` is absent or Alchemy is temporarily unavailable, the API returns `quoteUsd: null` and the frontend labels values in ETH instead of silently applying a stale or fabricated USD rate.
+
+The internal endpoints deliberately follow the supplied market API shape:
+
+```text
+GET /api/markets/:token/chart?range=1h|1d|7d|30d|180d
+GET /api/markets/:token/trades?limit=1..250
+GET /api/markets/trades?limit=1..100
+```
+
+Chart points contain Unix time, token price in ETH, block number, ETH volume, and trade count. Token and global recent-trade responses contain normalized token/ETH amounts and preserve `venue: "curve" | "pool"`. The global feed also joins each event to its camp symbol and Versus ID. All endpoints are server-side Railway reads; no database credential reaches the browser.
+
+### Network selection and RPC fallback
+
+`NEXT_PUBLIC_KORUM_NETWORK` is the single build-time selector for the application protocol network. Allowed values are `testnet` and `mainnet`; omitting it defaults to `testnet`. The selection controls:
+
+- the only chain offered by RainbowKit;
+- every contract read, simulation, and write through `KORUM_CHAIN`;
+- the deployment manifest (`46630.json` or `4663.json`);
+- the `chain_id` predicate used by Railway market, Versus, and watchlist reads;
+- explorer links shown after transactions.
+
+This selector is intentionally independent from `NODE_ENV`. A staging deployment may run an optimized production build while still targeting testnet. Because `NEXT_PUBLIC_*` values are embedded during `next build`, changing the network requires a rebuild and redeployment.
+
+The HTTP transport uses a Viem fallback pair:
+
+1. the official public RPC declared by the active Robinhood chain;
+2. same-origin `POST /api/rpc`, which forwards supported read-only JSON-RPC methods to Alchemy.
+
+The second hop keeps `ALCHEMY_API_KEY` and `KORUM_ALCHEMY_RPC_URL` server-only. The proxy rejects cross-origin requests, oversized payloads, large batches, malformed JSON-RPC, and write or broadcast methods. It is a resilience path for contract reads and receipt polling, not an alternative trade indexer and not the source of `quoteUsd`. `quoteUsd` still comes from the separate Alchemy Prices API.
+
+On testnet, the proxy derives the Robinhood Testnet Alchemy endpoint from `ALCHEMY_API_KEY`. `KORUM_ALCHEMY_RPC_URL` is an optional explicit server-only override and must be set to the private mainnet endpoint when mainnet is enabled. Never rename either secret with a `NEXT_PUBLIC_` prefix.
+
+The committed `contracts/deployments/4663.json` manifest deliberately contains no addresses. Selecting `mainnet` fails fast until that file is completed, preventing testnet addresses from being used on mainnet. Mainnet activation therefore requires all of the following as one release:
+
+1. populate and verify every address and deployment block in `4663.json`;
+2. deploy a chain-4663 Goldsky pipeline and backfill its Railway rows;
+3. configure `NEXT_PUBLIC_KORUM_NETWORK=mainnet` and the mainnet private RPC URL in the production Railway environment;
+4. rebuild the application and run creation, trading, referral, explorer, and indexed-read smoke tests.
+
+### Curve state, market cap, and adjusted FDV
+
+`indexer.camp_market_state` reconstructs the latest camp state without replaying curve arithmetic in the frontend:
+
+- the latest trade from either venue supplies the current `sqrtPriceX96After` and cumulative volume;
+- the latest `venue = 0` trade permanently preserves the final pre-bonding `realEthAfter` and `tokenReserveAfter`, even after pool trades begin;
+- `GraduationPending`, `Graduated`, and `CurveReopened` establish status and whether graduation was disabled;
+- `Graduated.tokenResidual` records the exact amount sent to the permanent locker.
+
+Before graduation, circulating supply is `totalSupply - tokenReserveAfter`. The projected structurally locked residual is calculated from each camp's emitted configuration as:
+
+```text
+projectedResidual = floor(totalSupply × virtualEth² / (virtualEth + graduationEth)²)
+```
+
+Before graduation, the displayed market cap uses the conventional circulating definition:
+
+```text
+marketCap = currentPrice × (totalSupply - tokenReserveAfter)
+```
+
+`currentPrice` comes from `sqrtPriceX96After` and therefore already reflects `virtualEth + realEth` in the bonding-curve reserve. The virtual ETH influences the price but is not real liquidity, circulating supply, or capital contributed by traders, so the frontend does not add it to market cap. The separate **Adjusted FDV** applies that same current price to `adjustedFdvSupply`; it describes the broader protocol-adjusted valuation without relabelling it as market cap.
+
+After graduation, both market cap and Adjusted FDV use `totalSupply - Graduated.tokenResidual`. With the production configuration this is 91.84% of supply, not 100%; the remaining 8.16% is structurally locked. The exact event value takes precedence over the closed-form projection. A future live integrity check may compare it with `VersusToken.balanceOf(LiquidityLocker)`, but the indexer's historical computation must not substitute a hard-coded percentage.
 
 ## Database-backed watchlist and notifications
 
@@ -185,7 +267,7 @@ The watchlist is user-owned application data in Railway PostgreSQL, not an index
 
 `/api/watchlist` is the only browser-facing data boundary:
 
-- `GET` returns the authenticated wallet user's Versus IDs and their complete joined `indexer.versuses`/`indexer.versus_camps` projections for Robinhood Testnet;
+- `GET` returns the authenticated wallet user's Versus IDs and their complete joined `indexer.versuses`/`indexer.versus_camps` projections for the configured chain;
 - `POST` verifies that the Versus exists in the Goldsky read model before inserting it;
 - `DELETE` removes the selected ID idempotently;
 - every operation requires the signed wallet session, and mutations enforce same-origin requests.
@@ -203,6 +285,9 @@ Goldsky writes only to the `indexer` PostgreSQL schema:
 | `ReferrerBound` | `indexer.referral_bindings` | `(chain_id, user_wallet)` |
 | `VersusCreated` | `indexer.versuses` | `(chain_id, versus_id)` |
 | `CampCreated` | `indexer.versus_camps` | `(chain_id, versus_id, side)` |
+| `Trade` | `indexer.camp_trades` | `(chain_id, transaction_hash, log_index)` |
+| `GraduationPending`, `Graduated`, `CurveReopened` | `indexer.camp_curve_lifecycle` | `(chain_id, transaction_hash, log_index)` |
+| `Graduated` | `indexer.camp_graduations` | `(chain_id, token_address)` |
 
 `indexer.referral_bindings` is useful for reverse lookups, referral counts, leaderboards, and historical API reads. It is not consulted by contracts and must not override a direct `referrerOf` read.
 
@@ -223,13 +308,61 @@ The browser never connects directly to PostgreSQL. Server Components and Route H
 
 `app/lib/db/debates.ts` is the server-only adapter between Railway's normalized indexer schema and the frontend `Debate` model. The Explore Server Component calls it directly, while browser-only consumers such as Watchlist and Analytics use `GET /api/debates`. Database credentials therefore remain on the server.
 
-The query starts from `indexer.versuses` and uses inner joins for side `0` and side `1` in `indexer.versus_camps`. A Versus is intentionally hidden during the short interval where Goldsky has written only part of the three-event projection. Results are scoped to Robinhood Testnet (`chain_id = 46630`), ordered newest first, and capped server-side.
+The query starts from `indexer.versuses` and uses inner joins for side `0` and side `1` in `indexer.versus_camps`. A Versus is intentionally hidden during the short interval where Goldsky has written only part of the three-event projection. Results are scoped to the active `KORUM_CHAIN_ID`, ordered newest first, and capped server-side.
 
-The adapter exposes on-chain metadata that already exists in the read model: Versus ID, title, description, category, socials, creator, creation time, camp names and symbols, token addresses, and normalized public media URLs. `ipfs://` and `ar://` media identifiers are translated to public gateways for the current image components.
-
-Trading volume, liquidity, market capitalization, holder counts, trade counts, price changes, and price history are currently returned as neutral zero values. These facts are not emitted by `VersusCreated` or `CampCreated`, so the application must not manufacture them from fixture data. Populate them only after the corresponding trading events and aggregation strategy have been added to the Goldsky read model.
+The adapter exposes on-chain metadata plus the market view: current price, 24-hour volume/trades, distinct traders, curve progress, circulating and locked supply, circulating market cap, adjusted FDV, and recent price history. Explore's `Traders` count comes from distinct non-zero `Trade.trader` addresses across both camps; per-token table rows use the corresponding camp count. Holder counts and liquidity remain absent until their own authoritative projections exist and never override trader counts. `ipfs://` and `ar://` media identifiers are translated to public gateways for the current image components.
 
 Live Railway data is the default application mode. The persisted `Mock data` control is an explicit development/demo override; API or database failures in live mode produce an empty/error state and never fall back silently to fixtures. The dynamic `/vs/[id]` page follows the same source selection so a live ID cannot accidentally open a fixture with the same numeric ID.
+
+### Shared cache and RPC rate limiting
+
+Railway Redis is a disposable performance layer in front of PostgreSQL and Alchemy. PostgreSQL remains authoritative for users, watchlists, Versus projections, and indexed trades; Alchemy remains authoritative for the ETH/USD response it returns. Losing or flushing Redis must only increase source traffic temporarily and must never lose application data.
+
+The `staging` environment contains one private service named `Redis`. The web service receives `REDIS_URL` through the Railway reference `${{Redis.REDIS_URL}}`; Redis has no browser-facing endpoint. `app/lib/cache/redis.ts` creates one lazy `ioredis` client per Next.js process. Multiple web replicas therefore keep separate client connections but share the same cached keys. Local development may omit `REDIS_URL`, and every cache operation fails open to its PostgreSQL or Alchemy loader after a short timeout. A five-second circuit breaker prevents a Redis outage from adding that timeout to every application request.
+
+All keys use the versioned `korum:v1:<network>:` namespace. Including `testnet` or `mainnet` prevents a network switch from returning values generated from the other chain. Current entries and TTLs are:
+
+| Data | Key suffix | TTL |
+| --- | --- | ---: |
+| ETH/USD quote | `quote:eth-usd` | 60 seconds |
+| Explore and public Versus list | `debates:list:<limit>` | 15 seconds |
+| Versus detail | `debates:detail:<versusId>` | 15 seconds |
+| Recent token trades | `market:trades:<token>:<limit>` | 5 seconds |
+| Global recent-trade ticker | `market:recent-trades:<limit>` | 5 seconds |
+| 1-hour chart | `market:chart:<token>:1h` | 5 seconds |
+| 1-day chart | `market:chart:<token>:1d` | 15 seconds |
+| 7-day chart | `market:chart:<token>:7d` | 30 seconds |
+| 30-day chart | `market:chart:<token>:30d` | 60 seconds |
+| 180-day chart | `market:chart:<token>:180d` | 300 seconds |
+
+The quote retains a small per-process promise cache as an L1 deduplicator and uses Redis as the replica-shared L2 cache. Other cached loaders also deduplicate simultaneous misses inside one process. Public market Route Handlers publish matching short `Cache-Control` and `stale-while-revalidate` directives. Authentication, profile, referral, notification, and watchlist endpoints remain private and `no-store`; their PostgreSQL records are never replaced by cached values.
+
+Public Versus and market API responses expose `X-Korum-Cache` (`HIT`, `MISS`, `DEDUPED`, or `BYPASS`) and `X-Korum-Cache-Layer` (`redis`, `memory`, or `postgres`) for operational diagnostics in browser developer tools. `MISS` means Redis was reachable but did not contain the key, while `BYPASS` means Redis was not configured or temporarily unavailable and the authoritative loader was used directly. These headers describe the server-side request that originally produced the response; when browser developer tools show `(memory cache)` or `(disk cache)`, the browser may be replaying those original headers without contacting the server again.
+
+Goldsky writes PostgreSQL directly and does not notify the web process, so indexed market caches expire by TTL rather than explicit invalidation. A confirmed trade may consequently take the Goldsky indexing delay plus at most the relevant short TTL to appear. The application must continue distinguishing wallet receipt confirmation from read-model availability.
+
+### Reactive public market reads
+
+TanStack Query supplies the browser-side refresh layer and reuses the `QueryClient` already mounted for Wagmi. Explore's card list and Hot Trending section share the same `indexed-debates` key, so rendering both does not duplicate the network request. Analytics consumes that same query. `/vs/[id]` uses the dedicated `GET /api/debates/[id]` snapshot.
+
+Refresh intervals align with the Redis TTLs:
+
+| Visible surface | Browser interval |
+| --- | ---: |
+| Explore, Analytics, and Versus detail metrics | 15 seconds |
+| Open Activity tab | 5 seconds |
+| Explore buy/sell ticker | 5 seconds |
+| 1-hour chart | 5 seconds |
+| 1-day chart | 15 seconds |
+| 7-day chart | 30 seconds |
+| 30-day chart | 60 seconds |
+| 180-day chart | 300 seconds |
+
+Intervals stop while the browser tab is hidden and refresh immediately when it regains focus. The Activity query exists only while its tab is mounted. A confirmed buy or sell invalidates the active list, detail, chart, and trade queries immediately; normal polling then catches the Goldsky projection if the receipt has not yet reached Railway. These refreshes call only the cache-backed Next.js endpoints. They do not issue per-user blockchain RPC requests for market cap, volume, trade count, trader count, charts, or activity.
+
+The Explore ticker polls the global recent-trade endpoint but does not render a returned batch at once. It records already-seen event IDs, orders unseen events chronologically in a bounded browser queue, and reveals one item every 1.1 seconds with the existing buy/sell animation. Initial history is rendered without arrival animation. A WebSocket is intentionally unnecessary at the current scale: Goldsky writes PostgreSQL rather than publishing directly to the browser, while a five-second Redis-backed poll provides adequate freshness, simpler recovery, and no persistent connection infrastructure. WebSocket or server-sent events become relevant only if event volume or latency requirements exceed this bounded polling model.
+
+`POST /api/rpc` uses Redis for a fixed-window client budget shared by all web replicas. Client network addresses are hashed before becoming key material, and each JSON-RPC call in a batch consumes one unit. `KORUM_RPC_RATE_LIMIT` defaults to 300 units per `KORUM_RPC_RATE_WINDOW_SECONDS`, which defaults to 60 seconds. An exceeded budget returns `429` with `Retry-After`; if Redis is absent or temporarily unavailable, a bounded per-process limiter preserves basic protection without making the private RPC fallback unavailable.
 
 ## Deployed Goldsky pipeline
 
@@ -252,20 +385,20 @@ The pipeline was initially observed in `Running` state. Treat that as deployment
 
 ### Source scope
 
-The source reads raw logs only for the contracts that emit the three projections currently required by the application:
+The source reads raw logs only for the contracts that emit the current projections:
 
 | Contract | Address | Deployment block | Events consumed |
 | --- | --- | ---: | --- |
 | `ReferralRegistry` | `0xe72f5f1d4c6793c67f962e2e8c36ee1f0750a24c` | `116108291` | `ReferrerBound` |
 | `KorumFactory` | `0x18d70d9ca430747b81e6afb667abdc923b16b417` | `116108344` | `CampCreated`, `VersusCreated` |
+| `KorumCore` | `0x08e1f34e0fb10a0339ecba8cba2021ea2bb1171e` | `116108373` | `Trade`, `GraduationPending`, `Graduated`, `CurveReopened` |
+| `KorumHook` | `0x63bab3ba5bdfc46d65fcaf3beacf8ee94438e0cc` | `116108400` | `Trade` |
 
-Both contracts share one filtered source. Consequently, the filter begins at block `116108291`, the earlier of the two deployment blocks. The address condition prevents unrelated chain logs from reaching the decoder. Addresses and deployment blocks are canonically recorded in `contracts/deployments/46630.json`; a contract redeployment must update that file and the pipeline together.
-
-The other deployed Korum contracts are intentionally absent from this source. Add them only when the application needs projections for their events. Reading every Korum log preemptively would increase cost and make the read model harder to own.
+All four contracts share one filtered source. Consequently, the filter begins at block `116108291`, the earliest relevant deployment block. The address condition prevents unrelated chain logs from reaching the decoder. Addresses and deployment blocks are canonically recorded in `contracts/deployments/46630.json`; a contract redeployment must update that file and the pipeline together.
 
 ### Decode-once, fan-out pattern
 
-`decoded_korum_events` calls `_gs_log_decode` once with the minimal ABI definitions for the three indexed events. Three downstream transforms then filter on `decoded.event_signature` and fan out into independent PostgreSQL sinks. This avoids decoding the same raw log three times while allowing each destination table to keep its own schema and primary key.
+`decoded_korum_events` calls `_gs_log_decode` once with the minimal ABI definitions for all indexed events. Downstream transforms filter on `decoded.event_signature` and fan out into independent PostgreSQL sinks. The three lifecycle transforms are combined with `UNION ALL`; they are never deduplicated or reordered outside `(block_number, log_index)`.
 
 The full contract ABI files under `contracts/abis/` are canonical. The pipeline embeds only the event fragments required at runtime because Goldsky cannot read a local repository path. Whenever one of these event signatures changes, regenerate or manually update the embedded fragment, validate it against the canonical ABI, and redeploy the pipeline.
 
@@ -278,6 +411,9 @@ Goldsky event parameters are one-indexed: the first Solidity parameter is `decod
 | `ReferrerBound(user, referrer, at)` | `1 -> user_wallet`, `2 -> referrer_wallet`, `3 -> bound_at` | `indexer.referral_bindings` |
 | `VersusCreated(versusId, creator, configId, creatorFeeRecipient, tokenA, tokenB, createdAt, title, description, category, socialsJson)` | Parameters `1..11` map in the same order; the emitting address becomes `factory_address` | `indexer.versuses` |
 | `CampCreated(versusId, token, side, name, symbol, uri, virtualEth, graduationEth, totalSupply)` | `1 -> versus_id`, `2 -> token_address`, `3 -> side`, `4..9 -> metadata and launch values` | `indexer.versus_camps` |
+| `Trade(token, trader, referrer, venue, …)` | `1 -> token_address`, `2 -> trader_address`, `3 -> referrer_address`, `4 -> venue`, and all post-trade values through parameter `19` | `indexer.camp_trades` |
+| Curve lifecycle events | Token and event timestamp plus explicit status derived from the event signature | `indexer.camp_curve_lifecycle` |
+| `Graduated(token, poolId, …, tokenResidual, at)` | Exact pool launch values and structurally locked residual | `indexer.camp_graduations` |
 
 Every row also receives the constant `chain_id = 46630` plus the source `transaction_hash`, `block_hash`, `block_number`, and `log_index`. These fields make indexed data auditable back to the originating log.
 
@@ -300,10 +436,13 @@ The sink primary keys exactly match the database primary keys:
 | `referral_bindings_postgres` | `(chain_id, user_wallet)` |
 | `versuses_postgres` | `(chain_id, versus_id)` |
 | `versus_camps_postgres` | `(chain_id, versus_id, side)` |
+| `camp_trades_postgres` | `(chain_id, transaction_hash, log_index)` |
+| `camp_curve_lifecycle_postgres` | `(chain_id, transaction_hash, log_index)` |
+| `camp_graduations_postgres` | `(chain_id, token_address)` |
 
 This makes normal replay idempotent. The additional unique `(chain_id, transaction_hash, log_index)` constraints prevent the same on-chain event from being represented by two logical rows.
 
-Do not add a foreign key from `versus_camps` to `versuses`: `KorumFactory` emits the two camps first, and the three sinks progress independently. APIs that require a complete versus should select the parent plus both sides and omit incomplete results until all three events have arrived.
+Do not add a foreign key from `versus_camps` to `versuses`: `KorumFactory` emits the two camps first, and those sinks progress independently. APIs that require a complete versus should select the parent plus both sides and omit incomplete results until all three creation events have arrived.
 
 ## Credentials and network boundaries
 
@@ -315,8 +454,11 @@ Connection rules by runtime:
 | --- | --- |
 | Goldsky | Railway public PostgreSQL endpoint, because Goldsky runs outside Railway |
 | Deployed Korum application | Railway private service reference such as `${{Postgres.DATABASE_URL}}` |
+| Deployed Korum cache client | Railway private service reference `${{Redis.REDIS_URL}}` |
 | Local developer tools | `DATABASE_URL` in `.env.local`, or a Railway tunnel |
-| Browser | No database connection |
+| Browser | No PostgreSQL or Redis connection |
+
+RPC credentials follow the same boundary: browsers call the official public Robinhood endpoint and the same-origin fallback route; only the application server calls the credentialed Alchemy endpoint.
 
 Renaming a Railway environment does not require a YAML change because the YAML references a Goldsky secret by name. If Railway rotates the password, port, host, or database, update the Goldsky secret in place and verify the running sinks. For production, prefer a dedicated PostgreSQL writer role restricted to the `indexer` schema rather than sharing an application-owner credential.
 
@@ -324,13 +466,13 @@ The application credential may read `indexer.*` and manage `public.users` plus `
 
 ## Checkpoints, backfill, and re-deployments
 
-The pipeline is streaming. On its first deployment, Goldsky processed the bounded historical phase and then switched to the live Robinhood log stream. The initial historical scan found no matching events for the configured addresses, so all three tables started with zero chain-derived rows.
+The pipeline is streaming. On its first deployment, Goldsky processed the bounded historical phase and then switched to the live Robinhood log stream. The market extension performs one deliberate replay from the earliest relevant deployment block so historical Core and Hook trades are not omitted.
 
-Goldsky checkpoints are tied to the pipeline name and source name. Preserve both `korum-robinhood-testnet-indexer` and `korum_logs` during ordinary YAML updates so processing resumes without replaying all history.
+Goldsky checkpoints are tied to the pipeline name and source name. The market extension deliberately renamed the source to `korum_protocol_logs_v2` once so Core and Hook history would be backfilled after expanding the address filter. Preserve both `korum-robinhood-testnet-indexer` and `korum_protocol_logs_v2` during ordinary future YAML updates so processing resumes without replaying all history.
 
 Changing an address filter does not by itself rewind an existing checkpoint. If a newly added contract already emitted historical events, use a deliberate backfill strategy: deploy a temporary bounded/backfill pipeline, or reset/recreate the relevant source only after evaluating duplicate and reorganization behavior. Never rename the pipeline or source casually; doing so can trigger a full replay.
 
-The PostgreSQL primary keys make a replay idempotent for the current projections, but a reset is still an operational action: it creates load, may surface old malformed events, and must be monitored.
+The PostgreSQL primary keys make this deliberate replay idempotent for existing projections, while event provenance keys prevent duplicate trades. A reset is still an operational action: it creates load, may surface old malformed events, and must be monitored.
 
 ## Operations runbook
 
@@ -367,7 +509,7 @@ For an end-to-end staging test:
 1. Execute a real `createVersus` transaction and, separately, a referral-eligible write with an unbound wallet.
 2. Confirm the transaction receipts contain the expected events.
 3. Watch Goldsky logs for decode or PostgreSQL sink errors.
-4. Query all three `indexer` tables by chain ID and transaction hash.
+4. Query the relevant `indexer` creation, trade, lifecycle, and graduation tables by chain ID and transaction hash.
 5. Confirm the frontend reads the resulting versus only after both camps and the versus row exist.
 
 When triaging failures, start with these boundaries:
@@ -387,7 +529,7 @@ When triaging failures, start with these boundaries:
 When adding a new indexed event:
 
 1. Add or update its canonical ABI under `contracts/abis/`.
-2. Record the emitting contract address and deployment block in `contracts/deployments/46630.json`.
+2. Record the emitting contract address and deployment block in the manifest matching the target chain ID.
 3. Decide whether the event belongs in an existing table or a new migration-backed read model.
 4. Apply the PostgreSQL migration before enabling the sink.
 5. Add the address to the source filter and the minimal event ABI to the shared decoder.
@@ -419,13 +561,21 @@ Use a separate pipeline when a new chain needs an independent lifecycle or when 
 | Authenticated read and cookie clearing | `app/api/referrals/pending/route.ts` |
 | Versus creation transaction UI | `app/create/CreateVersusForm.tsx` |
 | Shared frontend chain, address, and ABI adapter | `app/lib/contracts/korum.ts` |
+| Active network selection and chain ID | `app/config/korum-network.ts` |
+| Public plus private-fallback wallet transport | `app/config/rainbowkit.ts` |
+| Read-only private RPC proxy | `app/api/rpc/route.ts` |
+| Shared Redis cache and rate limiter | `app/lib/cache/redis.ts` |
 | Server-only indexed Versus reader and frontend mapping | `app/lib/db/debates.ts` |
-| Browser-safe indexed Versus endpoint | `app/api/debates/route.ts` |
+| Server-only chart and recent-trade readers | `app/lib/db/markets.ts` |
+| ETH/USD quote provider and exact market arithmetic | `app/lib/markets/quote-usd.ts`, `app/lib/markets/math.ts` |
+| Browser-safe market endpoints | `app/api/markets/[token]/chart/route.ts`, `app/api/markets/[token]/trades/route.ts`, `app/api/markets/trades/route.ts` |
+| Browser-safe indexed Versus endpoints | `app/api/debates/route.ts`, `app/api/debates/[id]/route.ts` |
+| Shared reactive indexed-market queries | `app/hooks/useIndexedMarkets.ts` |
 | Live Explore feed | `app/explore/page.tsx`, `app/components/explore/*` |
-| Database read-model definition | `db/migrations/0002_create_indexer_read_model.sql` |
+| Database read-model definition | `db/migrations/0002_create_indexer_read_model.sql`, `db/migrations/0005_create_market_read_model.sql`, `db/migrations/0006_add_trade_feed_index.sql` |
 | Watchlist schema and server adapter | `db/migrations/0003_create_user_watchlist.sql`, `app/lib/db/watchlist.ts` |
 | Authenticated watchlist endpoint and client hook | `app/api/watchlist/route.ts`, `app/hooks/useWatchlist.tsx` |
-| Contract addresses and deployment blocks | `contracts/deployments/46630.json` |
+| Contract addresses and deployment blocks | `contracts/deployments/46630.json`, `contracts/deployments/4663.json` |
 | Canonical contract ABIs | `contracts/abis/*.json` |
 | Deployed Goldsky pipeline definition | `goldsky/pipelines/korum-robinhood-testnet.yaml` |
 | Indexer database smoke test | `scripts/check-indexer-db.mjs` |
