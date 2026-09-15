@@ -3,7 +3,6 @@ import VsListClient from './VsListClient';
 import type { Debate } from '../../lib/debates';
 
 type VsListServerProps = {
-  mockDebates: Debate[];
   indexedDebates: Debate[];
   indexedReadFailed: boolean;
 };

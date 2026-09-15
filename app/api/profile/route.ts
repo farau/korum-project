@@ -1,5 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { getWalletSession, isSameOriginRequest } from "../../lib/auth/session";
+import type { CacheDiagnostic } from "../../lib/cache/redis";
+import { getUserProfileStats } from "../../lib/db/profile-stats";
 import { getUserForSession, updateUserBio, updateUserDisplayName } from "../../lib/db/users";
 
 export async function GET() {
@@ -9,13 +11,22 @@ export async function GET() {
   }
 
   try {
-    const user = await getUserForSession(session.userId, session.address);
+    const cache: CacheDiagnostic = { status: "BYPASS" };
+    const [user, stats] = await Promise.all([
+      getUserForSession(session.userId, session.address),
+      getUserProfileStats(session.address, cache),
+    ]);
     if (!user) {
       return NextResponse.json({ error: "Wallet profile not found." }, { status: 404 });
     }
 
-    const response = NextResponse.json({ user });
+    const response = NextResponse.json({ user, stats });
     response.headers.set("Cache-Control", "private, no-store");
+    response.headers.set("X-Korum-Cache", cache.status);
+    response.headers.set(
+      "X-Korum-Cache-Layer",
+      cache.status === "HIT" ? "redis" : cache.status === "DEDUPED" ? "memory" : "postgres",
+    );
     return response;
   } catch (error) {
     console.error("Unable to read the wallet profile.", error);

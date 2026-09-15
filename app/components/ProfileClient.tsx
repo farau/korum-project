@@ -1,15 +1,19 @@
 "use client";
 
 import Link from "next/link";
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
+import { KORUM_CHAIN } from "../config/korum-network";
 import { useWatchlist } from "../hooks/useWatchlist";
-import type { UserProfile } from "../lib/profile";
+import { BADGE_TIERS, calculateBadgeProgress, type BadgeTier } from "../lib/badges";
+import { formatMarketValue, formatTokenAmount } from "../lib/markets/format";
+import type { UserProfile, UserProfileActivityPage, UserProfileStats } from "../lib/profile";
 import { shortenAddress, useWallet } from "./WalletProvider";
 
 type ProfileTab = "information" | "activity" | "referrals" | "badges" | "watchlist" | "simulator";
 
 type ProfileClientProps = {
   profile: UserProfile | null;
+  stats: UserProfileStats | null;
   sessionAddress: string | null;
   sessionChainId: number | null;
 };
@@ -22,8 +26,6 @@ const PROFILE_TABS: Array<{ id: ProfileTab; label: string }> = [
   { id: "watchlist", label: "Watchlist" },
   { id: "simulator", label: "Global simulator" },
 ];
-
-const TIERS = ["Copper", "Bronze", "Silver", "Gold", "Platinum", "Diamond", "Champion"];
 
 function walletInitial(address: string) {
   return address.slice(2, 4).toUpperCase();
@@ -48,7 +50,7 @@ function compactMoney(value: number) {
   return `$${Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 1 }).format(value)}`;
 }
 
-function Icon({ name }: { name: "copy" | "users" | "bolt" | "chart" | "wallet" | "trade" | "image" | "x" | "edit" }) {
+function Icon({ name }: { name: "copy" | "users" | "bolt" | "chart" | "wallet" | "trade" | "image" | "x" | "edit" | "external" }) {
   const paths = {
     copy: <><rect x="8" y="8" width="10" height="10" rx="2" /><path d="M6 15H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v1" /></>,
     users: <><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" /></>,
@@ -59,6 +61,7 @@ function Icon({ name }: { name: "copy" | "users" | "bolt" | "chart" | "wallet" |
     image: <><rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="8.5" cy="8.5" r="1.5" /><path d="m21 15-5-5L5 21" /></>,
     x: <path d="M5 4h4.5l3.2 4.5L17 4h2l-5.4 6 5.9 10H15l-3.6-5.2L6.8 20h-2l5.7-6.7L5 4Z" />,
     edit: <><path d="M12 20h9" /><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L8 18l-4 1 1-4Z" /></>,
+    external: <><path d="M15 3h6v6" /><path d="m10 14 11-11" /><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" /></>,
   };
 
   return <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">{paths[name]}</svg>;
@@ -87,11 +90,43 @@ function getReferralLink(code: string) {
   return referralUrl.toString();
 }
 
-function DataPending() {
-  return <span className="profile-data-pending">Awaiting indexer</span>;
+function DataPending({ children = "Awaiting indexer" }: { children?: React.ReactNode }) {
+  return <span className="profile-data-pending">{children}</span>;
 }
 
-function InformationPanel({ profile, onProfileChange }: { profile: UserProfile; onProfileChange: (profile: UserProfile) => void }) {
+function IndexedData({ children = "Indexed on-chain" }: { children?: React.ReactNode }) {
+  return <span className="profile-data-pending">{children}</span>;
+}
+
+function formatTradedVolume(stats: UserProfileStats) {
+  return stats.tradedVolumeUsd === null
+    ? formatMarketValue(stats.tradedVolumeEth, "ETH", 4)
+    : formatMarketValue(stats.tradedVolumeUsd, "USD", 2);
+}
+
+function formatEstimatedPnl(stats: UserProfileStats) {
+  const value = stats.estimatedPnlUsd ?? stats.estimatedPnlEth;
+  if (value === null) return "—";
+  const currency = stats.estimatedPnlUsd === null ? "ETH" : "USD";
+  const formatted = formatMarketValue(Math.abs(value), currency, currency === "ETH" ? 5 : 2);
+  return value > 0 ? `+${formatted}` : value < 0 ? `-${formatted}` : formatted;
+}
+
+function pnlClass(stats: UserProfileStats) {
+  const pnl = stats.estimatedPnlEth;
+  if (pnl === null || pnl === 0) return "";
+  return pnl > 0 ? "profile-value-positive" : "profile-value-negative";
+}
+
+function formatTradeDate(timestamp: number) {
+  return `${new Intl.DateTimeFormat("en-US", {
+    dateStyle: "medium",
+    timeStyle: "short",
+    timeZone: "UTC",
+  }).format(new Date(timestamp * 1_000))} UTC`;
+}
+
+function InformationPanel({ profile, stats, onProfileChange }: { profile: UserProfile; stats: UserProfileStats; onProfileChange: (profile: UserProfile) => void }) {
   const [editingDisplayName, setEditingDisplayName] = useState(false);
   const [displayName, setDisplayName] = useState(profile.displayName ?? "");
   const [savingDisplayName, setSavingDisplayName] = useState(false);
@@ -185,39 +220,118 @@ function InformationPanel({ profile, onProfileChange }: { profile: UserProfile; 
         </article>
         <article className="profile-stat-block">
           <div className="profile-stat-heading"><span className="profile-stat-icon"><Icon name="users" /></span><span>Referrals</span></div>
-          <strong className="profile-stat-value">0</strong><DataPending />
+          <strong className="profile-stat-value">{stats.referralCount}</strong><IndexedData />
         </article>
         <article className="profile-stat-block">
           <div className="profile-stat-heading"><span className="profile-stat-icon"><Icon name="bolt" /></span><span>Versus</span></div>
-          <div className="profile-versus-values"><span><strong>0</strong><small>Created</small></span><span><strong>0</strong><small>Joined</small></span></div>
+          <div className="profile-versus-values"><span><strong>{stats.versusCreated}</strong><small>Created</small></span><span><strong>{stats.versusJoined}</strong><small>Joined</small></span></div>
         </article>
         <article className="profile-stat-block">
-          <div className="profile-stat-heading profile-stat-split"><span><span className="profile-stat-icon"><Icon name="chart" /></span><span>PNL</span></span><strong>$0.00</strong></div>
-          <div className="profile-flat-chart" aria-label="No indexed PNL data"><span /></div>
+          <div className="profile-stat-heading profile-stat-split"><span><span className="profile-stat-icon"><Icon name="chart" /></span><span>Estimated PNL</span></span><strong className={pnlClass(stats)}>{formatEstimatedPnl(stats)}</strong></div>
+          <div className="profile-flat-chart" aria-label="Estimated mark-to-market PNL excluding gas"><span /></div>
+          <IndexedData>Mark-to-market · gas excluded</IndexedData>
         </article>
         <article className="profile-stat-block">
           <div className="profile-stat-heading"><span className="profile-stat-icon"><Icon name="wallet" /></span><span>Wallet</span></div>
-          <strong className="profile-stat-value">$0.00</strong><DataPending />
+          <strong className="profile-stat-value">—</strong><DataPending>Awaiting portfolio model</DataPending>
         </article>
         <article className="profile-stat-block">
           <div className="profile-stat-heading"><span className="profile-stat-icon"><Icon name="trade" /></span><span>Traded volume</span></div>
-          <strong className="profile-stat-value">$0.00</strong><DataPending />
+          <strong className="profile-stat-value">{formatTradedVolume(stats)}</strong><IndexedData>{stats.tradeCount} {stats.tradeCount === 1 ? "trade" : "trades"}</IndexedData>
         </article>
       </div>
     </div>
   );
 }
 
-function ActivityPanel() {
+function ActivityPanel({ stats }: { stats: UserProfileStats }) {
+  const [page, setPage] = useState(1);
+  const [activity, setActivity] = useState<UserProfileActivityPage | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [retryCount, setRetryCount] = useState(0);
+  const totalPages = Math.max(1, Math.ceil(stats.tradeCount / 10));
+
+  useEffect(() => {
+    const controller = new AbortController();
+
+    fetch(`/api/profile/activity?page=${page}`, {
+      credentials: "same-origin",
+      signal: controller.signal,
+    })
+      .then(async (response) => {
+        const result = await response.json() as UserProfileActivityPage & { error?: string };
+        if (!response.ok) throw new Error(result.error || "Unable to load trading activity.");
+        setActivity(result);
+      })
+      .catch((requestError: unknown) => {
+        if (requestError instanceof DOMException && requestError.name === "AbortError") return;
+        setError(requestError instanceof Error ? requestError.message : "Unable to load trading activity.");
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoading(false);
+      });
+
+    return () => controller.abort();
+  }, [page, retryCount]);
+
+  function goToActivityPage(nextPage: number) {
+    setLoading(true);
+    setError(null);
+    setPage(nextPage);
+  }
+
+  function retryActivity() {
+    setLoading(true);
+    setError(null);
+    setRetryCount((count) => count + 1);
+  }
+
+  const trades = activity?.items ?? [];
+  const displayedPage = activity?.page ?? page;
+  const pageStart = (displayedPage - 1) * 10;
+
   return (
     <div className="profile-tab-panel" role="tabpanel" id="profile-panel-activity">
       <section className="profile-content-card profile-pnl-card">
-        <div className="profile-panel-heading"><div><span>All-time PNL</span><strong>$0.00</strong></div><div className="profile-win-loss"><span>0 wins</span><span>0 losses</span></div></div>
-        <div className="profile-empty-chart"><span>No indexed activity yet</span></div>
+        <div className="profile-panel-heading"><div><span>Estimated all-time PNL</span><strong className={pnlClass(stats)}>{formatEstimatedPnl(stats)}</strong></div><div className="profile-win-loss"><span>{stats.winningVersus} wins</span><span>{stats.losingVersus} losses</span></div></div>
+        <div className="profile-empty-chart"><span>{stats.estimatedPnlEth === null ? "PNL cannot be estimated until every open position has an executable liquidation quote." : "Sales received + executable liquidation value − purchases paid. Gas and external ERC-20 transfers are excluded."}</span></div>
       </section>
       <section className="profile-content-card">
-        <div className="profile-section-title"><div><span className="profile-eyebrow">Transactions</span><h2>Trading activity</h2></div><DataPending /></div>
-        <div className="profile-empty-state"><Icon name="trade" /><strong>No activity yet</strong><p>Your indexed purchases and sales will appear here.</p></div>
+        <div className="profile-section-title"><div><span className="profile-eyebrow">Transactions</span><h2>Trading activity</h2></div><IndexedData>{stats.tradeCount} {stats.tradeCount === 1 ? "trade" : "trades"} · {formatTradedVolume(stats)}</IndexedData></div>
+        {loading && !activity ? (
+          <div className="profile-empty-state" aria-live="polite"><Icon name="trade" /><strong>Loading activity...</strong></div>
+        ) : error ? (
+          <div className="profile-empty-state" role="alert"><Icon name="trade" /><strong>Unable to load activity</strong><p>{error}</p><button type="button" className="btn btn-glass" onClick={retryActivity}>Retry</button></div>
+        ) : trades.length === 0 ? (
+          <div className="profile-empty-state"><Icon name="trade" /><strong>No activity yet</strong><p>Your indexed purchases and sales will appear here.</p></div>
+        ) : (
+          <>
+            <p className="profile-activity-caption">Showing {pageStart + 1}–{Math.min(pageStart + trades.length, stats.tradeCount)} of {stats.tradeCount} indexed trades</p>
+            <div className="profile-activity-list">
+              {trades.map((trade) => {
+                const displayedEth = trade.side === "buy" ? trade.grossAmountEth : trade.netAmountEth;
+                return (
+                  <article className="profile-activity-row" key={trade.id}>
+                    <span className={`profile-activity-side ${trade.side}`}>{trade.side}</span>
+                    <div className="profile-activity-token"><Link href={`/vs/${trade.versusId}`}>{trade.tokenSymbol}</Link><span>{trade.tokenName} · VS #{trade.versusId}</span></div>
+                    <div><strong>{formatTokenAmount(trade.tokenAmount)} tokens</strong><span>{trade.venue}</span></div>
+                    <div><strong>{formatTokenAmount(displayedEth, 6)} ETH</strong><span>{trade.side === "buy" ? "Paid" : "Received net"}{trade.feeAmountEth !== "0" ? ` · ${formatTokenAmount(trade.feeAmountEth, 6)} fee` : ""}</span></div>
+                    <time dateTime={new Date(trade.timestamp * 1_000).toISOString()}>{formatTradeDate(trade.timestamp)}</time>
+                    <a href={`${KORUM_CHAIN.blockExplorers.default.url}/tx/${trade.transactionHash}`} target="_blank" rel="noreferrer" aria-label={`Open ${trade.side} transaction`}><Icon name="external" /></a>
+                  </article>
+                );
+              })}
+            </div>
+            {totalPages > 1 ? (
+              <nav className="profile-activity-pagination" aria-label="Trading activity pagination">
+                <button type="button" disabled={page === 1 || loading} onClick={() => goToActivityPage(page - 1)}>← Previous</button>
+                <span>Page {displayedPage} of {totalPages}</span>
+                <button type="button" disabled={page >= totalPages || activity?.hasNext === false || loading} onClick={() => goToActivityPage(page + 1)}>Next →</button>
+              </nav>
+            ) : null}
+          </>
+        )}
       </section>
     </div>
   );
@@ -263,38 +377,34 @@ type BadgeTableProps = {
   description: string;
   columns: [string, string, string];
   rows: Array<[string, string, string]>;
-  requiresX?: boolean;
+  earnedTier: BadgeTier | null;
 };
 
-function BadgeTable({ title, description, columns, rows, requiresX = false }: BadgeTableProps) {
+function BadgeTable({ title, description, columns, rows, earnedTier }: BadgeTableProps) {
+  const earnedIndex = earnedTier ? BADGE_TIERS.findIndex((tier) => tier.name === earnedTier.name) : -1;
   return (
     <section className="profile-badge-section">
       <h2>{title}</h2><p>{description}</p>
       <div className="profile-table-scroll"><table className="profile-data-table"><thead><tr><th>Tier</th>{columns.map((column) => <th key={column}>{column}</th>)}</tr></thead><tbody>
-        {rows.map((row, index) => <tr key={row[0]}><td><span className={`profile-tier tier-${index}`}>{row[0]}</span></td><td>{row[1]}</td><td>{row[2]}</td><td className={requiresX && index > 4 ? "profile-unavailable" : ""}>{requiresX && index > 4 ? "Unavailable until X linking" : "Awaiting indexer"}</td></tr>)}
+        {rows.map((row, index) => <tr key={row[0]}><td><span className={`profile-tier tier-${index}`}>{row[0]}</span></td><td>{row[1]}</td><td>{row[2]}</td><td>{index <= earnedIndex ? "Earned" : "Locked"}</td></tr>)}
       </tbody></table></div>
     </section>
   );
 }
 
-function BadgesPanel() {
-  const creatorRows: Array<[string, string, string]> = [
-    ["Copper", "1+ created", "$1K+ generated"], ["Bronze", "3+ created", "$10K+ generated"], ["Silver", "10+ created", "$50K+ generated"], ["Gold", "25+ created", "$200K+ generated"], ["Platinum", "50+ created", "$1M+ generated"], ["Diamond", "100+ created", "$5M+ generated"], ["Champion", "250+ created", "$20M+ generated"],
-  ];
-  const traderRows: Array<[string, string, string]> = [
-    ["Copper", "$1K+ volume", "10+ trades"], ["Bronze", "$10K+ volume", "50+ trades"], ["Silver", "$50K+ volume", "150+ trades"], ["Gold", "$200K+ volume", "400+ trades"], ["Platinum", "$1M+ volume", "1K+ trades"], ["Diamond", "$5M+ volume", "2.5K+ trades"], ["Champion", "$20M+ volume", "10K+ trades"],
-  ];
-  const referralRows: Array<[string, string, string]> = [
-    ["Copper", "1+ referral", "$1K+ volume"], ["Bronze", "3+ referrals", "$10K+ volume"], ["Silver", "10+ referrals", "$50K+ volume"], ["Gold", "25+ referrals", "$200K+ volume"], ["Platinum", "50+ referrals", "$1M+ volume"], ["Diamond", "100+ referrals", "$5M+ volume"], ["Champion", "250+ referrals", "$20M+ volume"],
-  ];
+function BadgesPanel({ stats }: { stats: UserProfileStats }) {
+  const progress = calculateBadgeProgress(stats);
+  const creatorRows: Array<[string, string, string]> = BADGE_TIERS.map((tier) => [tier.name, `${tier.minimumCount}+ created`, `${compactMoney(tier.minimumVolumeUsd)}+ generated`]);
+  const traderRows: Array<[string, string, string]> = BADGE_TIERS.map((tier) => [tier.name, `${compactMoney(tier.minimumVolumeUsd)}+ volume`, `${Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 1 }).format(tier.minimumTrades)}+ trades`]);
+  const referralRows: Array<[string, string, string]> = BADGE_TIERS.map((tier) => [tier.name, `${tier.minimumCount}+ ${tier.minimumCount === 1 ? "referral" : "referrals"}`, `${compactMoney(tier.minimumVolumeUsd)}+ volume`]);
 
   return (
     <div className="profile-tab-panel" role="tabpanel" id="profile-panel-badges">
-      <p className="profile-panel-intro">Three paths and seven tiers make account history easy to recognize across versus, chat and leaderboard views.</p>
-      <section className="profile-tier-overview"><h2>Shared tier scale</h2><p>Each tier includes the benefits of the previous one.</p><div>{TIERS.map((tier, index) => <span className={`profile-tier tier-${index}`} key={tier}>{tier}</span>)}</div></section>
-      <BadgeTable title="Path 1, Creator badge" description="Based on versus created and the indexed volume they generate. X-based requirements remain unavailable." columns={["Versus", "Generated volume", "X account"]} rows={creatorRows} requiresX />
-      <BadgeTable title="Path 2, Trader badge" description="Based on total traded volume and indexed on-chain transactions." columns={["Volume", "Trades", "Status"]} rows={traderRows} />
-      <BadgeTable title="Path 3, Referrer badge" description="Based on active referrals and the volume attributed to the connected wallet." columns={["Referrals", "Referred volume", "Status"]} rows={referralRows} />
+      <p className="profile-panel-intro">Three paths and seven tiers make account history easy to recognize across versus, chat and leaderboard views. Your public badge is the highest tier reached on any path.</p>
+      <section className="profile-tier-overview"><h2>{progress.overall ? `Current badge: ${progress.overall.name}` : "No badge earned yet"}</h2><p>Each tier requires both conditions in its path and includes the benefits of the previous one.</p><div>{BADGE_TIERS.map((tier, index) => <span className={`profile-tier tier-${index}`} key={tier.name}>{tier.name}</span>)}</div></section>
+      <BadgeTable title="Path 1, Creator badge" description="Based on versus created and their indexed all-time curve volume." columns={["Versus", "Generated volume", "Status"]} rows={creatorRows} earnedTier={progress.creator} />
+      <BadgeTable title="Path 2, Trader badge" description="Based on total traded volume and indexed on-chain transactions." columns={["Volume", "Trades", "Status"]} rows={traderRows} earnedTier={progress.trader} />
+      <BadgeTable title="Path 3, Referrer badge" description="Based on confirmed referrals and the indexed volume traded by referred wallets." columns={["Referrals", "Referred volume", "Status"]} rows={referralRows} earnedTier={progress.referrer} />
     </div>
   );
 }
@@ -344,7 +454,7 @@ function LockedProfile({ connected, authenticating, authError, connect, loading 
   );
 }
 
-export default function ProfileClient({ profile, sessionAddress, sessionChainId }: ProfileClientProps) {
+export default function ProfileClient({ profile, stats, sessionAddress, sessionChainId }: ProfileClientProps) {
   const { address, connected, authenticated, authenticating, connect, hydrated, authError } = useWallet();
   const [activeTab, setActiveTab] = useState<ProfileTab>("information");
   const [currentProfile, setCurrentProfile] = useState(profile);
@@ -353,13 +463,13 @@ export default function ProfileClient({ profile, sessionAddress, sessionChainId 
 
   const hasMatchingServerSession = Boolean(authenticated && address && sessionAddress && address.toLowerCase() === sessionAddress.toLowerCase());
   if (!connected || !address || !hasMatchingServerSession) return <LockedProfile connected={connected} authenticating={authenticating} authError={authError} connect={connect} />;
-  if (!currentProfile) return <LockedProfile connected authenticating={authenticating} authError="The wallet profile could not be initialized. Sign in again to retry." connect={connect} />;
+  if (!currentProfile || !stats) return <LockedProfile connected authenticating={authenticating} authError="The wallet profile could not be initialized. Sign in again to retry." connect={connect} />;
 
   const panels: Record<ProfileTab, React.ReactNode> = {
-    information: <InformationPanel profile={currentProfile} onProfileChange={setCurrentProfile} />,
-    activity: <ActivityPanel />,
+    information: <InformationPanel profile={currentProfile} stats={stats} onProfileChange={setCurrentProfile} />,
+    activity: <ActivityPanel stats={stats} />,
     referrals: <ReferralsPanel code={currentProfile.referralCode} />,
-    badges: <BadgesPanel />,
+    badges: <BadgesPanel stats={stats} />,
     watchlist: <WatchlistPanel />,
     simulator: <SimulatorPanel />,
   };

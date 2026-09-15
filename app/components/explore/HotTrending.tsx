@@ -5,7 +5,6 @@ import Link from "next/link";
 import type { Debate } from "../../lib/debates";
 import { useIndexedDebates } from "../../hooks/useIndexedMarkets";
 import { formatMarketValue } from "../../lib/markets/format";
-import { useMock } from "../MockProvider";
 
 function FireIcon({ className = "ht-fire" }: { className?: string }) {
   return (
@@ -15,10 +14,9 @@ function FireIcon({ className = "ht-fire" }: { className?: string }) {
   );
 }
 
-export default function HotTrending({ mockDebates, indexedDebates }: { mockDebates: Debate[]; indexedDebates: Debate[] }) {
-  const { mockEnabled } = useMock();
-  const liveDebates = useIndexedDebates(indexedDebates, !mockEnabled);
-  const debates = [...(mockEnabled ? mockDebates : liveDebates.data ?? indexedDebates)]
+export default function HotTrending({ indexedDebates }: { indexedDebates: Debate[] }) {
+  const liveDebates = useIndexedDebates(indexedDebates);
+  const debates = [...(liveDebates.data ?? indexedDebates)]
     .sort((a, b) => b.volume24h - a.volume24h)
     .slice(0, 6);
 

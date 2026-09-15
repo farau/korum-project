@@ -1,142 +1,23 @@
 "use client";
 
-import Link from "next/link";
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
+import { BADGE_TIERS, type BadgeTierName } from "../lib/badges";
+import { formatMarketValue } from "../lib/markets/format";
+import type { LeaderboardSort, TraderLeaderboardPage, TraderLeaderboardRow } from "../lib/leaderboard";
 import { shortenAddress, useWallet } from "./WalletProvider";
 
-type Category = "traders" | "creators" | "referrers";
-type Period = "today" | "week" | "month" | "all";
-type SortMetric = "pnl" | "volume";
-
-type DebateSummary = {
-  id: number;
-  sideA: string;
-  sideB: string;
-};
-
-type LeaderboardRow = {
-  name: string;
-  pnl: number;
-  volume: number;
-  secondary: number;
-};
-
-type BigWin = {
-  name: string;
-  matchup: string;
-  id: number;
-  gain: number;
-  volume: number;
-};
-
-const NAMES = [
-  "degen_king_44", "0x34dS...532G4", "Thomasii_1999", "Nadia.K", "cX_visiteur_Xx",
-  "LunaTrades", "SatoshiJr", "wagmi_wallet", "HotTakeHQ", "DebatLord", "0x9fA2...11Bc",
-  "VersusVic", "MemeSenpai", "FrenchFries_on", "Camille_trades", "KingKarim", "aya.eth",
-  "ZoeGoesLong", "the_strategist", "0x77bE...90Fd", "BullMarketBae", "TheOracle_",
-  "WeekendBettor", "Yanis_vs_all", "CaffeineAndCrypto", "TheBigBet", "MissMarket",
-  "0xBd12...44Ca", "UncleDegen", "NightOwlTrader", "RiskItAll", "Salome.exe",
-  "TheVisionary", "0x5eF9...caB1", "JulesTheOdds", "BothSides", "ProfitProphet",
-  "Inès_onchain", "MaximeGains", "0x21aC...7f0E", "QuorumQueen",
-];
-
-const CATEGORY_LABELS: Record<Category, string> = {
-  traders: "traders",
-  creators: "creators",
-  referrers: "referrers",
-};
-
-const SECONDARY_LABELS: Record<Category, string> = {
-  traders: "Win rate",
-  creators: "VS created",
-  referrers: "Referrals",
-};
-
-const PERIOD_SCALE: Record<Period, number> = {
-  today: 0.12,
-  week: 1,
-  month: 3.6,
-  all: 14,
-};
-
-function hashText(value: string) {
-  let hash = 2166136261;
-  for (let index = 0; index < value.length; index += 1) {
-    hash ^= value.charCodeAt(index);
-    hash = Math.imul(hash, 16777619);
-  }
-  return hash >>> 0;
+function formatLeaderboardAmount(usd: number | null, eth: number | null, signed = false) {
+  if (usd === null && eth === null) return "—";
+  const value = usd ?? eth!;
+  const formatted = formatMarketValue(Math.abs(value), usd === null ? "ETH" : "USD", usd === null ? 5 : 2);
+  if (!signed || value === 0) return formatted;
+  return value > 0 ? `+${formatted}` : `-${formatted}`;
 }
 
-function seededRandom(seed: number) {
-  let state = seed || 1;
-  return () => {
-    state = Math.imul(state ^ (state >>> 15), state | 1);
-    state ^= state + Math.imul(state ^ (state >>> 7), state | 61);
-    return ((state ^ (state >>> 14)) >>> 0) / 4294967296;
-  };
-}
-
-function normalize(value: string) {
-  return value.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-}
-
-function compactMoney(value: number) {
-  return `$${new Intl.NumberFormat("en-US", {
-    notation: "compact",
-    maximumFractionDigits: 1,
-  }).format(value)}`;
-}
-
-function generateLeaderboard(category: Category, period: Period, metric: SortMetric) {
-  const scale = PERIOD_SCALE[period];
-  const rows = NAMES.map((name) => {
-    const random = seededRandom(hashText(`${category}:${period}:${name}`));
-    const base = Math.pow(random(), 2.1) * 92_000 * scale + 400;
-    const pnl = base * (0.35 + random() * 0.5);
-    const volume = base * (2.2 + random() * 3.5);
-    const secondary = category === "traders"
-      ? Math.round(40 + random() * 45)
-      : category === "creators"
-        ? Math.round(1 + random() * 24)
-        : Math.round(1 + random() * 38);
-
-    return { name, pnl, volume, secondary };
-  });
-
-  return rows.sort((left, right) => right[metric] - left[metric]);
-}
-
-function generateBigWins(category: Category, period: Period, debates: DebateSummary[]) {
-  if (debates.length === 0) return [];
-
-  const scale = PERIOD_SCALE[period];
-  return Array.from({ length: 10 }, (_, index): BigWin => {
-    const random = seededRandom(hashText(`${category}:${period}:win:${index}`));
-    const debate = debates[Math.floor(random() * Math.min(debates.length, 16))];
-    const gain = Math.pow(random(), 1.8) * 38_000 * scale + 300;
-
-    return {
-      name: NAMES[Math.floor(random() * NAMES.length)],
-      matchup: `${debate.sideA} vs ${debate.sideB}`,
-      id: debate.id,
-      gain,
-      volume: gain * (1.3 + random() * 1.8),
-    };
-  }).sort((left, right) => right.gain - left.gain);
-}
-
-function tierForRank(rank: number) {
-  if (rank === 1) return { label: "Champion", className: "champion" };
-  if (rank <= 3) return { label: "Diamond", className: "diamond" };
-  if (rank <= 8) return { label: "Gold", className: "gold" };
-  if (rank <= 16) return { label: "Silver", className: "silver" };
-  return { label: "Bronze", className: "bronze" };
-}
-
-function TierBadge({ rank }: { rank: number }) {
-  const tier = tierForRank(rank);
-  return <span className={`lb-tier-badge ${tier.className}`}>{tier.label}</span>;
+function TierBadge({ badge }: { badge: BadgeTierName | null }) {
+  if (!badge) return null;
+  const tier = BADGE_TIERS.find((candidate) => candidate.name === badge);
+  return tier ? <span className={`lb-tier-badge ${tier.className}`}>{tier.name}</span> : null;
 }
 
 function CrownIcon() {
@@ -163,54 +44,76 @@ function CrownIcon() {
   );
 }
 
-function RankingRow({ row, rank, category }: { row: LeaderboardRow; rank: number; category: Category }) {
+function RankingRow({ row, isCurrentUser }: { row: TraderLeaderboardRow; isCurrentUser: boolean }) {
   return (
-    <div className="lb-row">
-      <span className="lb-rank">#{rank}</span>
-      <span className="lb-name">{row.name}<TierBadge rank={rank} /></span>
-      <span className="lb-vol buy">+{compactMoney(row.pnl)}</span>
-      <span className="lb-vol">{compactMoney(row.volume)}</span>
-      <span className="lb-win">{category === "traders" ? `${row.secondary}%` : row.secondary}</span>
+    <div className={`lb-row${isCurrentUser ? " lb-row-me" : ""}`}>
+      <span className="lb-rank">#{row.rank}</span>
+      <span className="lb-name">
+        {row.name.startsWith("0x") ? shortenAddress(row.name) : row.name}
+        <TierBadge badge={row.badge} />
+        {isCurrentUser ? <span className="lb-you-tag">YOU</span> : null}
+      </span>
+      <span className={row.pnlEth !== null && row.pnlEth < 0 ? "lb-vol sell" : "lb-vol buy"}>{formatLeaderboardAmount(row.pnlUsd, row.pnlEth, true)}</span>
+      <span className="lb-vol">{formatLeaderboardAmount(row.volumeUsd, row.volumeEth)}</span>
+      <span className="lb-win">{row.tradeCount.toLocaleString("en-US")}</span>
     </div>
   );
 }
 
-export default function LeaderboardClient({ debates }: { debates: DebateSummary[] }) {
-  const [category, setCategory] = useState<Category>("traders");
-  const [period, setPeriod] = useState<Period>("week");
-  const [sortMetric, setSortMetric] = useState<SortMetric>("pnl");
-  const [search, setSearch] = useState("");
-  const [visibleCount, setVisibleCount] = useState(12);
-  const { address, connected, hydrated } = useWallet();
+export default function LeaderboardClient({ initialData }: { initialData: TraderLeaderboardPage }) {
+  const [data, setData] = useState(initialData);
+  const [podiumRows, setPodiumRows] = useState(initialData.items.slice(0, 3));
+  const [sort, setSort] = useState<LeaderboardSort>(initialData.sort);
+  const [searchInput, setSearchInput] = useState(initialData.search);
+  const [search, setSearch] = useState(initialData.search);
+  const [page, setPage] = useState(initialData.page);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const skipInitialRequest = useRef(true);
+  const { address } = useWallet();
 
-  const allRows = useMemo(
-    () => generateLeaderboard(category, period, sortMetric),
-    [category, period, sortMetric],
-  );
-  const normalizedSearch = normalize(search.trim());
-  const filteredRows = useMemo(
-    () => normalizedSearch
-      ? allRows.filter((row) => normalize(row.name).includes(normalizedSearch))
-      : allRows,
-    [allRows, normalizedSearch],
-  );
-  const podiumRows = normalizedSearch ? [] : allRows.slice(0, 3);
-  const startIndex = podiumRows.length === 3 ? 3 : 0;
-  const visibleRows = filteredRows.slice(startIndex, startIndex + visibleCount);
-  const bigWins = useMemo(
-    () => generateBigWins(category, period, debates),
-    [category, period, debates],
-  );
+  useEffect(() => {
+    const timeout = window.setTimeout(() => {
+      setPage(1);
+      setSearch(searchInput.trim());
+    }, 300);
+    return () => window.clearTimeout(timeout);
+  }, [searchInput]);
 
-  const selectCategory = (nextCategory: Category) => {
-    setCategory(nextCategory);
-    setVisibleCount(12);
-  };
+  useEffect(() => {
+    if (skipInitialRequest.current) {
+      skipInitialRequest.current = false;
+      return;
+    }
 
-  const selectPeriod = (nextPeriod: Period) => {
-    setPeriod(nextPeriod);
-    setVisibleCount(12);
-  };
+    const controller = new AbortController();
+    const parameters = new URLSearchParams({ page: String(page), sort });
+    if (search) parameters.set("search", search);
+    setLoading(true);
+    setError(null);
+
+    fetch(`/api/leaderboard?${parameters}`, { signal: controller.signal })
+      .then(async (response) => {
+        const result = await response.json() as TraderLeaderboardPage & { error?: string };
+        if (!response.ok) throw new Error(result.error || "Unable to load the leaderboard.");
+        setData(result);
+        if (result.page === 1 && !result.search) setPodiumRows(result.items.slice(0, 3));
+      })
+      .catch((requestError: unknown) => {
+        if (requestError instanceof DOMException && requestError.name === "AbortError") return;
+        setError(requestError instanceof Error ? requestError.message : "Unable to load the leaderboard.");
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoading(false);
+      });
+
+    return () => controller.abort();
+  }, [page, search, sort]);
+
+  function selectSort(nextSort: LeaderboardSort) {
+    setPage(1);
+    setSort(nextSort);
+  }
 
   return (
     <div className="page leaderboard-page" id="page-leaderboard">
@@ -220,17 +123,17 @@ export default function LeaderboardClient({ debates }: { debates: DebateSummary[
           <h1 className="lb-main-title">LEADERBOARD</h1>
         </div>
 
-        {podiumRows.length === 3 && (
+        {!search && podiumRows.length === 3 && (
           <div className="lb-podium" aria-label="Leaderboard podium">
             <span className="lb-podium-blocks-bg" aria-hidden="true" />
-            {[{ row: podiumRows[1], rank: 2 }, { row: podiumRows[0], rank: 1 }, { row: podiumRows[2], rank: 3 }].map(({ row, rank }) => (
-              <article className={`lb-podium-card rank${rank}`} key={row.name}>
+            {[podiumRows[1], podiumRows[0], podiumRows[2]].map((row) => (
+              <article className={`lb-podium-card rank${row.rank}`} key={row.wallet}>
                 <div className="lb-podium-avatar-wrap">
                   <span className="lb-podium-avatar">{row.name.charAt(0).toUpperCase()}</span>
                 </div>
                 <strong className="lb-podium-name">{row.name}</strong>
-                <TierBadge rank={rank} />
-                <span className="lb-podium-pnl">+{compactMoney(row.pnl)}</span>
+                <TierBadge badge={row.badge} />
+                <span className="lb-podium-pnl">{formatLeaderboardAmount(row.pnlUsd, row.pnlEth, true)}</span>
               </article>
             ))}
           </div>
@@ -241,18 +144,15 @@ export default function LeaderboardClient({ debates }: { debates: DebateSummary[
         <div className="wrap">
           <span className="vs-hero-badge">Ranking</span>
           <h2 className="vs-hero-title">Who rules Korum</h2>
-          <p>Traders, creators, referrers: three ways to earn, three leaderboards. Climb the ranks, defend your place, and make a name for yourself.</p>
+          <p>All-time trader rankings built from Goldsky-indexed volume and executable bonding-curve PNL estimates.</p>
           <label className="lb-search-wrap">
             <span className="icon" aria-hidden="true">⌕</span>
             <span className="sr-only">Search by username</span>
             <input
               type="search"
-              value={search}
-              onChange={(event) => {
-                setSearch(event.target.value);
-                setVisibleCount(12);
-              }}
-              placeholder="Search by username…"
+              value={searchInput}
+              onChange={(event) => setSearchInput(event.target.value)}
+              placeholder="Search by username or wallet…"
             />
           </label>
         </div>
@@ -260,93 +160,34 @@ export default function LeaderboardClient({ debates }: { debates: DebateSummary[
 
       <section className="info-section leaderboard-section">
         <div className="wrap">
-          <div className="lb-controls-row">
-            <div className="lb-cat-tabs btn-glass" aria-label="Leaderboard category">
-              {(["traders", "creators", "referrers"] as Category[]).map((item) => (
-                <button
-                  type="button"
-                  className={category === item ? "active" : ""}
-                  aria-pressed={category === item}
-                  onClick={() => selectCategory(item)}
-                  key={item}
-                >
-                  {{ traders: "Traders", creators: "Creators", referrers: "Referrers" }[item]}
-                </button>
-              ))}
-            </div>
-            <div className="lb-period-tabs" aria-label="Leaderboard period">
-              {(["today", "week", "month", "all"] as Period[]).map((item) => (
-                <button
-                  type="button"
-                  className={period === item ? "active" : ""}
-                  aria-pressed={period === item}
-                  onClick={() => selectPeriod(item)}
-                  key={item}
-                >
-                  {{ today: "Today", week: "Weekly", month: "Monthly", all: "All time" }[item]}
-                </button>
-              ))}
-            </div>
-          </div>
+          <div className="lb-controls-row"><span className="vs-hero-badge">All-time traders</span><span className="profile-data-pending">Railway aggregated · 5 min cache</span></div>
 
           <div className="lb-table-wrap" role="table" aria-label="Korum leaderboard">
             <div className="lb-row head" role="row">
               <span>#</span>
               <span>Username</span>
-              <button type="button" className={`lb-sortable ${sortMetric === "pnl" ? "active" : ""}`} onClick={() => setSortMetric("pnl")}>PnL</button>
-              <button type="button" className={`lb-sortable ${sortMetric === "volume" ? "active" : ""}`} onClick={() => setSortMetric("volume")}>Volume</button>
-              <span className="lb-align-right">{SECONDARY_LABELS[category]}</span>
+              <button type="button" className={`lb-sortable ${sort === "pnl" ? "active" : ""}`} onClick={() => selectSort("pnl")}>PnL</button>
+              <button type="button" className={`lb-sortable ${sort === "volume" ? "active" : ""}`} onClick={() => selectSort("volume")}>Volume</button>
+              <span className="lb-align-right">Trades</span>
             </div>
-
-            {hydrated && connected && address && (
-              <div className="lb-row lb-row-me">
-                <span className="lb-rank">-</span>
-                <span className="lb-name"><span className="lb-me-avatar-sm">{address.slice(2, 3).toUpperCase()}</span>{shortenAddress(address)}<span className="lb-you-tag">YOU</span></span>
-                <span className="lb-vol buy">-</span>
-                <span className="lb-vol">-</span>
-                <span className="lb-win">-</span>
-              </div>
-            )}
-
-            {visibleRows.map((row, index) => (
-              <RankingRow row={row} rank={startIndex + index + 1} category={category} key={row.name} />
+            {data.items.map((row) => (
+              <RankingRow row={row} isCurrentUser={Boolean(address && row.wallet.toLowerCase() === address.toLowerCase())} key={row.wallet} />
             ))}
           </div>
 
-          {normalizedSearch && filteredRows.length === 0 && (
-            <p className="lb-nomatch">No username matches your search.</p>
-          )}
-
-          {filteredRows.length > startIndex + visibleCount && (
-            <div className="show-more-wrap">
-              <button type="button" className="btn btn-glass" onClick={() => setVisibleCount((count) => count + 12)}>Show more</button>
-            </div>
-          )}
-
-          <div className="info-head lb-big-wins-head">
-            <span className="eyebrow">Standout wins</span>
-            <h2>Biggest gains, {CATEGORY_LABELS[category]}</h2>
-            <p>The highest-earning individual trades across all traders.</p>
-          </div>
-
-          <div className="leaderboard lb-big-wins" role="table" aria-label="Biggest gains">
-            <div className="lb-row head" role="row">
-              <span>#</span>
-              <span>Username</span>
-              <span>VS</span>
-              <span className="lb-align-right">Gain</span>
-              <span className="lb-align-right">Volume</span>
-            </div>
-            {bigWins.map((win, index) => (
-              <div className="lb-row" key={`${win.id}-${win.name}-${index}`}>
-                <span className="lb-rank">#{index + 1}</span>
-                <span className="lb-name">{win.name}</span>
-                <Link className="lb-win-vs" href={`/vs/${win.id}`}>{win.matchup}</Link>
-                <span className="lb-vol buy">+{compactMoney(win.gain)}</span>
-                <span className="lb-win">{compactMoney(win.volume)}</span>
+          {loading ? <p className="lb-nomatch" aria-live="polite">Updating leaderboard…</p> : null}
+          {error ? <p className="lb-nomatch" role="alert">{error}</p> : null}
+          {!loading && !error && data.items.length === 0 ? <p className="lb-nomatch">No indexed trader matches your search.</p> : null}
+          {data.totalPages > 1 ? (
+            <nav className="explore-pagination" aria-label="Leaderboard pagination">
+              <p className="explore-pagination-status">Page {data.page} of {data.totalPages} · {data.totalItems} traders</p>
+              <div className="explore-pagination-controls">
+                <button type="button" className="explore-pagination-nav" disabled={page === 1 || loading} onClick={() => setPage((current) => current - 1)}>← <span>Previous</span></button>
+                <button type="button" className="explore-pagination-page active" aria-current="page" disabled>{data.page}</button>
+                <button type="button" className="explore-pagination-nav" disabled={page >= data.totalPages || loading} onClick={() => setPage((current) => current + 1)}><span>Next</span> →</button>
               </div>
-            ))}
-          </div>
+            </nav>
+          ) : null}
         </div>
       </section>
     </div>

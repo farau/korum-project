@@ -19,3 +19,42 @@ export type UserProfile = {
   createdAt: string;
   updatedAt: string;
 };
+
+export type UserProfileStats = {
+  referralCount: number;
+  versusCreated: number;
+  versusJoined: number;
+  tradeCount: number;
+  tradedVolumeEth: number;
+  tradedVolumeUsd: number | null;
+  creatorVolumeEth: number;
+  creatorVolumeUsd: number | null;
+  referredVolumeEth: number;
+  referredVolumeUsd: number | null;
+  estimatedPnlEth: number | null;
+  estimatedPnlUsd: number | null;
+  winningVersus: number;
+  losingVersus: number;
+};
+
+export type UserProfileActivityPage = {
+  items: UserProfileTrade[];
+  page: number;
+  pageSize: number;
+  hasNext: boolean;
+};
+
+export type UserProfileTrade = {
+  id: string;
+  versusId: string;
+  tokenName: string;
+  tokenSymbol: string;
+  side: "buy" | "sell";
+  venue: "curve" | "pool";
+  tokenAmount: string;
+  grossAmountEth: string;
+  netAmountEth: string;
+  feeAmountEth: string;
+  timestamp: number;
+  transactionHash: string;
+};

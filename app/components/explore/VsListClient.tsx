@@ -5,7 +5,6 @@ import VsCard from "./VsCard";
 import VsTable from "./VsTable";
 import type { Debate } from "../../lib/debates";
 import { useIndexedDebates } from "../../hooks/useIndexedMarkets";
-import { useMock } from "../MockProvider";
 import { useExploreSearch } from "./ExploreSearchProvider";
 
 type SortMode = "trending" | "marketCap" | "volume" | "holders" | "recent";
@@ -136,14 +135,12 @@ function PaginatedResults({ debates, view, now }: { debates: Debate[]; view: "gr
 }
 
 type VsListClientProps = {
-  mockDebates: Debate[];
   indexedDebates: Debate[];
   indexedReadFailed: boolean;
 };
 
-export default function VsListClient({ mockDebates, indexedDebates, indexedReadFailed }: VsListClientProps) {
-  const { mockEnabled } = useMock();
-  const liveDebates = useIndexedDebates(indexedDebates, !mockEnabled);
+export default function VsListClient({ indexedDebates, indexedReadFailed }: VsListClientProps) {
+  const liveDebates = useIndexedDebates(indexedDebates);
   const { query, category } = useExploreSearch();
   const [sortMode, setSortMode] = useState<SortMode>("trending");
   const [menuOpen, setMenuOpen] = useState(false);
@@ -164,7 +161,7 @@ export default function VsListClient({ mockDebates, indexedDebates, indexedReadF
   }, []);
 
   const filtered = useMemo(() => {
-    const debates = mockEnabled ? mockDebates : currentIndexedDebates;
+    const debates = currentIndexedDebates;
     const normalizedQuery = normalizeSearch(query);
     const list = category === "HotTake"
       ? [...debates].sort((a, b) => debateVolume(b) - debateVolume(a)).slice(0, 12)
@@ -175,9 +172,9 @@ export default function VsListClient({ mockDebates, indexedDebates, indexedReadF
     if (sortMode === "holders") searchedList.sort((a, b) => debateParticipants(b) - debateParticipants(a));
     if (sortMode === "recent") searchedList.sort((a, b) => newestTimestamp(b) - newestTimestamp(a));
     return searchedList;
-  }, [category, currentIndexedDebates, mockDebates, mockEnabled, query, sortMode]);
+  }, [category, currentIndexedDebates, query, sortMode]);
 
-  const paginationKey = `${mockEnabled ? "mock" : "indexed"}:${category}:${query}:${sortMode}:${filtered.map((debate) => debate.id).join(",")}`;
+  const paginationKey = `indexed:${category}:${query}:${sortMode}:${filtered.map((debate) => debate.id).join(",")}`;
 
   return (
     <section className="grid-section">
@@ -251,15 +248,15 @@ export default function VsListClient({ mockDebates, indexedDebates, indexedReadF
         {filtered.length === 0 ? (
           <div className="explore-empty-versus" role="status">
             <span className="explore-empty-versus-icon" aria-hidden="true">VS</span>
-            <h2>{!mockEnabled && currentIndexedReadFailed
+            <h2>{currentIndexedReadFailed
               ? "Live versus are temporarily unavailable"
-              : !mockEnabled && indexedFeedEmpty
+              : indexedFeedEmpty
                 ? "No versus available yet"
                 : "No matching versus"}</h2>
-            <p>{!mockEnabled && currentIndexedReadFailed
-              ? "Explore could not read the Railway indexer. Try again shortly or enable Mock data to preview the feed."
-              : !mockEnabled && indexedFeedEmpty
-                ? "Goldsky has not projected any complete versus yet. Enable Mock data to preview the feed."
+            <p>{currentIndexedReadFailed
+              ? "Explore could not read the Railway indexer. Try again shortly."
+              : indexedFeedEmpty
+                ? "Goldsky has not projected any complete versus yet."
                 : "Try a different search, category, or sorting option."}</p>
           </div>
         ) : (

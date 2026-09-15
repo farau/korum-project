@@ -7,12 +7,10 @@ import FilterBar from '../components/explore/FilterBar';
 import VsListServer from '../components/explore/VsListServer';
 import ExploreVisualEffects from '../components/explore/ExploreVisualEffects';
 import { ExploreSearchProvider } from '../components/explore/ExploreSearchProvider';
-import { getDebates } from '../lib/debates';
 import type { Debate } from '../lib/debates';
 import { getIndexedDebates } from '../lib/db/debates';
 
 export default async function ExplorePage() {
-  const mockDebates = getDebates();
   let indexedDebates: Debate[] = [];
   let indexedReadFailed = false;
 
@@ -56,12 +54,11 @@ export default async function ExplorePage() {
 
           <TickerServer />
 
-          <HotTrending mockDebates={mockDebates} indexedDebates={indexedDebates} />
+          <HotTrending indexedDebates={indexedDebates} />
 
           <FilterBar />
 
           <VsListServer
-            mockDebates={mockDebates}
             indexedDebates={indexedDebates}
             indexedReadFailed={indexedReadFailed}
           />

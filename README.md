@@ -2,19 +2,19 @@
 
 Korum is a Next.js application for creating and exploring tokenized matchups. Each matchup contains two opposing tokens. Users can follow market activity, compare both sides, simulate potential earnings, maintain a watchlist, and access wallet-linked profile data.
 
-The current repository is a functional dApp connected to Robinhood Testnet contracts. Railway stores application data and Goldsky-indexed protocol projections; deterministic mock market data remains available only through the explicit development switch. Wallet connection is provided by RainbowKit and authenticated through a server-verified wallet signature.
+The current repository is a functional dApp connected to Robinhood Testnet contracts. Railway stores application data and Goldsky-indexed protocol projections, which are the exclusive source for Versus and market activity displayed by the application. Wallet connection is provided by RainbowKit and authenticated through a server-verified wallet signature.
 
 ## Current Status
 
 - The interface and all canonical routes are in English.
 - The Explore experience, filters, search, cards, ticker, analytics, leaderboard, earnings calculator, watchlist, wallet profile, and legal pages are implemented.
-- Mock debates and Railway-indexed Versus share the same typed frontend data contract.
+- Railway-indexed Versus are normalized into a typed frontend data contract at the server boundary.
 - Wallet connection uses RainbowKit on the network selected by `NEXT_PUBLIC_KORUM_NETWORK`; testnet is operational and mainnet remains fail-closed until its deployment manifest is populated.
 - Profile access requires a valid server-side session created from a verified wallet signature.
 - Wallet identities, editable profile fields, and wallet-bound watchlists are persisted in a managed Railway PostgreSQL database.
 - Trading and VS creation simulate contract calls before submitting wallet-confirmed transactions to the deployed Robinhood Testnet contracts.
-- Goldsky indexes both curve and pool trades into Railway for market charts, current prices, volumes, market caps, adjusted FDVs, and recent activity.
-- A private Railway Redis service caches public indexed reads and Alchemy quotes across application replicas without becoming a source of truth.
+- Goldsky indexes both curve and pool trades into Railway for strict-window Lightweight Charts, current prices, volumes, market caps, adjusted FDVs, and recent activity.
+- A private Railway Redis service caches public indexed reads, Alchemy quotes, and wallet-scoped Profile statistics across application replicas without becoming a source of truth.
 - Explore, Versus details, Analytics, charts, and visible activity refresh automatically through Redis-backed HTTP reads without polling blockchain RPCs for indexed metrics.
 - The Explore buy/sell ticker reads real indexed trades and spaces batched polling results through a client queue instead of displaying simultaneous bursts.
 - The official Robinhood RPC is the primary frontend transport, with a server-proxied private Alchemy fallback that does not expose its credential to browsers.
@@ -28,15 +28,14 @@ The current repository is a functional dApp connected to Robinhood Testnet contr
 - Grid and table views for matchup discovery.
 - Buy and sell card states for both matchup tokens.
 - Live indexed transaction ticker with green buy and red sell highlights and sequential reveal of polled events.
-- Mock data switch for testing the Explore feed without a backend.
-- Dedicated empty state when mock data is disabled and the live source returns no versus.
+- Dedicated empty and unavailable states when the Goldsky/Railway read model returns no Versus or cannot be reached.
 - Persistent Railway-backed watchlist synchronized across authenticated wallet sessions.
 - Wallet-gated profile with information, activity, referral, badge, watchlist, and simulation tabs.
 - Unique six-character Base62 referral code permanently associated with the connected EVM wallet.
 - RainbowKit wallet modal with Wagmi SSR hydration.
 - Nonce-based wallet authentication and signed `HttpOnly` session cookies.
 - Atomic user creation on first verified wallet sign-in, with database-enforced wallet uniqueness.
-- Trader, creator, and referrer leaderboard views.
+- A real all-time trader leaderboard ranked by estimated PNL or indexed volume, with the highest Creator, Trader, or Referrer badge earned by each wallet.
 - Interactive creator and referral earnings calculator.
 - Protocol analytics and market breakdowns.
 - Concept, fee waterfall, referral, privacy, and terms documentation.
@@ -144,7 +143,7 @@ If port `3000` is already occupied, Next.js selects the next available port and 
 | `/explore` | Main discovery feed, search, filters, ticker, VS cards, and live-data empty state |
 | `/vs/[id]` | Detail page for a specific matchup |
 | `/earn` | Earning paths and interactive revenue calculator |
-| `/leaderboard` | Trader, creator, and referrer rankings |
+| `/leaderboard` | Paginated all-time trader rankings from indexed PNL and volume |
 | `/concept` | Product mechanics, terminology, fees, and referrals |
 | `/analytics` | Protocol and market analytics |
 | `/create` | Contract-backed two-token VS creation flow |
@@ -154,7 +153,7 @@ If port `3000` is already occupied, Next.js selects the next available port and 
 | `/terms` | Terms of Use |
 | `/api/debates` | Cache-backed Railway projection for the live Versus list |
 | `/api/debates/[id]` | Cache-backed reactive snapshot for one indexed Versus |
-| `/api/markets/[token]/chart` | Railway-backed ETH price/volume history; accepts `range=1h|1d|7d|30d|180d` |
+| `/api/markets/[token]/chart` | Railway-backed price and circulating-supply market-cap OHLC candles; accepts `range=1h|1d|7d|30d|180d` |
 | `/api/markets/[token]/trades` | Recent normalized trades preserving `venue=curve|pool` |
 | `/api/markets/trades` | Global Redis-backed recent-trade feed used by the Explore ticker |
 | `/api/rpc` | Same-origin, read-only and rate-limited proxy used only after the official Robinhood RPC fails |
@@ -163,6 +162,8 @@ If port `3000` is already occupied, Next.js selects the next available port and 
 | `/api/auth/verify` | Verifies the wallet signature and creates a session |
 | `/api/auth/session` | Reads or deletes the current wallet session |
 | `/api/profile` | Authenticated wallet profile reads and username/bio updates |
+| `/api/profile/activity` | Authenticated, Redis-backed Profile trade pagination |
+| `/api/leaderboard` | Public trader rankings; unfiltered pages use Redis while free-text searches query Railway directly |
 
 Legacy French routes and the former `/index` route are intentionally not maintained. Internal links use the canonical English routes.
 
@@ -177,7 +178,7 @@ app/
 │   ├── analytics/          # Analytics UI and data composition
 │   └── explore/            # Search, filters, ticker, cards, and feed
 ├── hooks/                  # Reactive indexed-market and Railway-backed watchlist hooks
-├── lib/                    # Typed models, fixtures, cache, contracts, auth, and server database adapters
+├── lib/                    # Typed models, cache, contracts, auth, and server database adapters
 ├── vs/[id]/                # Dynamic matchup route
 ├── */page.tsx              # App Router pages
 ├── globals.css             # Shared design system and responsive styles
@@ -186,11 +187,11 @@ public/
 └── korum-reference/        # Visual assets adapted from the reference design
 ```
 
-The root layout mounts the SSR-aware RainbowKit and wallet providers. `PageWrapper` supplies the shared header, footer, and mock-data provider to application pages.
+The root layout mounts the SSR-aware RainbowKit and wallet providers. `PageWrapper` supplies the shared header and footer to application pages.
 
 ## Data Contract
 
-The canonical frontend types shared by mock fixtures and Railway-indexed responses live in `app/lib/debates.ts`. `getDebates()` enriches a compact deterministic fixture for explicit demo mode, while `app/lib/db/debates.ts` maps the live indexer projection into the same boundary.
+The canonical frontend types for Railway-indexed responses live in `app/lib/debates.ts`. `app/lib/db/debates.ts` maps the normalized indexer projection into this browser-safe boundary.
 
 Core `Debate` fields include:
 
@@ -217,36 +218,25 @@ Example response shape:
 ```json
 {
   "id": 1,
-  "sideA": "Messi",
-  "sideB": "Ronaldo",
-  "category": "Sports",
-  "sideAPercentage": 55,
-  "volume24h": 89200,
-  "participantCount": 1050,
-  "marketCapA": 117744,
-  "marketCapB": 96336,
-  "createdAtUtc": "2026-09-03T16:00:00.000Z",
+  "sideA": "A",
+  "sideB": "B",
+  "category": "Other",
+  "sideAPercentage": 50,
+  "volume24h": 0.015,
+  "participantCount": 1,
+  "marketCapA": 2.4,
+  "marketCapB": 2.3,
+  "createdAtUtc": "2026-09-15T10:00:00.000Z",
   "tokenA": {
-    "name": "Messi",
-    "symbol": "$MESS",
+    "name": "A",
+    "symbol": "A",
     "chainId": 46630,
-    "marketCap": 117744
+    "marketCap": 2.4
   }
 }
 ```
 
-Treat this type as the frontend boundary for both data sources. Avoid adding temporary aliases for database column names; normalize indexed rows in the server-only adapter before returning them to components.
-
-## Mock Data
-
-The `Mock data` switch is available in the header and persists its value under `korum-mock`.
-
-- Enabled: the Explore cards and animated activity ticker use `getDebates()`.
-- Disabled: the mock cards and ticker are hidden. If the live source returns no records, Explore displays a dedicated `No versus available yet` state.
-- `/api/debates` returns the Railway-indexed live read model; mock fixtures never replace this endpoint.
-- Explore and Analytics share its reactive client query, while watchlist membership remains an authenticated database read.
-
-Mock timestamps use a fixed UTC reference date so server and client output remains deterministic during hydration.
+Treat this type as the frontend boundary. Avoid adding temporary aliases for database column names; normalize indexed rows in the server-only adapter before returning them to components. Explore and Analytics share its reactive client query, while watchlist membership remains an authenticated database read.
 
 ## Wallet Authentication
 
@@ -266,9 +256,9 @@ The session cookie is `HttpOnly`, `SameSite=Strict`, scoped to `/`, and marked `
 
 The challenge cookie is also `HttpOnly`, short-lived, and limited to `/api/auth`. It is deleted after successful verification. Disconnecting through the Korum header deletes the authenticated session as well as the RainbowKit connection.
 
-`/profile` reads the session on the server and does not send profile data to unauthenticated clients. `/api/profile` applies the same protection to profile reads and username/bio updates. Every future wallet-specific Railway query must repeat this server-side authorization check; hiding content in React is not a security boundary.
+`/profile` reads the session on the server and does not send profile data to unauthenticated clients. `/api/profile` applies the same protection to profile reads, indexed wallet statistics, and username/bio updates. Every future wallet-specific Railway query must repeat this server-side authorization check; hiding content in React is not a security boundary.
 
-The current profile mirrors the Korum reference layout while keeping its controls reactive. Its Information, Activity, Referrals, Badges, Watchlist, and Global simulator tabs are client-side React views. Wallet-specific metrics without a dedicated aggregate still display `Awaiting indexer`; market-level Railway projections do not fabricate per-wallet performance. Profile-image uploads and X account linking are visibly disabled and cannot be activated by pointer or keyboard.
+The current profile mirrors the Korum reference layout while keeping its controls reactive. Its Information, Activity, Referrals, Badges, Watchlist, and Global simulator tabs are client-side React views. The server derives referral count from `indexer.referral_bindings`, created Versus from `indexer.versuses`, joined Versus from indexed trades, and trade count, gross volume, net positions, and cash flow from the trigger-maintained `indexer.trader_totals` and `indexer.trader_positions` aggregates. Every read is scoped to the configured chain and authenticated wallet. These wallet-scoped statistics are cached for 20 seconds in the private server-side Redis service under a hashed wallet key; the authenticated Profile response remains `private, no-store` and is never stored by a shared HTTP cache. Activity is loaded lazily in pages of 10 raw trades through `/api/profile/activity`, with a separate 20-second private Redis entry for each wallet and page. Gross volume is displayed in USD with the shared ETH/USD quote, falling back to ETH when no quote is available. Estimated PNL is sales received net of fees plus the full-position liquidation value of each remaining trade-derived position minus purchases paid. For an active curve, the server reconstructs `KorumCore.quoteSell` locally from indexed reserves and reads only the public launch configuration on-chain; it therefore includes bonding-curve price impact and current sell fees without disclosing position sizes to an RPC provider. It excludes gas and cannot account for ERC-20 transfers outside Korum until `Transfer` events are indexed. Graduated positions remain unavailable until the Uniswap v4 Quoter integration is added. Badge progression is derived from the seven threshold pairs shown in Profile: Creator uses created Versus plus generated curve volume, Trader uses trade count plus gross volume, and Referrer uses confirmed referrals plus their wallets' gross volume. Both conditions are required within a path, and the highest tier reached across the three paths becomes the public leaderboard badge. The tier itself is not persisted because thresholds and the ETH/USD conversion can change; authoritative counters and volumes remain in Railway. Total wallet valuation continues to display an explicit pending state rather than a fabricated value. Profile-image uploads and X account linking are visibly disabled and cannot be activated by pointer or keyboard.
 
 ## User Database
 
@@ -290,7 +280,7 @@ Referral links can add a case-sensitive six-character code through `?ref=ABC123`
 
 ## Goldsky Read Model
 
-Migration `0002_create_indexer_read_model.sql` creates the isolated `indexer` schema in the Railway PostgreSQL database. Migration `0005_create_market_read_model.sql` adds trade and curve-lifecycle projections, and `0006_add_trade_feed_index.sql` adds the timeline index used by the global ticker:
+Migration `0002_create_indexer_read_model.sql` creates the isolated `indexer` schema in the Railway PostgreSQL database. Migration `0005_create_market_read_model.sql` adds trade and curve-lifecycle projections, `0006_add_trade_feed_index.sql` adds the ticker timeline index, `0007_add_profile_stats_index.sql` adds the wallet-oriented Activity index, `0008_create_trader_aggregates.sql` adds incrementally maintained trader totals and positions, and `0009_fix_trader_aggregate_deltas.sql` makes replay updates and deletions constraint-safe:
 
 - `indexer.referral_bindings` mirrors confirmed `ReferrerBound` events, keyed by chain and referred wallet.
 - `indexer.versuses` mirrors `VersusCreated`, including the descriptive strings that are emitted but not stored by the contract.
@@ -298,6 +288,7 @@ Migration `0002_create_indexer_read_model.sql` creates the isolated `indexer` sc
 - `indexer.camp_trades` stores normalized pre-bonding and post-bonding trades with their exact event provenance.
 - `indexer.camp_curve_lifecycle` and `indexer.camp_graduations` reconstruct venue status and the structurally locked residual supply.
 - `indexer.camp_market_state` exposes the latest trade state, circulating supply, adjusted FDV supply, and lifecycle state for server-side market calculations.
+- `indexer.trader_totals` and `indexer.trader_positions` are transactionally updated by a `camp_trades` trigger and backfilled from the historical trade model.
 
 Goldsky owns writes to the `indexer` schema; the application owns `public.users` and `public.user_watchlist`. The indexer tables do not reference `users` because an on-chain participant may never create a Korum profile. Camps also have no foreign key to `versuses`: the factory emits both `CampCreated` logs before `VersusCreated`, and independent sink writes must remain valid in that order.
 
@@ -336,7 +327,6 @@ Cloudflare Images or Cloudinary are stronger alternatives when automatic transfo
 | Key | Value |
 | --- | --- |
 | `korum-theme` | `dark` or `light` |
-| `korum-mock` | Mock feed preference |
 | `korum-notifications-v1` | Bounded notification presentation history |
 
 The watchlist is not browser persistence: its source of truth is `public.user_watchlist` in Railway and its cross-tab refresh signal uses `BroadcastChannel` without storing membership locally. Reads of genuine browser preferences are deferred until client hydration to avoid server/client markup mismatches.
@@ -347,7 +337,7 @@ Wagmi and the authenticated session additionally use cookies. The signed session
 
 The visual system is primarily defined in `app/globals.css`. Theme values use CSS custom properties selected through the `data-theme` attribute on the root HTML element.
 
-Reference media is stored in `public/korum-reference`. Remote mock token images currently use `https://picsum.photos`, allowed through `next.config.ts`. Production image domains must be added to `images.remotePatterns` before optimized remote images are introduced.
+Reference media is stored in `public/korum-reference`. Production image domains must be added to `images.remotePatterns` before optimized remote images are introduced.
 
 ## Railway Integration
 
@@ -356,12 +346,11 @@ The implemented integration rules are:
 1. Keep the `Debate` and `DebateToken` interfaces as the frontend contract.
 2. Read `indexer.*` only through the server adapters in `app/lib/db`; browsers use Route Handlers or serialized Server Component data.
 3. Normalize timestamps, nullable fields, token units, prices, market caps, adjusted FDVs, and event venues at that boundary.
-4. Keep `getDebates()` exclusively as the explicit mock/demo source and never use it as a silent fallback for live IDs.
-5. Use the Redis-backed public endpoints and shared TanStack Query keys for reactive market reads.
-6. Preserve loading, empty, and API-error states on every data-driven page.
-7. Keep database, Redis, Alchemy, and signing secrets server-side and expose only explicitly public `NEXT_PUBLIC_*` configuration.
-8. Call `getWalletSession()` before every wallet-specific query and use `session.address`, never an address supplied by the browser.
-9. Treat PostgreSQL indexer rows as query projections; contract state and confirmed receipts remain authoritative for transaction correctness.
+4. Use the Redis-backed public endpoints and shared TanStack Query keys for reactive market reads.
+5. Preserve loading, empty, and API-error states on every data-driven page.
+6. Keep database, Redis, Alchemy, and signing secrets server-side and expose only explicitly public `NEXT_PUBLIC_*` configuration.
+7. Call `getWalletSession()` before every wallet-specific query and use `session.address`, never an address supplied by the browser.
+8. Treat PostgreSQL indexer rows as query projections; contract state and confirmed receipts remain authoritative for transaction correctness.
 
 Do not place Railway credentials, private keys, RPC secrets, or signing material in source control.
 
@@ -380,8 +369,8 @@ The Webpack build command is useful as a fallback in restricted environments whe
 
 ## Known Limitations
 
-- Leaderboard rows and analytics projections are deterministic prototype values.
-- Wallet-specific profile activity, badge, and position metrics remain empty until dedicated indexed aggregates are implemented.
+- Creator/referrer ranking models and analytics projections are not yet backed by dedicated indexed aggregates; the trader leaderboard is live.
+- Total portfolio value remains pending. Profile PNL is an explicitly qualified trade-derived estimate until token transfers and gas costs are indexed.
 - Profile-image uploads and X account linking are intentionally disabled.
 - Advanced numeric filters and quick-amount configuration are visual placeholders.
 - Automated unit, integration, and end-to-end tests have not been added yet.

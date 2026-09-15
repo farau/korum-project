@@ -14,21 +14,35 @@ import {
 } from "../hooks/useIndexedMarkets";
 import type { Debate, DebateToken } from "../lib/debates";
 import { formatMarketValue, formatTokenAmount, formatTokenPrice } from "../lib/markets/format";
-import { useMock } from "./MockProvider";
+import MarketCandlestickChart, { type MarketChartCandle } from "./MarketCandlestickChart";
 import TokenTradePanel from "./TokenTradePanel";
 import styles from "./VsDetailClient.module.css";
 
 type VsDetailClientProps = {
-  mockDebate?: Debate;
   indexedDebate: Debate | null;
   indexedReadFailed: boolean;
 };
 
 type InfoTab = "community" | "activity" | "holders" | "traders" | "creator" | "bubble" | "positions";
 type ChartRange = "1h" | "1d" | "7d" | "30d" | "180d";
+type ChartMetric = "price" | "marketCap";
 type ChartResponse = {
-  points: Array<{ price: number }>;
+  points: ChartCandle[];
   quoteUsd: number | null;
+  intervalSeconds: number;
+  windowStart: number;
+  windowEnd: number;
+};
+type ChartCandle = MarketChartCandle & {
+  t: number;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  price: number;
+  marketCap: number;
+  tradeCount?: number;
+  synthetic?: boolean;
 };
 type MarketTrade = {
   id: string;
@@ -144,26 +158,6 @@ async function copyText(value: string) {
   await navigator.clipboard.writeText(value);
 }
 
-function PriceChart({ history, side, available }: { history: number[]; side: "a" | "b"; available: boolean }) {
-  const points = useMemo(() => {
-    if (!available || history.length < 2) return "";
-    const min = Math.min(...history);
-    const range = Math.max(...history) - min || 1;
-    return history.map((value, index) => `${(index * (600 / (history.length - 1))).toFixed(1)},${(150 - ((value - min) / range) * 120).toFixed(1)}`).join(" ");
-  }, [available, history]);
-
-  return (
-    <div className={styles.chartArea}>
-      <svg className={styles.chartGrid} viewBox="0 0 600 170" preserveAspectRatio="none" aria-hidden="true">
-        {[30, 75, 120, 165].map((y) => <line key={y} x1="0" y1={y} x2="600" y2={y} />)}
-        {[0, 150, 300, 450, 600].map((x) => <line key={x} x1={x} y1="0" x2={x} y2="170" />)}
-        {points ? <polyline className={side === "a" ? styles.chartLineA : styles.chartLineB} points={points} /> : null}
-      </svg>
-      {!available ? <div className={styles.chartEmpty}><span className={styles.chartEmptyIcon}><ChartIcon /></span><strong>Awaiting market data</strong><span>Price history will appear after trading events are indexed.</span></div> : null}
-    </div>
-  );
-}
-
 function TokenAvatar({ token, side }: { token: DebateToken; side: "a" | "b" }) {
   const [failed, setFailed] = useState(false);
   const source = token.image || token.imageRef;
@@ -174,6 +168,8 @@ function TokenPanel({ token, side, marketShare, marketAvailable, onStatus }: { t
   const symbol = symbolLabel(token.symbol);
   const currency = token.marketCurrency ?? "USD";
   const [range, setRange] = useState<ChartRange>("1d");
+  const [chartMetric, setChartMetric] = useState<ChartMetric>("price");
+  const [chartCurrency, setChartCurrency] = useState<"USD" | "ETH">(() => currency === "USD" && !token.quoteUsd ? "ETH" : currency);
   const displayedPrice = currency === "USD" ? token.priceUsd : token.priceEth;
   const curveLabel = token.curveStatus === 3
     ? "Pool live"
@@ -199,11 +195,53 @@ function TokenPanel({ token, side, marketShare, marketAvailable, onStatus }: { t
     refetchOnWindowFocus: true,
     retry: 1,
   });
-  const history = useMemo(() => {
-    if (!chartQuery.data) return token.priceHistory ?? [];
-    const quoteUsd = chartQuery.data.quoteUsd ?? token.quoteUsd;
-    return chartQuery.data.points.map((point) => currency === "USD" && quoteUsd ? point.price * quoteUsd : point.price);
-  }, [chartQuery.data, currency, token.priceHistory, token.quoteUsd]);
+  const chartQuoteUsd = chartQuery.data?.quoteUsd ?? token.quoteUsd ?? null;
+  const candles = useMemo<ChartCandle[]>(() => {
+    if (!chartQuery.data) {
+      const history = token.priceHistory ?? [];
+      const currentPrice = currency === "USD" ? token.priceUsd : token.priceEth;
+      const marketCapRatio = token.marketCap && currentPrice ? token.marketCap / currentPrice : 0;
+      const multiplier = chartCurrency === currency
+        ? 1
+        : chartQuoteUsd
+          ? chartCurrency === "USD" ? chartQuoteUsd : 1 / chartQuoteUsd
+          : 1;
+      const historyStart = Math.floor((token.launchTimestamp ?? token.createdAtTimestamp ?? 0) / 1_000);
+      return history.map((price, index) => {
+        const close = price * multiplier;
+        const open = (history[index - 1] ?? price) * multiplier;
+        const marketOpen = open * marketCapRatio;
+        const marketClose = close * marketCapRatio;
+        return {
+          t: historyStart + index * 60,
+          open,
+          high: Math.max(open, close),
+          low: Math.min(open, close),
+          close,
+          price: close,
+          openMarketCap: marketOpen,
+          highMarketCap: Math.max(marketOpen, marketClose),
+          lowMarketCap: Math.min(marketOpen, marketClose),
+          closeMarketCap: marketClose,
+          marketCap: marketClose,
+        };
+      });
+    }
+    const multiplier = chartCurrency === "USD" && chartQuoteUsd ? chartQuoteUsd : 1;
+    return chartQuery.data.points.map((point) => ({
+      ...point,
+      open: point.open * multiplier,
+      high: point.high * multiplier,
+      low: point.low * multiplier,
+      close: point.close * multiplier,
+      price: point.price * multiplier,
+      openMarketCap: point.openMarketCap * multiplier,
+      highMarketCap: point.highMarketCap * multiplier,
+      lowMarketCap: point.lowMarketCap * multiplier,
+      closeMarketCap: point.closeMarketCap * multiplier,
+      marketCap: point.marketCap * multiplier,
+    }));
+  }, [chartCurrency, chartQuery.data, chartQuoteUsd, currency, token.createdAtTimestamp, token.launchTimestamp, token.marketCap, token.priceEth, token.priceHistory, token.priceUsd]);
 
   const handleCopy = async () => {
     if (!token.address) return;
@@ -226,12 +264,12 @@ function TokenPanel({ token, side, marketShare, marketAvailable, onStatus }: { t
 
       <div className={`${styles.chartCard} ${marketAvailable && marketShare >= 50 ? styles.leadingCard : ""}`}>
         <div className={styles.chartToolbar}>
-          <span className={styles.segmented}><button className={styles.selectedControl} type="button">Price</button><button type="button" disabled>MC</button></span>
-          <span className={styles.segmented}><button className={styles.selectedControl} type="button">{currency}</button><button type="button" disabled>{currency === "USD" ? "ETH" : "USD"}</button></span>
+          <span className={styles.segmented}><button className={chartMetric === "price" ? styles.selectedControl : ""} type="button" onClick={() => setChartMetric("price")}>Price</button><button className={chartMetric === "marketCap" ? styles.selectedControl : ""} type="button" onClick={() => setChartMetric("marketCap")}>MC</button></span>
+          <span className={styles.segmented}><button className={chartCurrency === "USD" ? styles.selectedControl : ""} type="button" disabled={!chartQuoteUsd} onClick={() => setChartCurrency("USD")}>USD</button><button className={chartCurrency === "ETH" ? styles.selectedControl : ""} type="button" onClick={() => setChartCurrency("ETH")}>ETH</button></span>
           <span className={styles.timeframe}>{range.toUpperCase()}</span>
           <span className={styles.indexerState}><span /> Goldsky indexed</span>
         </div>
-        <PriceChart history={history} side={side} available={marketAvailable && !chartQuery.isLoading} />
+        <MarketCandlestickChart candles={candles} available={marketAvailable && (!chartQuery.isLoading || candles.length > 0)} metric={chartMetric} currency={chartCurrency} range={range} intervalSeconds={chartQuery.data?.intervalSeconds} windowStart={chartQuery.data?.windowStart} windowEnd={chartQuery.data?.windowEnd} />
         <div className={styles.periodRow} aria-label="Chart periods">{CHART_RANGES.map((period) => <button className={period.value === range ? styles.selectedControl : ""} type="button" key={period.value} disabled={!marketAvailable} onClick={() => setRange(period.value)}>{period.label}</button>)}</div>
         <div className={styles.marketStats}>
           <div><span>Current price</span><strong>{marketAvailable ? formatTokenPrice(displayedPrice, currency) : "—"}</strong></div>
@@ -317,20 +355,19 @@ function InfoPanel({ tab, debate, tokenFilter, onStatus }: { tab: InfoTab; debat
   return <EmptyIndexedPanel title={messages[tab].title}>{messages[tab].body}</EmptyIndexedPanel>;
 }
 
-export default function VsDetailClient({ mockDebate, indexedDebate, indexedReadFailed }: VsDetailClientProps) {
-  const { mockEnabled } = useMock();
-  const versusId = String(indexedDebate?.id ?? mockDebate?.id ?? "");
-  const liveDebate = useIndexedDebate(versusId, indexedDebate, !mockEnabled);
+export default function VsDetailClient({ indexedDebate, indexedReadFailed }: VsDetailClientProps) {
+  const versusId = String(indexedDebate?.id ?? "");
+  const liveDebate = useIndexedDebate(versusId, indexedDebate);
   const { has, toggle } = useWatchlist();
   const [activeTab, setActiveTab] = useState<InfoTab>("community");
   const [tokenFilter, setTokenFilter] = useState<"both" | "a" | "b">("both");
   const [shareOpen, setShareOpen] = useState(false);
   const [statusMessage, setStatusMessage] = useState("");
-  const debate = mockEnabled ? mockDebate : liveDebate.data ?? indexedDebate;
+  const debate = liveDebate.data ?? indexedDebate;
   const currentIndexedReadFailed = !debate && (indexedReadFailed || liveDebate.isError);
 
   if (!debate) {
-    return <div className={styles.notFound}><Link href="/explore">← Back to Explore</Link><h1>{!mockEnabled && currentIndexedReadFailed ? "Versus data is temporarily unavailable" : "Versus not found"}</h1><p>{currentIndexedReadFailed ? "The Railway indexer could not be reached. Please try again shortly." : "This Versus does not exist in the selected data source."}</p></div>;
+    return <div className={styles.notFound}><Link href="/explore">← Back to Explore</Link><h1>{currentIndexedReadFailed ? "Versus data is temporarily unavailable" : "Versus not found"}</h1><p>{currentIndexedReadFailed ? "The Railway indexer could not be reached. Please try again shortly." : "This Versus does not exist in the Railway indexer."}</p></div>;
   }
 
   const tokenA: DebateToken = debate.tokenA ?? { name: debate.sideA, symbol: debate.tokenASymbol || debate.sideA, image: debate.imageA };

@@ -9,7 +9,6 @@ import {
   storeNotifications,
   type AppNotification,
 } from "../lib/notifications/client";
-import { useMock } from "./MockProvider";
 import { shortenAddress, useWallet } from "./WalletProvider";
 
 const navItems = [
@@ -60,7 +59,6 @@ export default function Header() {
   const [notificationOpen, setNotificationOpen] = useState(false);
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const notificationCenterRef = useRef<HTMLDivElement>(null);
-  const { mockEnabled, setMockEnabled, hydrated } = useMock();
   const { address, connected, authenticating, connect, openWallet, hydrated: walletHydrated } = useWallet();
 
   useEffect(() => {
@@ -255,16 +253,6 @@ export default function Header() {
             {address ? shortenAddress(address) : connected ? "Connecting..." : "Connect wallet"}
           </button>
 
-          <label className="mock-toggle" title="Show test data">
-            <input
-              type="checkbox"
-              checked={mockEnabled}
-              disabled={!hydrated}
-              onChange={(event) => setMockEnabled(event.target.checked)}
-            />
-            <span className="mock-switch" aria-hidden="true" />
-            <span>Mock data</span>
-          </label>
         </div>
 
         <button type="button" className="navtoggle" aria-label="Menu" aria-expanded={menuOpen} onClick={() => setMenuOpen((open) => !open)}>☰</button>

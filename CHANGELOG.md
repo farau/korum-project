@@ -17,7 +17,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Server-side profile authorization that withholds profile payloads from unauthenticated requests.
 - Environment template for WalletConnect and session security configuration.
 - Complete wallet-profile interface with Information, Activity, Referrals, Badges, Watchlist, and Global simulator tabs.
-- Dedicated Explore empty state when mock data is disabled and no live versus are returned.
+- Dedicated Explore empty and unavailable states when no indexed Versus can be returned.
 - Managed Railway PostgreSQL service and checksum-protected schema migration runner.
 - Database-backed `users` table with UUID identities, unique normalized EVM wallets, unique short referral codes, editable profile metadata, and login timestamps.
 - Transactional database smoke test for wallet upsert and referral invariants.
@@ -37,8 +37,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Canonical Explore page with animated grid lines, pointer halo, search, category filters, sorting, grid view, and table view.
 - Interactive VS cards with token imagery, market data, sparklines, percentage meters, watchlist actions, and separate buy and sell states.
 - Animated transaction feed with distinct green buy and red sell arrival states.
-- Header-level mock data control with persisted browser state.
-- Deterministic debate and token fixtures exposed through `/api/debates`.
 - Detailed `Debate` and `DebateToken` TypeScript contracts for future Railway indexer integration.
 - Dynamic `/vs/[id]` route for matchup details.
 - Wallet-bound watchlist synchronized from Railway across cards, tables, details, profiles, tabs, and devices, with toggleable stars, add/remove notifications, and a dedicated `/watchlist` page.
@@ -47,7 +45,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Interactive creator and referral revenue calculator with tiered creator fees.
 - Concept page covering matchup mechanics, Korum terminology, fee tiers, a worked revenue example, and referral distribution.
 - Analytics page with trading metrics, category breakdowns, and top-market tables.
-- Leaderboard with trader, creator, and referrer categories, period controls, sorting, search, podium, rank badges, and standout wins.
+- Leaderboard with real trader rankings, sorting, search, podium, and metrics-derived badges.
 - Privacy Policy and Terms of Use pages.
 - Dark and light themes with a persisted preference and animated view transition where supported.
 - Project favicon, Korum footer branding, Robinhood Chain attribution, and reference media assets.
@@ -55,7 +53,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Contract-backed Versus creation page with live launch configuration and cost reads, token/camp setup, responsive preview, wallet network switching, transaction simulation, `createVersus` publication, receipt decoding, and referral finalization.
 - Server-only Railway reader that joins indexed Versus records with both camps and maps complete projections to the frontend data contract.
 - Live indexed Versus feed in Explore, including camp metadata, media, token addresses, creator information, and creation timestamps.
-- Responsive Explore pagination with 12 Versus per page across grid, table, search, filters, sorting, and mock datasets.
+- Responsive Explore pagination with 12 indexed Versus per page across grid, table, search, filters, and sorting.
 - Contract-backed trading panels on each Versus token with live ETH/token balances, on-chain buy and sell quotes, 1% minimum-output protection, wallet network switching, ERC-20 approval handling, receipt confirmation, and explorer links.
 - Inline Explore trading controls shared with the Versus detail flow, opened directly in Buy or Sell mode and kept inside each card without navigation or overlays.
 - Automatic trading-venue selection between the active `KorumCore` bonding curve and the graduated Uniswap pool through `KorumRouter`.
@@ -72,6 +70,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - A global Redis-backed recent-trade endpoint and Railway timeline index for the live Explore buy/sell ticker.
 - A bounded client-side ticker queue that reveals polled trades sequentially instead of rendering each polling batch simultaneously.
 - `X-Korum-Cache` and `X-Korum-Cache-Layer` response headers on public Versus and market APIs for Redis hit, miss, bypass, and in-process deduplication diagnostics.
+- Interactive TradingView Lightweight Charts rendering for price and market-cap OHLC candles, with fixed-width bars, real trade-time positioning, USD/ETH display switching, zoom, pan, crosshair values, and theme synchronization.
+- Strict 1-hour through 180-day chart windows with range-specific candle intervals, an explicit no-trades state, and circulating-supply market caps adjusted for the post-graduation token residual.
+- Authenticated Profile aggregates for on-chain referral count, Versus created and joined, indexed trade count, and total gross traded volume with USD conversion and an ETH fallback.
+- A wallet-oriented PostgreSQL index for efficient Profile trade aggregates over the Goldsky read model.
+- Paginated Profile Activity history loaded 10 wallet-attributed trades at a time, including camp, side, venue, token amount, ETH paid or received, fees, UTC time, and explorer links.
+- Estimated all-time Profile PNL calculated from net indexed cash flows plus full-position liquidation values matching the bonding curve, with per-Versus win/loss counts.
+- A private 20-second Redis cache for wallet-scoped Profile statistics and PNL, using hashed wallet cache keys and retaining `private, no-store` HTTP responses.
+- A server-paginated all-time trader leaderboard built from indexed volume and executable PNL estimates, with Railway usernames, wallet search, sorting, and five-minute Redis/shared HTTP caching restricted to reusable unfiltered pages.
+- Trigger-maintained `indexer.trader_totals` and `indexer.trader_positions` tables, transaction-safe historical backfill, and replay-safe INSERT/UPDATE/DELETE aggregation.
+- Shared seven-tier badge calculation for Profile and Leaderboard, selecting each wallet's highest qualifying Creator, Trader, or Referrer path from Railway metrics instead of leaderboard position.
 
 ### Changed
 
@@ -83,7 +91,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Bound profile identity and referral data to the address stored in the verified server session.
 - Aligned the Profile page with the Korum reference design and translated its complete interface to English.
 - Marked profile-image uploads and X account linking as unavailable with disabled, visually muted controls.
-- Replaced hard-coded profile metrics with explicit Railway indexer placeholders.
+- Replaced hard-coded profile metrics with Railway-indexed wallet aggregates and an explicitly qualified mark-to-market PNL, while retaining a placeholder only for total wallet valuation.
+- Replaced spot-price multiplication in Profile PNL with a local reconstruction of `KorumCore.quoteSell`, using indexed reserves and the on-chain launch configuration so price impact and current sell fees are included without sending wallet position sizes to an RPC provider.
+- Replaced the former synthetic leaderboard with Goldsky/Railway trader rankings and removed misleading partial-period PNL controls.
+- Replaced full trade-history scans for Profile and leaderboard PNL with incrementally maintained trader aggregates.
 - Persisted verified wallet users before issuing authenticated session cookies.
 - Added the internal user UUID to the signed session and required it alongside the wallet for profile queries.
 - Replaced the default Create Next App interface with the Korum product experience.
@@ -92,14 +103,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Redirected `/` to `/explore`.
 - Removed the former French route names and the former `/index` route.
 - Renamed Explore components, context names, CSS selectors, and related assets to use English terminology.
-- Replaced abbreviated mock/API fields with explicit English names, including `sideA`, `sideB`, `category`, `sideAPercentage`, `volume24h`, `participantCount`, `holderCount`, `marketCapA`, and `marketCapB`.
+- Replaced abbreviated data fields with explicit English names, including `sideA`, `sideB`, `category`, `sideAPercentage`, `volume24h`, `participantCount`, `holderCount`, `marketCapA`, and `marketCapB`.
 - Added nested token metadata for chain identity, addresses, prices, supply, market cap, liquidity, volume, holders, trades, images, creator addresses, and launch timestamps.
 - Updated all cards, search logic, filters, analytics, watchlist, profile, ticker, detail pages, and leaderboard consumers to use the canonical data contract.
 - Updated date and number presentation to English and UTC-oriented formats.
 - Aligned the header, footer, Explore, Earn, Concept, Leaderboard, Privacy Policy, and Terms of Use visuals with the Korum reference document.
 - Removed personal first-name and last-name fields from the wallet profile experience.
 - Translated the complete Versus creation interface to English and consolidated its page-specific styles into globally loaded, `create-`-prefixed selectors.
-- Made Railway-indexed Versus data the default source across Explore, matchup details, Watchlist, and Analytics, with fixture data available only through the explicit Mock data control.
+- Made Railway-indexed Versus data the exclusive source across Explore, matchup details, Watchlist, and Analytics.
 - Replaced neutral market placeholders with metrics calculated from indexed `Trade` events and exact curve/graduation state.
 - Centralized the deployed router, hook, and Versus token contract artifacts in the shared frontend contract adapter.
 - Added short public HTTP cache and stale-while-revalidate policies matching the Redis TTLs for indexed debate, chart, and trade endpoints.
@@ -141,12 +152,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Made the favicon opaque and visible in browser tabs.
 - Converted decoded Solidity `uint128` and `uint256` event parameters to Goldsky `U256` values before PostgreSQL writes, unblocking exact `NUMERIC` inserts for versus IDs and camp launch values.
 - Kept Wagmi's cookie-restored account state hidden until browser mount, preventing wallet controls and trading panels from producing hydration mismatches.
-- Resolved watchlist entries against their Railway-indexed Versus and camp rows instead of same-numbered mock fixtures.
+- Resolved watchlist entries exclusively against their Railway-indexed Versus and camp rows.
 - Excluded the exact `Graduated.tokenResidual` locked supply from post-graduation market-cap and adjusted-FDV calculations instead of treating 100% of token supply as circulating.
 - Removed the implicit `NODE_ENV` chain switch so a production build cannot silently select mainnet while still using testnet contract addresses and indexer rows.
 - Corrected Explore trader totals to use distinct indexed trade wallets instead of the unavailable holder-count placeholder, including per-camp counts in table view.
 - Kept pre-bonding market cap tied to tokens actually released from the curve, while exposing the broader protocol-adjusted valuation only as Adjusted FDV.
 - Replaced the Analytics trade-count estimate with the indexed 24-hour trade totals and invalidated active market queries after confirmed transactions.
+- Read the Profile PNL launch configuration from `indexer.versuses`, fixing the runtime query against `camp_market_state`, which does not expose `config_id`.
+- Made aggregate subtraction constraint-safe so Goldsky replay updates and trade deletions keep trader totals and positions synchronized.
+- Removed the development-only generated market feed and its UI switch; Explore, Analytics, the activity ticker, Watchlist, and Versus details now resolve exclusively from Goldsky/Railway.
 
 ## [0.1.0] - 2026-08-31
 

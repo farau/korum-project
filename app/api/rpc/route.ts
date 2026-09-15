@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
 import { createHash } from "node:crypto";
 
-import { KORUM_NETWORK } from "../../config/korum-network";
 import { isSameOriginRequest } from "../../lib/auth/session";
 import { consumeRateLimit, redisCacheKey } from "../../lib/cache/redis";
+import { getAlchemyRpcUrl } from "../../lib/contracts/server-client";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -51,23 +51,6 @@ function requestIdentity(request: Request) {
     || forwarded
     || "unknown";
   return createHash("sha256").update(address).digest("hex").slice(0, 24);
-}
-
-function alchemyRpcUrl() {
-  const configuredUrl = process.env.KORUM_ALCHEMY_RPC_URL;
-  if (configuredUrl) {
-    try {
-      const parsed = new URL(configuredUrl);
-      if (parsed.protocol !== "https:" || !parsed.hostname.endsWith(".g.alchemy.com")) return null;
-      return parsed.toString();
-    } catch {
-      return null;
-    }
-  }
-
-  const apiKey = process.env.ALCHEMY_API_KEY;
-  if (KORUM_NETWORK !== "testnet" || !apiKey) return null;
-  return `https://robinhood-testnet.g.alchemy.com/v2/${encodeURIComponent(apiKey)}`;
 }
 
 function validRpcCall(value: unknown): value is JsonRpcRequest {
@@ -127,7 +110,7 @@ export async function POST(request: Request) {
     );
   }
 
-  const upstreamUrl = alchemyRpcUrl();
+  const upstreamUrl = getAlchemyRpcUrl();
   if (!upstreamUrl) {
     return NextResponse.json({ error: "Private RPC fallback is not configured for the active network." }, { status: 503 });
   }

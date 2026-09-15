@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
-import { useMock } from "../../components/MockProvider";
 import { useIndexedDebates } from "../../hooks/useIndexedMarkets";
 import MetricGlyph from "./MetricGlyph";
 import type { Debate } from "../../lib/debates";
@@ -126,12 +125,11 @@ function StatCard({ value, label, icon }: { value: string; label: string; icon: 
   );
 }
 
-export default function StatsClient({ debates }: { debates: Debate[] }) {
-  const { mockEnabled, hydrated } = useMock();
-  const liveDebates = useIndexedDebates(undefined, !mockEnabled);
+export default function StatsClient() {
+  const liveDebates = useIndexedDebates();
   const [period, setPeriod] = useState<"day" | "week" | "month">("day");
 
-  const src = mockEnabled ? debates : liveDebates.data ?? emptyDebates;
+  const src = liveDebates.data ?? emptyDebates;
   const totalVolume = src.reduce((sum, debate) => sum + debate.volume24h, 0);
   const participantCount = src.reduce((sum, debate) => sum + debate.participantCount, 0);
   const trades = src.reduce((sum, debate) => sum + (debate.trades24h ?? 0), 0);
@@ -162,8 +160,6 @@ export default function StatsClient({ debates }: { debates: Debate[] }) {
         .slice(0, 8),
     [src],
   );
-
-  if (!hydrated) return <div style={{ minHeight: 720 }} />;
 
   return (
     <>

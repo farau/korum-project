@@ -3,7 +3,7 @@ import PageWrapper from "../components/PageWrapper";
 
 const sections = [
   ["1. Acceptance", "By using Korum, you agree to these Terms of Use and the rules governing interactions, wallets, VS markets, and related features."],
-  ["2. Service", "Korum lets users create, explore, and track matchups represented by two tokenized sides. Some displayed data may be mocked during development."],
+  ["2. Service", "Korum lets users create, explore, and track matchups represented by two tokenized sides. Market activity is sourced from the configured blockchain indexer."],
   ["3. Wallet", "Access to certain pages or actions may require a connected EVM wallet. A unique short code associated with the wallet address may be used as a public referral identifier."],
   ["4. Risks", "Tokenized markets can be volatile. Information displayed through the Service does not constitute financial, legal, or tax advice."],
   ["5. Conduct", "Users must avoid unlawful, misleading, hateful, or third-party-infringing content. Korum may hide or remove problematic content."],
