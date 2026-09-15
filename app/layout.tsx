@@ -6,6 +6,8 @@ import "./globals.css";
 
 import Script from 'next/script';
 import RainbowKitProvider from "./components/RainbowKitProvider";
+import Header from "./components/Header";
+import Footer from "./components/Footer";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -46,7 +48,13 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
       </head>
 
       <body className="min-h-full flex flex-col">
-        <RainbowKitProvider cookies={cookieHeader}>{children}</RainbowKitProvider>
+        <RainbowKitProvider cookies={cookieHeader}>
+          <div className="korum-app-root">
+            <Header />
+            <main>{children}</main>
+            <Footer />
+          </div>
+        </RainbowKitProvider>
       </body>
     </html>
   );

@@ -19,14 +19,14 @@ async function jsonResponse<T>(url: string) {
   return response.json() as Promise<T>;
 }
 
-export function useIndexedDebates(initialData?: Debate[], enabled = true) {
+export function useIndexedDebates(initialData?: Debate[], enabled = true, refreshInterval = DEBATES_REFRESH_MS) {
   return useQuery({
     queryKey: INDEXED_DEBATES_QUERY_KEY,
     queryFn: () => jsonResponse<Debate[]>("/api/debates"),
     initialData,
     enabled,
-    staleTime: 5_000,
-    refetchInterval: enabled ? DEBATES_REFRESH_MS : false,
+    staleTime: refreshInterval,
+    refetchInterval: enabled ? refreshInterval : false,
     refetchIntervalInBackground: false,
     refetchOnWindowFocus: true,
     retry: 1,

@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useIndexedDebates } from "../../hooks/useIndexedMarkets";
 import MetricGlyph from "./MetricGlyph";
 import type { Debate } from "../../lib/debates";
@@ -11,6 +12,24 @@ const labelsAll = ["J", "F", "M", "A", "M", "J", "J", "A", "S", "O", "N", "D"];
 const labelsWeek = ["M", "T", "W", "T", "F", "S", "S"];
 const categoryColors = ["#00A1FD", "#D794F3", "#F3D8AD", "#9DDA72", "#07CCC3", "#58E877", "#FF453A"];
 const emptyDebates: Debate[] = [];
+const ANALYTICS_REFRESH_MS = 5 * 60 * 1_000;
+const ANALYTICS_CACHE_MS = 10 * 60 * 1_000;
+type AnalyticsPeriod = "day" | "week" | "month";
+type AnalyticsSnapshot = {
+  period: AnalyticsPeriod;
+  trades: number;
+  volumeEth: number;
+  volumeUsd: number | null;
+  averageTradeEth: number;
+  averageTradeUsd: number | null;
+  traders: number;
+  activeVersus: number;
+  feesEth: number;
+  feesUsd: number | null;
+  creatorFeesEth: number;
+  creatorFeesUsd: number | null;
+  buckets: Array<{ timestamp: number; volumeEth: number; volumeUsd: number | null; trades: number }>;
+};
 
 function useCountUp(value: number) {
   const [display, setDisplay] = useState(0);
@@ -45,6 +64,21 @@ function formatCompact(value: number) {
 
 function formatMoney(value: number) {
   return `$${formatCompact(value)}`;
+}
+
+function formatAnalyticsMoney(valueUsd: number | null, valueEth: number) {
+  return valueUsd === null ? `${valueEth.toLocaleString("en-US", { maximumFractionDigits: 5 })} ETH` : formatMoney(valueUsd);
+}
+
+function periodComparisonLabel(period: AnalyticsPeriod) {
+  return period === "day" ? "vs previous day" : period === "week" ? "vs previous week" : "vs previous month";
+}
+
+function bucketLabel(timestamp: number, period: AnalyticsPeriod) {
+  const date = new Date(timestamp * 1_000);
+  return period === "day"
+    ? new Intl.DateTimeFormat("en-US", { hour: "numeric", timeZone: "UTC" }).format(date)
+    : new Intl.DateTimeFormat("en-US", { weekday: "short", day: "numeric", timeZone: "UTC" }).format(date);
 }
 
 function AnalyticsIcon({ type = "trend" }: { type?: "trades" | "trend" | "bars" | "cash" | "bolt" | "users" | "wallet" }) {
@@ -84,8 +118,10 @@ function AnalyticsIcon({ type = "trend" }: { type?: "trades" | "trend" | "bars" 
   );
 }
 
-function BarChart({ values, labels }: { values: number[]; labels: string[] }) {
-  const max = Math.max(...values);
+function BarChart({ values, labels, maxValue }: { values: number[]; labels: string[]; maxValue?: number }) {
+  const max = Math.max(...values, 0);
+  const chartMax = maxValue ?? max;
+  const axisMax = maxValue ?? max * 12000;
   return (
     <>
       <div className="analytics-chart-body">
@@ -94,13 +130,13 @@ function BarChart({ values, labels }: { values: number[]; labels: string[] }) {
             <span
               className={`analytics-chart-bar ${value === max ? "peak" : ""}`}
               key={`${value}-${index}`}
-              style={{ height: `${Math.max(8, value)}%`, transitionDelay: `${index * 45}ms` }}
+              style={{ height: `${Math.max(8, maxValue ? (value / chartMax) * 100 : value)}%`, transitionDelay: `${index * 45}ms` }}
             />
           ))}
         </div>
         <div className="analytics-chart-yaxis">
-          <span>{formatMoney(max * 12000)}</span>
-          <span>{formatMoney(max * 6500)}</span>
+          <span>{formatMoney(axisMax)}</span>
+          <span>{formatMoney(axisMax * 0.5)}</span>
           <span>$0</span>
         </div>
       </div>
@@ -126,8 +162,34 @@ function StatCard({ value, label, icon }: { value: string; label: string; icon: 
 }
 
 export default function StatsClient() {
-  const liveDebates = useIndexedDebates();
-  const [period, setPeriod] = useState<"day" | "week" | "month">("day");
+  const liveDebates = useIndexedDebates(undefined, true, ANALYTICS_REFRESH_MS);
+  const [period, setPeriod] = useState<AnalyticsPeriod>("day");
+  const analyticsQuery = useQuery({
+    queryKey: ["analytics", period],
+    queryFn: async () => {
+      const response = await fetch(`/api/analytics?period=${period}`);
+      if (!response.ok) throw new Error("Analytics request failed.");
+      return response.json() as Promise<AnalyticsSnapshot>;
+    },
+    staleTime: ANALYTICS_CACHE_MS,
+    refetchInterval: ANALYTICS_REFRESH_MS,
+    refetchIntervalInBackground: false,
+    refetchOnWindowFocus: true,
+    retry: 1,
+  });
+  const weeklyAnalyticsQuery = useQuery({
+    queryKey: ["analytics", "week"],
+    queryFn: async () => {
+      const response = await fetch("/api/analytics?period=week");
+      if (!response.ok) throw new Error("Weekly analytics request failed.");
+      return response.json() as Promise<AnalyticsSnapshot>;
+    },
+    staleTime: ANALYTICS_CACHE_MS,
+    refetchInterval: ANALYTICS_REFRESH_MS,
+    refetchIntervalInBackground: false,
+    refetchOnWindowFocus: true,
+    retry: 1,
+  });
 
   const src = liveDebates.data ?? emptyDebates;
   const totalVolume = src.reduce((sum, debate) => sum + debate.volume24h, 0);
@@ -135,13 +197,23 @@ export default function StatsClient() {
   const trades = src.reduce((sum, debate) => sum + (debate.trades24h ?? 0), 0);
   const avgTrade = trades ? totalVolume / trades : 0;
   const annualVolume = totalVolume * 18;
-  const weeklyVolume = totalVolume * 0.42;
   const fees = totalVolume * 0.025;
   const creatorFees = fees * 0.32;
+  const analytics = analyticsQuery.data;
+  const weeklyAnalytics = weeklyAnalyticsQuery.data;
+  const periodTrades = analytics?.trades ?? trades;
+  const periodVolumeUsd = analytics?.volumeUsd ?? totalVolume;
+  const periodAverageTradeUsd = analytics?.averageTradeUsd ?? avgTrade;
+  const weeklyVolumeEth = weeklyAnalytics?.volumeEth ?? 0;
+  const weeklyVolumeUsd = weeklyAnalytics?.volumeUsd;
+  const weeklyChartValues = weeklyAnalytics?.buckets.map((bucket) => bucket.volumeUsd ?? bucket.volumeEth) ?? chartWeek;
+  const weeklyChartLabels = weeklyAnalytics?.buckets.map((bucket) => bucketLabel(bucket.timestamp, "week")) ?? labelsWeek;
+  const weeklyChartMax = weeklyAnalytics?.buckets.length ? Math.max(...weeklyChartValues, 0) : undefined;
+  const comparisonLabel = periodComparisonLabel(period);
 
-  const tradesDisplay = useCountUp(trades);
-  const volumeDisplay = useCountUp(totalVolume);
-  const avgDisplay = useCountUp(avgTrade * 10) / 10;
+  const tradesDisplay = useCountUp(periodTrades);
+  const volumeDisplay = useCountUp(periodVolumeUsd);
+  const avgDisplay = useCountUp(periodAverageTradeUsd * 10) / 10;
 
   const categories = useMemo(() => {
     const totals = new Map<string, number>();
@@ -195,7 +267,7 @@ export default function StatsClient() {
                 <div className="tac-stat-text">
                   <span className="tac-stat-label">Number of trades</span>
                   <span className="tac-stat-value">{formatCompact(tradesDisplay)}</span>
-                  <span className="tac-stat-change">↗ 67.6% <em>vs previous day</em></span>
+                  <span className="tac-stat-change">↗ — <em>{comparisonLabel}</em></span>
                 </div>
               </div>
               <div className="tac-divider" />
@@ -203,8 +275,8 @@ export default function StatsClient() {
                 <span className="tac-icon-tile"><AnalyticsIcon type="bars" /></span>
                 <div className="tac-stat-text">
                   <span className="tac-stat-label">Trading volume</span>
-                  <span className="tac-stat-value">{formatMoney(volumeDisplay)}</span>
-                  <span className="tac-stat-change">↗ 247.5% <em>vs previous day</em></span>
+                  <span className="tac-stat-value">{formatAnalyticsMoney(analytics?.volumeUsd ?? null, volumeDisplay)}</span>
+                  <span className="tac-stat-change">↗ — <em>{comparisonLabel}</em></span>
                 </div>
               </div>
               <div className="tac-divider" />
@@ -212,8 +284,8 @@ export default function StatsClient() {
                 <span className="tac-icon-tile"><AnalyticsIcon type="cash" /></span>
                 <div className="tac-stat-text">
                   <span className="tac-stat-label">Average trade size</span>
-                  <span className="tac-stat-value">${avgDisplay.toLocaleString("en-US")}</span>
-                  <span className="tac-stat-change">↗ 124.3% <em>vs previous day</em></span>
+                  <span className="tac-stat-value">{formatAnalyticsMoney(analytics?.averageTradeUsd ?? null, avgDisplay)}</span>
+                  <span className="tac-stat-change">↗ — <em>{comparisonLabel}</em></span>
                 </div>
               </div>
             </div>
@@ -253,22 +325,22 @@ export default function StatsClient() {
                 <div className="analytics-gauge-block">
                   <div className="analytics-chart-col">
                     <div className="analytics-chart-head">
-                      <span className="gauge-value">{formatMoney(weeklyVolume)}</span>
+                      <span className="gauge-value">{weeklyAnalytics ? formatAnalyticsMoney(weeklyVolumeUsd ?? null, weeklyVolumeEth) : "—"}</span>
                       <div className="analytics-vol24h">
                         <span className="vol24h-icon" aria-hidden="true"><MetricGlyph type="bars" /></span>
                         <span className="vol24h-text">
                           <span className="vol24h-label">Vol 24h</span>
-                          <span className="vol24h-value">{formatMoney(totalVolume * 0.18)}</span>
+                        <span className="vol24h-value">{formatMoney(totalVolume)}</span>
                         </span>
                       </div>
                     </div>
-                    <BarChart values={chartWeek} labels={labelsWeek} />
+                    <BarChart values={weeklyChartValues} labels={weeklyChartLabels} maxValue={weeklyChartMax} />
                   </div>
                   <div className="analytics-stat-cards">
-                    <StatCard icon="bolt" value={src.length.toString()} label="Active VS" />
-                    <StatCard icon="users" value={formatCompact(participantCount * 0.38)} label="Traders" />
-                    <StatCard icon="wallet" value={formatMoney(fees * 0.42)} label="Fees collected (est.)" />
-                    <StatCard icon="cash" value={formatMoney(creatorFees * 0.42)} label="Creator Fees" />
+                    <StatCard icon="bolt" value={weeklyAnalytics ? weeklyAnalytics.activeVersus.toString() : "—"} label="Active VS" />
+                    <StatCard icon="users" value={weeklyAnalytics ? formatCompact(weeklyAnalytics.traders) : "—"} label="Traders" />
+                    <StatCard icon="wallet" value={weeklyAnalytics ? formatAnalyticsMoney(weeklyAnalytics.feesUsd, weeklyAnalytics.feesEth) : "—"} label="Fees collected (est.)" />
+                    <StatCard icon="cash" value={weeklyAnalytics ? formatAnalyticsMoney(weeklyAnalytics.creatorFeesUsd, weeklyAnalytics.creatorFeesEth) : "—"} label="Creator Fees" />
                   </div>
                 </div>
               </div>

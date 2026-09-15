@@ -1,12 +1,12 @@
 import React from 'react';
 import PageWrapper from '../components/PageWrapper';
 import MiniHero from '../components/explore/MiniHero';
-import TickerServer from '../components/explore/TickerServer';
 import HotTrending from '../components/explore/HotTrending';
 import FilterBar from '../components/explore/FilterBar';
 import VsListServer from '../components/explore/VsListServer';
 import ExploreVisualEffects from '../components/explore/ExploreVisualEffects';
 import { ExploreSearchProvider } from '../components/explore/ExploreSearchProvider';
+import TickerServer from '../components/explore/TickerServer';
 import type { Debate } from '../lib/debates';
 import { getIndexedDebates } from '../lib/db/debates';
 
@@ -50,9 +50,9 @@ export default async function ExplorePage() {
             </div>
 
             <MiniHero />
+            <TickerServer />
           </div>
 
-          <TickerServer />
 
           <HotTrending indexedDebates={indexedDebates} />
 

@@ -6268,6 +6268,10 @@ html[data-theme="light"] .explore-page .hero-search-wrap .korum-search-input {
   overflow: hidden;
 }
 
+.explore-page .filter-bar {
+  background: var(--panel);
+}
+
 .explore-page .ticker-inner {
   display: flex;
   width: max-content;
@@ -6413,7 +6417,7 @@ html[data-theme="light"] .explore-page .hero-search-wrap .korum-search-input {
   position: sticky;
   top: 50px;
   z-index: 70;
-  background: var(--scrim);
+  background: var(--panel);
   backdrop-filter: blur(10px);
   border-bottom: 1px solid var(--line);
 }

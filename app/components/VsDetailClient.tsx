@@ -6,6 +6,7 @@ import { useQuery } from "@tanstack/react-query";
 import React, { useMemo, useState } from "react";
 
 import { useWatchlist } from "../hooks/useWatchlist";
+import { useWallet } from "./WalletProvider";
 import { KORUM_CHAIN } from "../config/korum-network";
 import {
   TOKEN_CHART_QUERY_KEY,
@@ -54,6 +55,20 @@ type MarketTrade = {
   transactionHash: string;
   timestamp: number;
   tokenSymbol: string;
+};
+type VersusPositionsResponse = {
+  positions: Array<{
+    tokenAddress: string;
+    tokenName: string;
+    tokenSymbol: string;
+    tokenAmount: string;
+    valueEth: number | null;
+    valueUsd: number | null;
+    pnlEth: number | null;
+    pnlUsd: number | null;
+  }>;
+  totalPnlEth: number | null;
+  totalPnlUsd: number | null;
 };
 
 const CHART_RANGES: Array<{ value: ChartRange; label: string }> = [
@@ -334,6 +349,48 @@ function MarketActivity({ debate, tokenFilter }: { debate: Debate; tokenFilter: 
   })}</div>;
 }
 
+function formatPnl(value: number | null, currency: "USD" | "ETH") {
+  if (value === null) return "—";
+  const formatted = formatMarketValue(Math.abs(value), currency, currency === "ETH" ? 5 : 2);
+  return value > 0 ? `+${formatted}` : value < 0 ? `-${formatted}` : formatted;
+}
+
+function MyPositions({ versusId, quoteUsd }: { versusId: number; quoteUsd?: number }) {
+  const { authenticated } = useWallet();
+  const positionsQuery = useQuery({
+    queryKey: ["versus-positions", versusId],
+    queryFn: async () => {
+      const response = await fetch(`/api/debates/${versusId}/positions`, { credentials: "same-origin" });
+      if (response.status === 401) return null;
+      if (!response.ok) throw new Error("Positions request failed.");
+      return response.json() as Promise<VersusPositionsResponse>;
+    },
+    enabled: authenticated,
+    staleTime: 5_000,
+    refetchInterval: 15_000,
+    refetchIntervalInBackground: false,
+    refetchOnWindowFocus: true,
+    retry: 1,
+  });
+
+  if (!authenticated) return <EmptyIndexedPanel title="Wallet sign-in required">Connect and sign with your wallet to view the tokens you own in this Versus.</EmptyIndexedPanel>;
+  if (positionsQuery.isLoading) return <EmptyIndexedPanel title="Loading your positions">Reading your indexed token balances from Railway.</EmptyIndexedPanel>;
+  if (positionsQuery.isError) return <EmptyIndexedPanel title="Positions temporarily unavailable">The indexed position data could not be loaded. Please try again shortly.</EmptyIndexedPanel>;
+  const result = positionsQuery.data;
+  if (!result || result.positions.length === 0) return <EmptyIndexedPanel title="No open positions">You do not currently own either token in this Versus.</EmptyIndexedPanel>;
+  const currency: "USD" | "ETH" = quoteUsd ? "USD" : "ETH";
+
+  return <div className={styles.positionsPanel}>
+    <div className={styles.positionsSummary}><span>Latent PNL</span><strong className={result.totalPnlEth !== null && result.totalPnlEth < 0 ? styles.pnlNegative : styles.pnlPositive}>{formatPnl(currency === "USD" ? result.totalPnlUsd : result.totalPnlEth, currency)}</strong></div>
+    <div className={styles.positionsList}>{result.positions.map((position) => <article className={styles.positionRow} key={position.tokenAddress}>
+      <div><strong>{symbolLabel(position.tokenSymbol)}</strong><span>{position.tokenName}</span></div>
+      <div><strong>{formatTokenAmount(position.tokenAmount)}</strong><span>Owned</span></div>
+      <div><strong>{formatMarketValue(currency === "USD" ? position.valueUsd : position.valueEth, currency)}</strong><span>Liquidation value</span></div>
+      <div><strong className={position.pnlEth !== null && position.pnlEth < 0 ? styles.pnlNegative : styles.pnlPositive}>{formatPnl(currency === "USD" ? position.pnlUsd : position.pnlEth, currency)}</strong><span>Latent PNL</span></div>
+    </article>)}</div>
+  </div>;
+}
+
 function InfoPanel({ tab, debate, tokenFilter, onStatus }: { tab: InfoTab; debate: Debate; tokenFilter: "both" | "a" | "b"; onStatus: (message: string) => void }) {
   if (tab === "community") {
     return <div className={styles.communityPanel}><EmptyIndexedPanel title="The conversation starts here">Community messages will be enabled with token-gated participation in a future update.</EmptyIndexedPanel><textarea rows={3} maxLength={140} disabled placeholder={`Share your take on ${debate.sideA} vs ${debate.sideB}…`} /><button type="button" disabled>SEND</button></div>;
@@ -344,6 +401,7 @@ function InfoPanel({ tab, debate, tokenFilter, onStatus }: { tab: InfoTab; debat
   }
 
   if (tab === "activity") return <MarketActivity debate={debate} tokenFilter={tokenFilter} />;
+  if (tab === "positions") return <MyPositions versusId={debate.id} quoteUsd={debate.quoteUsd} />;
 
   const messages: Record<Exclude<InfoTab, "community" | "creator">, { title: string; body: string }> = {
     activity: { title: "No indexed activity yet", body: "Trades will appear here after their on-chain events are indexed." },
