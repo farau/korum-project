@@ -3,13 +3,14 @@
 import React from "react";
 import Image from "next/image";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import type { Debate, DebateToken } from "../../lib/debates";
 import { formatMarketValue } from "../../lib/markets/format";
 import { useWatchlist } from "../../hooks/useWatchlist";
 import TokenTradePanel, { type TradeMode } from "../TokenTradePanel";
 
 const creators = ["Yasmine", "Léo", "Sam", "Nina", "Ines", "Marco"];
-const qa = ["0.01", "0.05", "0.10"];
+const qa = ["0.001", "0.01", "0.1"];
 
 function totalMarketCap(debate: Debate) {
   return (debate.marketCapA || 0) + (debate.marketCapB || 0);
@@ -24,9 +25,9 @@ function debateParticipants(debate: Debate) {
 }
 
 function fmtAgeFromMinutes(minutes: number) {
-  if (minutes < 60) return `${minutes}m ago`;
-  if (minutes < 1440) return `${Math.round(minutes / 60)}h ago`;
-  return `${Math.round(minutes / 1440)}d ago`;
+  if (minutes < 60) return `il y a ${minutes} min`;
+  if (minutes < 1440) return `il y a ${Math.round(minutes / 60)}h`;
+  return `il y a ${Math.round(minutes / 1440)}j`;
 }
 
 function timestampMs(value?: string | number) {
@@ -74,13 +75,6 @@ function getTokenB(debate: Debate): DebateToken {
   };
 }
 
-function creatorBadge(index: number) {
-  if (index % 4 === 0) return { label: "BRONZE", className: "bronze" };
-  if (index % 4 === 1) return { label: "NEW CREATOR", className: "new" };
-  if (index % 4 === 3) return { label: "GOLD", className: "gold" };
-  return { label: "NEW CREATOR", className: "new" };
-}
-
 function Spark({ series }: { series?: number[] }) {
   const values = series?.slice(-24) ?? [];
   const min = values.length ? Math.min(...values) : 0;
@@ -96,6 +90,7 @@ function Spark({ series }: { series?: number[] }) {
 }
 
 export default function VsCard({ debate, index = 0, inlineTrading = false }: { debate: Debate; index?: number; inlineTrading?: boolean }) {
+  const router = useRouter();
   const tokenA = getTokenA(debate);
   const tokenB = getTokenB(debate);
   const currency = debate.marketCurrency ?? "USD";
@@ -103,28 +98,13 @@ export default function VsCard({ debate, index = 0, inlineTrading = false }: { d
   const leaderIsA = sideAPercentage >= 50;
   const { toggle, has } = useWatchlist();
   const starred = has(debate.id);
-  const ref = React.useRef<HTMLElement | null>(null);
-  const [entered, setEntered] = React.useState(false);
   const [mode, setMode] = React.useState<TradeMode>("buy");
   const [side, setSide] = React.useState<"sideA" | "sideB">(leaderIsA ? "sideA" : "sideB");
+  const [amount, setAmount] = React.useState("0.01");
   const [tradeExpanded, setTradeExpanded] = React.useState(false);
   const [tradeStatus, setTradeStatus] = React.useState("");
   const [failedImages, setFailedImages] = React.useState({ debateId: debate.id, sideA: false, sideB: false });
   const [now, setNow] = React.useState<number | null>(null);
-  const badge = creatorBadge(index);
-
-  React.useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    el.style.setProperty("--enter-delay", `${Math.min(600, index * 55)}ms`);
-    const obs = new IntersectionObserver((entries) => {
-      entries.forEach((entry) => {
-        if (entry.isIntersecting) setEntered(true);
-      });
-    }, { threshold: 0.08 });
-    obs.observe(el);
-    return () => obs.disconnect();
-  }, [index]);
 
   React.useEffect(() => {
     const syncNow = () => setNow(Date.now());
@@ -140,8 +120,8 @@ export default function VsCard({ debate, index = 0, inlineTrading = false }: { d
   const imageA = failedImages.debateId === debate.id && failedImages.sideA ? undefined : tokenA.image || tokenA.imageRef;
   const imageB = failedImages.debateId === debate.id && failedImages.sideB ? undefined : tokenB.image || tokenB.imageRef;
   const creatorName = debate.creatorName || creators[index % creators.length];
-  const creatorRankLabel = debate.creatorRankLabel || badge.label;
-  const creatorRankClass = debate.creatorRankClass || badge.className;
+  const creatorRankLabel = debate.creatorRankLabel ?? null;
+  const creatorRankClass = debate.creatorRankClass;
   const changeA24h = tokenA.change24h ?? 0;
   const changeB24h = tokenB.change24h ?? 0;
   const debateTimestamp = timestampMs(debate.launchedAtUtc || debate.launchedAt || debate.createdAtUtc || debate.createdAt) ?? timestampMs(debate.launchTimestamp ?? debate.createdAtTimestamp);
@@ -154,12 +134,18 @@ export default function VsCard({ debate, index = 0, inlineTrading = false }: { d
   function selectTradeMode(nextMode: TradeMode) {
     setMode(nextMode);
     setTradeStatus("");
-    if (inlineTrading) setTradeExpanded(true);
+    setTradeExpanded(false);
+  }
+
+  function openVersus(event: React.MouseEvent<HTMLElement>) {
+    const target = event.target;
+    if (target instanceof Element && target.closest("a, button, input, select, textarea, [role='button']")) return;
+    router.push(`/vs/${debate.id}`);
   }
 
   return (
     <>
-      <article ref={ref} className={`vs-card mode-${mode}${entered ? " in" : ""}`}>
+      <article className={`vs-card in mode-${mode}`} onClick={openVersus}>
       <Link href={`/vs/${debate.id}`} className="vs-card-link" aria-label={`${tokenA.name} vs ${tokenB.name}`}>
         <div className="vs-thumb-pair">
           <div className="thumb-square">
@@ -206,9 +192,10 @@ export default function VsCard({ debate, index = 0, inlineTrading = false }: { d
 
       <div className="vs-body">
         <div className="creator-line">
-          <span>by</span>
+          <span>par</span>
           <span className="name">{creatorName}</span>
-          <span className={`creator-rank ${creatorRankClass}`}>{creatorRankLabel}</span>
+          {creatorRankLabel && creatorRankClass ? <span className={`creator-rank ${creatorRankClass}`}>{creatorRankLabel}</span> : null}
+          {debate.creatorIsNew ? <span className="creator-rank new">NEW CREATOR</span> : null}
         </div>
 
         <div className="vs-chart-row">
@@ -244,7 +231,7 @@ export default function VsCard({ debate, index = 0, inlineTrading = false }: { d
               <rect x="10.3" y="9" width="3.4" height="11" />
               <rect x="16.6" y="4" width="3.4" height="16" />
             </svg>
-            <span className="stat-text"><span className="lbl">Total MCAP</span><span className="val">{formatMarketValue(totalMarketCap(debate), currency, 1)}</span></span>
+            <span className="stat-text"><span className="lbl">MCAP total</span><span className="val">{formatMarketValue(totalMarketCap(debate), currency, 1)}</span></span>
           </div>
           <div className="stat-item">
             <svg className="stat-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -253,7 +240,7 @@ export default function VsCard({ debate, index = 0, inlineTrading = false }: { d
               <circle cx="17" cy="9" r="2.2" />
               <path d="M15.3 14.4c2.5.4 4.1 2.2 4.1 4.9" />
             </svg>
-            <span className="stat-text"><span className="lbl">Traders</span><span className="val">{debateParticipants(debate).toLocaleString("en-US")}</span></span>
+            <span className="stat-text"><span className="lbl">Parieurs</span><span className="val">{debateParticipants(debate).toLocaleString("fr-FR")}</span></span>
           </div>
           <div className="stat-item">
             <svg className="stat-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -264,8 +251,25 @@ export default function VsCard({ debate, index = 0, inlineTrading = false }: { d
         </div>
 
         <div className="trade-toggle">
-          <button type="button" data-mode-btn="buy" className={mode === "buy" ? "active" : ""} onClick={() => selectTradeMode("buy")}>Buy</button>
-          <button type="button" data-mode-btn="sell" className={mode === "sell" ? "active" : ""} onClick={() => selectTradeMode("sell")}>Sell</button>
+          <button type="button" data-mode-btn="buy" className={mode === "buy" ? "active" : ""} onClick={() => selectTradeMode("buy")}>Acheter</button>
+          <button type="button" data-mode-btn="sell" className={mode === "sell" ? "active" : ""} onClick={() => selectTradeMode("sell")}>Vendre</button>
+        </div>
+
+        <div className="vs-quick-amount">
+          <span className="qa-label">Mise</span>
+          {qa.map((quickAmount) => (
+            <button
+              type="button"
+              className={`qa-btn ${amount === quickAmount ? "active" : ""}`}
+              data-usd={`≈ ${formatMarketValue(Number(quickAmount) * 3200, "USD")}`}
+              onClick={() => { setAmount(quickAmount); setTradeExpanded(false); setTradeStatus(""); }}
+              key={quickAmount}
+            >
+              {quickAmount.replace(".", ",")}
+            </button>
+          ))}
+          <button type="button" className={`qa-btn qa-btn-max ${amount === "max" ? "active" : ""}`} data-usd="≈ max" onClick={() => { setAmount("max"); setTradeExpanded(false); setTradeStatus(""); }}>MAX</button>
+          <span className="qa-unit" aria-label="ether">◆ ETH</span>
         </div>
 
         <div className="vs-buy-row">
@@ -273,40 +277,35 @@ export default function VsCard({ debate, index = 0, inlineTrading = false }: { d
           <button className={`vs-buy ${side === "sideB" ? "active" : ""}`} type="button" onClick={() => { setSide("sideB"); setTradeStatus(""); }}>{tokenB.symbol}</button>
         </div>
 
-        {inlineTrading ? (
-          tradeExpanded ? (
+        {inlineTrading && tradeExpanded ? (
+          <>
             <div className="vs-inline-trade">
               <TokenTradePanel
                 key={`${selectedToken.address ?? selectedToken.symbol}-${mode}`}
                 token={selectedToken}
                 initialMode={mode}
+                initialAmount={amount === "max" ? undefined : amount}
                 compact
                 onStatus={setTradeStatus}
               />
               {tradeStatus ? <p className="vs-inline-trade-status" role="status">{tradeStatus}</p> : null}
             </div>
-          ) : (
-            <p className="vs-inline-trade-hint">Select Buy or Sell to trade {selected} on this card.</p>
-          )
-        ) : (
-          <>
-            <div className="vs-quick-amount">
-              <span className="qa-label">Amount</span>
-              {qa.map((amount, amountIndex) => (
-                <button type="button" className={`qa-btn ${amountIndex === 0 ? "active" : ""}`} data-usd={`≈ ${formatMarketValue(Number(amount) * 3200, "USD")}`} key={amount}>{amount}</button>
-              ))}
-              <button type="button" className="qa-btn qa-btn-max" data-usd="≈ max">MAX</button>
-              <span className="qa-unit">ETH</span>
-            </div>
-            <button type="button" className="vs-cta-buy">
-              <span className="vs-cta-label">{mode === "buy" ? "Buy" : "Sell"} {selected}</span>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
-                <line x1="5" y1="12" x2="19" y2="12" />
-                <polyline points="12 5 19 12 12 19" />
-              </svg>
-            </button>
           </>
+        ) : (
+          <button type="button" className="vs-cta-buy" onClick={() => inlineTrading && setTradeExpanded(true)}>
+            <span className="vs-cta-label">{mode === "buy" ? "Acheter" : "Vendre"} {selected}</span>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <line x1="5" y1="12" x2="19" y2="12" />
+              <polyline points="12 5 19 12 12 19" />
+            </svg>
+          </button>
         )}
+
+        <div className="vs-foot-note" aria-hidden="true">
+          <span className="fn-item">▣ Sors quand tu veux</span>
+          <span className="fn-sep" />
+          <span className="fn-item">▤ Payé sur le volume généré</span>
+        </div>
 
         <button
           type="button"

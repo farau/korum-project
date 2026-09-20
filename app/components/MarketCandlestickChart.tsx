@@ -39,7 +39,7 @@ type MarketCandlestickChartProps = {
   available: boolean;
   metric: "price" | "marketCap";
   currency: "USD" | "ETH";
-  range: "1h" | "1d" | "7d" | "30d" | "180d";
+  range: "1m" | "5m" | "15m" | "1h" | "4h" | "1d" | "7d" | "30d" | "180d" | "all";
   intervalSeconds?: number;
   windowStart?: number;
   windowEnd?: number;
@@ -226,7 +226,7 @@ export default function MarketCandlestickChart({ candles, available, metric, cur
       : formatTokenPrice(value, currency);
     const timeFormatter = (time: Time) => {
       if (typeof time !== "number") return String(time);
-      return new Intl.DateTimeFormat(undefined, range === "1h" || range === "1d"
+      return new Intl.DateTimeFormat(undefined, range === "1m" || range === "5m" || range === "15m" || range === "1h" || range === "4h" || range === "1d"
         ? { hour: "2-digit", minute: "2-digit" }
         : { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })
         .format(new Date(time * 1_000));

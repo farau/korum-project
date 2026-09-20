@@ -1,11 +1,13 @@
 import React from 'react';
 import PageWrapper from '../components/PageWrapper';
 import StatsServer from '../components/analytics/StatsServer';
+import ScrollReveal from '../components/ScrollReveal';
 
 export default function AnalyticsPage() {
   return (
     <PageWrapper>
       <div className="analytics-page">
+        <ScrollReveal rootSelector=".analytics-page" />
         <section className="vs-hero-section analytics-hero">
           <div className="wrap">
             <span className="vs-hero-badge">Analytics</span>

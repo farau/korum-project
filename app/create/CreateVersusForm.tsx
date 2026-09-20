@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent } from "react";
 import {
   BaseError,
@@ -214,6 +215,7 @@ function InfoIcon() {
 }
 
 export default function CreateVersusForm({ initialPendingReferral }: { initialPendingReferral: PendingReferral | null }) {
+  const router = useRouter();
   const { address, isConnected } = useAccount();
   const { authenticated, authenticating, connect } = useWallet();
   const chainId = useChainId();
@@ -245,6 +247,8 @@ export default function CreateVersusForm({ initialPendingReferral }: { initialPe
   const [transactionHash, setTransactionHash] = useState<Hash | undefined>();
   const [createdVersusId, setCreatedVersusId] = useState<string | null>(null);
   const processedReceipt = useRef<Hash | null>(null);
+  const submittingRef = useRef(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     if (!authenticated) return;
@@ -427,7 +431,9 @@ export default function CreateVersusForm({ initialPendingReferral }: { initialPe
         strict: false,
       });
       const versusArgs = versusLogs[0]?.args as { versusId?: bigint } | undefined;
-      setCreatedVersusId(versusArgs?.versusId?.toString() ?? null);
+      const versusId = versusArgs?.versusId?.toString() ?? null;
+      setCreatedVersusId(versusId);
+      if (versusId) router.replace(`/vs/${versusId}`);
 
       if (!pendingReferral || !address || !publicClient) return;
 
@@ -468,15 +474,21 @@ export default function CreateVersusForm({ initialPendingReferral }: { initialPe
     };
 
     void finish();
-  }, [address, pendingReferral, publicClient, receipt]);
+  }, [address, pendingReferral, publicClient, receipt, router]);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (submittingRef.current) return;
+
+    submittingRef.current = true;
+    setIsSubmitting(true);
     setSubmitError(null);
     setCreatedVersusId(null);
 
     if (!isConnected || !authenticated || !address) {
       connect();
+      submittingRef.current = false;
+      setIsSubmitting(false);
       return;
     }
     if (chainId !== KORUM_CHAIN.id) {
@@ -485,14 +497,20 @@ export default function CreateVersusForm({ initialPendingReferral }: { initialPe
       } catch (error) {
         setSubmitError(errorMessage(error));
       }
+      submittingRef.current = false;
+      setIsSubmitting(false);
       return;
     }
     if (formIssue) {
       setSubmitError(formIssue);
+      submittingRef.current = false;
+      setIsSubmitting(false);
       return;
     }
     if (!publicClient) {
       setSubmitError("The Robinhood Testnet RPC client is unavailable.");
+      submittingRef.current = false;
+      setIsSubmitting(false);
       return;
     }
 
@@ -530,6 +548,8 @@ export default function CreateVersusForm({ initialPendingReferral }: { initialPe
     } catch (error) {
       setSubmitError(errorMessage(error));
     }
+    submittingRef.current = false;
+    setIsSubmitting(false);
   }
 
   function handleCampName(side: "a" | "b", value: string) {
@@ -560,7 +580,7 @@ export default function CreateVersusForm({ initialPendingReferral }: { initialPe
     reader.readAsDataURL(file);
   }
 
-  const transactionPending = isWalletPromptOpen || isConfirming;
+  const transactionPending = isSubmitting || isWalletPromptOpen || isConfirming || Boolean(transactionHash && !receipt && !receiptError);
   const configLoading = isLoadingConfigCount || isLoadingConfig;
   const costsLoading = isLoadingCostA || isLoadingCostB;
   const explorerUrl = transactionHash
@@ -571,6 +591,7 @@ export default function CreateVersusForm({ initialPendingReferral }: { initialPe
   if (!isConnected || !authenticated) publishLabel = authenticating ? "Authenticating…" : "Connect wallet to publish";
   else if (chainId !== KORUM_CHAIN.id) publishLabel = `Switch to ${KORUM_CHAIN.name}`;
   else if (isSwitchingChain) publishLabel = "Switching network…";
+  else if (isSubmitting) publishLabel = "Preparing transaction…";
   else if (isWalletPromptOpen) publishLabel = "Confirm in your wallet…";
   else if (isConfirming) publishLabel = "Publishing…";
 

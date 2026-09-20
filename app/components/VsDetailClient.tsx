@@ -25,7 +25,7 @@ type VsDetailClientProps = {
 };
 
 type InfoTab = "community" | "activity" | "holders" | "traders" | "creator" | "bubble" | "positions";
-type ChartRange = "1h" | "1d" | "7d" | "30d" | "180d";
+type ChartRange = "1m" | "5m" | "15m" | "1h" | "4h" | "1d" | "7d" | "30d" | "180d" | "all";
 type ChartMetric = "price" | "marketCap";
 type ChartResponse = {
   points: ChartCandle[];
@@ -71,19 +71,30 @@ type VersusPositionsResponse = {
   totalPnlUsd: number | null;
 };
 
-const CHART_RANGES: Array<{ value: ChartRange; label: string }> = [
+const BONDING_CURVE_RANGES: Array<{ value: ChartRange; label: string }> = [
+  { value: "1m", label: "1M" },
+  { value: "5m", label: "5M" },
+  { value: "15m", label: "15M" },
   { value: "1h", label: "1H" },
+];
+const POOL_RANGES: Array<{ value: ChartRange; label: string }> = [
+  { value: "5m", label: "5M" },
+  { value: "1h", label: "1H" },
+  { value: "4h", label: "4H" },
   { value: "1d", label: "1D" },
-  { value: "7d", label: "7D" },
-  { value: "30d", label: "30D" },
-  { value: "180d", label: "180D" },
+  { value: "all", label: "ALL" },
 ];
 const CHART_REFRESH_MS: Record<ChartRange, number> = {
+  "1m": 2_000,
+  "5m": 3_000,
+  "15m": 5_000,
   "1h": 5_000,
+  "4h": 10_000,
   "1d": 15_000,
   "7d": 30_000,
   "30d": 60_000,
   "180d": 300_000,
+  "all": 300_000,
 };
 const INFO_TABS: Array<{ id: InfoTab; label: string }> = [
   { id: "community", label: "Community" },
@@ -140,6 +151,20 @@ function formatAge(minutes: number) {
   return `${Math.round(minutes / 1_440)}d ago`;
 }
 
+function marketPreferenceLabel(
+  tokenA: DebateToken,
+  tokenB: DebateToken,
+  sideAPercentage: number,
+  marketAvailable: boolean,
+) {
+  if (!marketAvailable) return "MARKET IS FORMING";
+  if (sideAPercentage === 50) return "MARKET IS TIED";
+
+  const leader = sideAPercentage > 50 ? tokenA : tokenB;
+  const percentage = sideAPercentage > 50 ? sideAPercentage : 100 - sideAPercentage;
+  return `${percentage}% PREFERS ${leader.name.toUpperCase()}`;
+}
+
 function formatDate(value?: string) {
   if (!value) return "Unknown";
   const date = new Date(value);
@@ -185,6 +210,9 @@ function TokenPanel({ token, side, marketShare, marketAvailable, onStatus }: { t
   const [range, setRange] = useState<ChartRange>("1d");
   const [chartMetric, setChartMetric] = useState<ChartMetric>("price");
   const [chartCurrency, setChartCurrency] = useState<"USD" | "ETH">(() => currency === "USD" && !token.quoteUsd ? "ETH" : currency);
+  const chartRanges = token.curveStatus === 3 ? POOL_RANGES : BONDING_CURVE_RANGES;
+  const isRangeAvailable = chartRanges.some((period) => period.value === range);
+  const activeRange = isRangeAvailable ? range : chartRanges[0].value;
   const displayedPrice = currency === "USD" ? token.priceUsd : token.priceEth;
   const curveLabel = token.curveStatus === 3
     ? "Pool live"
@@ -198,14 +226,14 @@ function TokenPanel({ token, side, marketShare, marketAvailable, onStatus }: { t
     ? token.address.toLowerCase()
     : null;
   const chartQuery = useQuery({
-    queryKey: [TOKEN_CHART_QUERY_KEY, validTokenAddress, range],
+    queryKey: [TOKEN_CHART_QUERY_KEY, validTokenAddress, activeRange],
     queryFn: async () => {
-      const response = await fetch(`/api/markets/${validTokenAddress}/chart?range=${range}`);
+      const response = await fetch(`/api/markets/${validTokenAddress}/chart?range=${activeRange}`);
       if (!response.ok) throw new Error("Market chart request failed.");
       return response.json() as Promise<ChartResponse>;
     },
     enabled: Boolean(validTokenAddress && marketAvailable),
-    refetchInterval: CHART_REFRESH_MS[range],
+    refetchInterval: CHART_REFRESH_MS[activeRange],
     refetchIntervalInBackground: false,
     refetchOnWindowFocus: true,
     retry: 1,
@@ -281,11 +309,11 @@ function TokenPanel({ token, side, marketShare, marketAvailable, onStatus }: { t
         <div className={styles.chartToolbar}>
           <span className={styles.segmented}><button className={chartMetric === "price" ? styles.selectedControl : ""} type="button" onClick={() => setChartMetric("price")}>Price</button><button className={chartMetric === "marketCap" ? styles.selectedControl : ""} type="button" onClick={() => setChartMetric("marketCap")}>MC</button></span>
           <span className={styles.segmented}><button className={chartCurrency === "USD" ? styles.selectedControl : ""} type="button" disabled={!chartQuoteUsd} onClick={() => setChartCurrency("USD")}>USD</button><button className={chartCurrency === "ETH" ? styles.selectedControl : ""} type="button" onClick={() => setChartCurrency("ETH")}>ETH</button></span>
-          <span className={styles.timeframe}>{range.toUpperCase()}</span>
+          <span className={styles.timeframe}>{activeRange.toUpperCase()}</span>
           <span className={styles.indexerState}><span /> Goldsky indexed</span>
         </div>
-        <MarketCandlestickChart candles={candles} available={marketAvailable && (!chartQuery.isLoading || candles.length > 0)} metric={chartMetric} currency={chartCurrency} range={range} intervalSeconds={chartQuery.data?.intervalSeconds} windowStart={chartQuery.data?.windowStart} windowEnd={chartQuery.data?.windowEnd} />
-        <div className={styles.periodRow} aria-label="Chart periods">{CHART_RANGES.map((period) => <button className={period.value === range ? styles.selectedControl : ""} type="button" key={period.value} disabled={!marketAvailable} onClick={() => setRange(period.value)}>{period.label}</button>)}</div>
+        <MarketCandlestickChart candles={candles} available={marketAvailable && (!chartQuery.isLoading || candles.length > 0)} metric={chartMetric} currency={chartCurrency} range={activeRange} intervalSeconds={chartQuery.data?.intervalSeconds} windowStart={chartQuery.data?.windowStart} windowEnd={chartQuery.data?.windowEnd} />
+        <div className={styles.periodRow} aria-label="Chart periods">{chartRanges.map((period) => <button className={period.value === activeRange ? styles.selectedControl : ""} type="button" key={period.value} disabled={!marketAvailable} onClick={() => setRange(period.value)}>{period.label}</button>)}</div>
         <div className={styles.marketStats}>
           <div><span>Current price</span><strong>{marketAvailable ? formatTokenPrice(displayedPrice, currency) : "—"}</strong></div>
           <div><span>Market cap</span><strong>{marketAvailable ? formatMarketValue(token.marketCap, currency) : "—"}</strong></div>
@@ -476,7 +504,7 @@ export default function VsDetailClient({ indexedDebate, indexedReadFailed }: VsD
         <div className={styles.wrap}>
           <Link href="/explore" className={styles.backLink}>← Back to Explore</Link>
           <div className={styles.titleRow}>
-            <div className={styles.titleBlock}><div className={styles.matchupLabel}><span>{symbolLabel(tokenA.symbol)}</span><b>VS</b><span>{symbolLabel(tokenB.symbol)}</span></div><h1><span className={sideAPercentage >= 50 && marketAvailable ? styles.heroLeader : ""}>{debate.sideA}</span> <em>vs</em> <span className={sideBPercentage > 50 && marketAvailable ? styles.heroLeader : ""}>{debate.sideB}</span></h1></div>
+            <div className={styles.titleBlock}><h1><span className={sideAPercentage >= 50 && marketAvailable ? styles.heroLeader : ""}>{debate.sideA}</span> <em>vs</em> <span className={sideBPercentage > 50 && marketAvailable ? styles.heroLeader : ""}>{debate.sideB}</span></h1></div>
             {xUrl ? <a className={styles.xLink} href={xUrl} target="_blank" rel="noreferrer" aria-label="Open the Versus X account">𝕏</a> : null}
             <div className={styles.heroActions}>
               <button className={`${styles.roundButton} ${starred ? styles.starred : ""}`} type="button" aria-pressed={starred} aria-label={starred ? "Remove from watchlist" : "Add to watchlist"} onClick={() => toggle(debate.id, `${debate.sideA} vs ${debate.sideB}`)}><StarIcon /></button>
@@ -488,14 +516,20 @@ export default function VsDetailClient({ indexedDebate, indexedReadFailed }: VsD
             </div>
           </div>
 
-          <div className={styles.metaRow}><span className={styles.category}>{debate.category}</span><span>·</span><span>Launched {formatAge(debate.createdMinutesAgo)}</span><span>·</span><span>Created by <b>{debate.creatorName || shortAddress(debate.creatorAddress)}</b></span><span>·</span><span>Versus #{debate.id}</span></div>
+          <div className={styles.metaRow}>
+            <span className={styles.category}>{debate.category}</span>
+            <span>·</span>
+            <span>Launched {formatAge(debate.createdMinutesAgo)}</span>
+            <span>·</span>
+            <span className={styles.creatorMeta}>Created by <b>{debate.creatorName || shortAddress(debate.creatorAddress)}</b>{debate.creatorRankLabel ? <small>{debate.creatorRankLabel}</small> : null}{debate.creatorIsNew ? <small>New creator</small> : null}</span>
+          </div>
 
           <div className={styles.overview}>
             <div className={styles.overviewLabels}><span className={sideAPercentage >= 50 && marketAvailable ? styles.leadingPill : ""}>{symbolLabel(tokenA.symbol)} · {sideAPercentage}%</span><span className={sideBPercentage > 50 && marketAvailable ? styles.leadingPill : ""}>{symbolLabel(tokenB.symbol)} · {sideBPercentage}%</span></div>
             <div className={styles.meter} aria-label={`${sideAPercentage}% ${debate.sideA}, ${sideBPercentage}% ${debate.sideB}`}><span className={sideAPercentage >= 50 && marketAvailable ? styles.meterLeading : ""} style={{ width: `${sideAPercentage}%` }} /><span className={sideBPercentage > 50 && marketAvailable ? styles.meterLeading : ""} style={{ width: `${sideBPercentage}%` }} /></div>
           </div>
 
-          <div className={styles.debateCopy}><h2>{debate.title || `${debate.sideA} or ${debate.sideB}?`}</h2>{debate.description ? <p>{debate.description}</p> : null}</div>
+          <div className={styles.debateCopy}><h2>{marketPreferenceLabel(tokenA, tokenB, sideAPercentage, marketAvailable)}</h2></div>
           {!marketAvailable ? <div className={styles.dataNotice}><span /> Market events are being backfilled by Goldsky. Creation metadata remains available from Railway.</div> : null}
         </div>
       </section>

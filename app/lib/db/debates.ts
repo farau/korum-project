@@ -1,6 +1,7 @@
 import "server-only";
 
 import { cache } from "react";
+import { calculateBadgeProgress } from "../badges";
 import { KORUM_CHAIN, KORUM_CHAIN_ID } from "../../config/korum-network";
 import type { Debate } from "../debates";
 import { redisCacheKey, rememberJson, type CacheDiagnostic } from "../cache/redis";
@@ -20,6 +21,9 @@ type IndexedDebateRow = {
   category: string;
   socialsJson: string;
   creatorWallet: string;
+  creatorIsNew: boolean;
+  creatorVersusCreated: number;
+  creatorVolumeWei: string;
   createdAt: Date | string;
   tokenAAddress: string;
   tokenAName: string;
@@ -208,6 +212,14 @@ function toDebate(row: IndexedDebateRow, quoteUsd: number | null): Debate | null
   const sideAPercentage = totalMarketCap > 0
     ? Math.round(((marketA.marketCap ?? 0) / totalMarketCap) * 100)
     : 50;
+  const creatorBadge = calculateBadgeProgress({
+    versusCreated: row.creatorVersusCreated,
+    creatorVolumeUsd: quoteUsd === null ? null : (unitsNumber(row.creatorVolumeWei) ?? 0) * quoteUsd,
+    tradeCount: 0,
+    tradedVolumeUsd: null,
+    referralCount: 0,
+    referredVolumeUsd: null,
+  }).creator;
 
   return {
     id,
@@ -242,8 +254,9 @@ function toDebate(row: IndexedDebateRow, quoteUsd: number | null): Debate | null
     launchTimestamp: createdAtTimestamp,
     creatorName: creatorLabel(row.creatorWallet),
     creatorAddress: row.creatorWallet,
-    creatorRankLabel: "CREATOR",
-    creatorRankClass: "new",
+    creatorIsNew: row.creatorIsNew,
+    creatorRankLabel: creatorBadge?.name,
+    creatorRankClass: creatorBadge?.className,
     tokenA: {
       id: `${row.chainId}:${row.versusId}:0`,
       name: row.tokenAName,
@@ -376,6 +389,9 @@ async function readIndexedDebates({ limit = DEFAULT_LIMIT, versusId, watchlistUs
       v.category,
       v.socials_json AS "socialsJson",
       v.creator_wallet AS "creatorWallet",
+      COALESCE(creator.created_at > NOW() - INTERVAL '7 days', FALSE) AS "creatorIsNew",
+      COALESCE(creator_stats.versus_created, 0)::INTEGER AS "creatorVersusCreated",
+      COALESCE(creator_stats.generated_volume_wei, 0)::TEXT AS "creatorVolumeWei",
       v.created_at AS "createdAt",
       camp_a.token_address AS "tokenAAddress",
       camp_a.name AS "tokenAName",
@@ -419,6 +435,19 @@ async function readIndexedDebates({ limit = DEFAULT_LIMIT, versusId, watchlistUs
       stats_b.price_history AS "tokenBPriceHistory",
       stats_versus.trader_count AS "versusTraderCount"
     FROM indexer.versuses v
+    LEFT JOIN users creator
+      ON LOWER(creator.evm_wallet) = LOWER(v.creator_wallet)
+    LEFT JOIN LATERAL (
+      SELECT
+        COUNT(DISTINCT created.versus_id)::INTEGER AS versus_created,
+        COALESCE(SUM(COALESCE(creator_market.cumulative_volume_after, 0)), 0) AS generated_volume_wei
+      FROM indexer.versuses created
+      LEFT JOIN indexer.versus_camps creator_camp
+        ON creator_camp.chain_id = created.chain_id AND creator_camp.versus_id = created.versus_id
+      LEFT JOIN indexer.camp_market_state creator_market
+        ON creator_market.chain_id = creator_camp.chain_id AND creator_market.token_address = creator_camp.token_address
+      WHERE created.chain_id = v.chain_id AND created.creator_wallet = v.creator_wallet
+    ) creator_stats ON TRUE
     ${watchlistJoin}
     INNER JOIN indexer.versus_camps camp_a
       ON camp_a.chain_id = v.chain_id

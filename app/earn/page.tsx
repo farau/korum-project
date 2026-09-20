@@ -1,19 +1,10 @@
 import React from "react";
+import Image from "next/image";
 import Link from "next/link";
 import PageWrapper from "../components/PageWrapper";
 import EarningsSimulator from "../components/EarningsSimulator";
-
-function PlusIcon() {
-  return <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M10 2h4v8h8v4h-8v8h-4v-8H2v-4h8V2Z" /></svg>;
-}
-
-function ChartIcon() {
-  return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m2 18 5-6 4 3 5-8 6 5" /><path d="M2 22h20" /></svg>;
-}
-
-function UsersIcon() {
-  return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" /></svg>;
-}
+import EarnHeroStats from "../components/earn/EarnHeroStats";
+import ScrollReveal from "../components/ScrollReveal";
 
 function ExitIcon() {
   return <svg viewBox="0 0 70.35 59.8" fill="currentColor" aria-hidden="true"><path d="M32.54 10.55h-7.91c-6.63 0-9.95 0-12.01 2.06s-2.06 5.38-2.06 12.01v21.99h49.25V24.62c0-6.63 0-9.95-2.06-12.01s-5.38-2.06-12.01-2.06h-7.91v17.49l2.39-2.79a2.64 2.64 0 0 1 4 3.43l-7.04 8.21a2.64 2.64 0 0 1-4 0l-7.04-8.21a2.64 2.64 0 0 1 4-3.43l2.39 2.79V10.55Z" /><path d="M10.66 51.89h49.03c-.18 2.78-.66 4.56-1.95 5.85-2.06 2.06-5.38 2.06-12.01 2.06H24.62c-6.63 0-9.95 0-12.01-2.06-1.29-1.29-1.77-3.07-1.95-5.85ZM13.68 0h42.99c7.56 0 13.68 6.33 13.68 14.14 0 4.54-2.07 8.57-5.28 11.16v-.99c0-3.05 0-5.84-.3-8.11-.34-2.5-1.13-5.14-3.3-7.32-2.17-2.17-4.82-2.97-7.32-3.3-2.27-.31-5.06-.31-8.11-.3H24.3c-3.05 0-5.84 0-8.11.3-2.5.34-5.14 1.13-7.32 3.3-2.17 2.17-2.97 4.82-3.3 7.32-.31 2.27-.3 5.06-.3 8.11v.99C2.07 22.71 0 18.68 0 14.14 0 6.33 6.12 0 13.68 0Z" /></svg>;
@@ -28,15 +19,16 @@ function TotalIcon() {
 }
 
 const earnCards = [
-  { title: "Create", subtitle: "Earn forever", example: <>Up to <b>70%</b> of fees, for life, even without trading.</>, action: "See details →", href: "/create", icon: <PlusIcon /> },
-  { title: "Trade", subtitle: "Buy low, sell high", example: <>Two independent tokens per matchup, available at any time.</>, action: "Explore VS →", href: "/explore", icon: <ChartIcon /> },
-  { title: "Refer", subtitle: "Your network, your capital", example: <><b>10%</b> of your referrals&apos; fees, for life.</>, action: "See tiers →", href: "/profile", icon: <UsersIcon /> },
+  { title: "Create", subtitle: "Earn forever", example: <>Up to <b>70%</b> of fees, for life, even without trading.</>, action: "See details →", href: "/create", icon: "/korum-icons/Create.svg" },
+  { title: "Trade", subtitle: "Buy low, sell high", example: <>Two independent tokens per matchup, available at any time.</>, action: "Explore VS →", href: "/explore", icon: "/korum-icons/Trade.svg" },
+  { title: "Refer", subtitle: "Your network, your capital", example: <><b>10%</b> of your referrals&apos; fees, for life.</>, action: "See tiers →", href: "/profile", icon: "/korum-icons/Refer.svg" },
 ];
 
 export default function EarnPage() {
   return (
     <PageWrapper>
       <div className="page earn-page" id="page-earn">
+        <ScrollReveal rootSelector="#page-earn" />
         <section className="earn-hero earn-hero-video">
           <video className="earn-hero-video-bg" autoPlay muted loop playsInline aria-hidden="true">
             <source src="/korum-reference/earn-hero.mp4" type="video/mp4" />
@@ -45,11 +37,7 @@ export default function EarnPage() {
             <span className="vs-hero-badge">The Korum model</span>
             <h1 className="earn-hero-title"><span className="green-accent">3</span> ways to <span className="green-accent">earn</span><br />One protocol</h1>
             <p className="earn-hero-sub">Create, trade, refer: there is always a share for you, and all three add up.</p>
-            <div className="earn-hero-stats">
-              <div className="earn-hero-stat"><span className="val">70%</span><span className="lbl">of fees paid to the creator</span></div>
-              <div className="earn-hero-stat"><span className="val">10%</span><span className="lbl">referral commission</span></div>
-              <div className="earn-hero-stat"><span className="val">1% to 1.25%</span><span className="lbl">maximum total fees</span></div>
-            </div>
+            <EarnHeroStats />
             <a className="btn btn-solid earn-hero-cta" href="#earnings-calculator">Estimate your earnings ↓</a>
           </div>
         </section>
@@ -59,7 +47,7 @@ export default function EarnPage() {
             <div className="earn-cards">
               {earnCards.map((card) => (
                 <article className="earn-card" key={card.title}>
-                  <div className="earn-card-icon">{card.icon}</div>
+                  <div className="earn-card-icon"><Image src={card.icon} alt="" width={104} height={80} /></div>
                   <h2 className="earn-card-title">{card.title}</h2>
                   <h3 className="earn-card-subtitle">{card.subtitle}</h3>
                   <div className="earn-example">{card.example}</div>

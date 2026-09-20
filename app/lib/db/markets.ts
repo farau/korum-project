@@ -8,14 +8,19 @@ import { getDatabase } from "./client";
 
 const TOKEN_ADDRESS = /^0x[0-9a-fA-F]{40}$/;
 
-export type MarketRange = "1h" | "1d" | "7d" | "30d" | "180d";
+export type MarketRange = "1m" | "5m" | "15m" | "1h" | "4h" | "1d" | "7d" | "30d" | "180d" | "all";
 
-const RANGE_CONFIG: Record<MarketRange, { seconds: number; intervalSeconds: number; cacheSeconds: number }> = {
+const RANGE_CONFIG: Record<MarketRange, { seconds: number | null; intervalSeconds: number; cacheSeconds: number }> = {
+  "1m": { seconds: 60, intervalSeconds: 5, cacheSeconds: 2 },
+  "5m": { seconds: 5 * 60, intervalSeconds: 15, cacheSeconds: 2 },
+  "15m": { seconds: 15 * 60, intervalSeconds: 30, cacheSeconds: 3 },
   "1h": { seconds: 60 * 60, intervalSeconds: 60, cacheSeconds: 5 },
+  "4h": { seconds: 4 * 60 * 60, intervalSeconds: 5 * 60, cacheSeconds: 10 },
   "1d": { seconds: 24 * 60 * 60, intervalSeconds: 15 * 60, cacheSeconds: 15 },
   "7d": { seconds: 7 * 24 * 60 * 60, intervalSeconds: 60 * 60, cacheSeconds: 30 },
   "30d": { seconds: 30 * 24 * 60 * 60, intervalSeconds: 4 * 60 * 60, cacheSeconds: 60 },
   "180d": { seconds: 180 * 24 * 60 * 60, intervalSeconds: 24 * 60 * 60, cacheSeconds: 300 },
+  "all": { seconds: null, intervalSeconds: 24 * 60 * 60, cacheSeconds: 300 },
 };
 
 export const TOKEN_TRADES_CACHE_SECONDS = 5;
@@ -98,7 +103,7 @@ export async function getTokenChart(tokenAddress: string, range: MarketRange, di
     async () => {
       const database = getDatabase();
       const nowSeconds = Math.floor(Date.now() / 1_000);
-      const startSeconds = nowSeconds - config.seconds;
+      const startSeconds = config.seconds === null ? 0 : nowSeconds - config.seconds;
       const [rows, quote] = await Promise.all([
         database.unsafe<ChartRow[]>(`
           WITH enriched AS (
@@ -257,7 +262,9 @@ export async function getTokenChart(tokenAddress: string, range: MarketRange, di
         token,
         range,
         intervalSeconds: config.intervalSeconds,
-        windowStart: startSeconds,
+        windowStart: config.seconds === null && rows.length
+          ? Number(rows[0].timestamp)
+          : startSeconds,
         windowEnd: nowSeconds,
         points,
         updatedAt: lastIndexedTimestamp === null ? Date.now() : lastIndexedTimestamp * 1_000,

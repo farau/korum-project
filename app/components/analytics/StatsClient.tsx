@@ -111,7 +111,9 @@ function AnalyticsIcon({ type = "trend" }: { type?: "trades" | "trend" | "bars" 
     <span className="analytics-stat-icon">
       <span className="spark spark1" />
       <span className="spark spark2" />
-      {type === "trades" || type === "bars" || type === "cash" ? <MetricGlyph type={type} /> : (
+      {type === "cash" ? (
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12 1v22" /><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" /></svg>
+      ) : type === "trades" || type === "bars" ? <MetricGlyph type={type} /> : (
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">{paths[type]}</svg>
       )}
     </span>

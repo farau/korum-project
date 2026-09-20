@@ -3,20 +3,21 @@ import Image from "next/image";
 import Link from "next/link";
 import FeeTierCards, { type FeeTier } from "../components/FeeTierCards";
 import PageWrapper from "../components/PageWrapper";
+import ScrollReveal from "../components/ScrollReveal";
 
 const steps = [
-  { title: "A matchup launches", body: "Two tokens are created at once, one for each side.", image: "1" },
-  { title: "The sides compete", body: "Every purchase raises that side's market cap and its share against the other.", image: "2", middle: true },
-  { title: "You stay in control", body: "Buy or sell whenever you want.", image: "3" },
+  { title: "A matchup launches", body: "Two tokens are created at once, one for each side.", darkImage: "/korum-reference/concept-step-1-dark.png", darkSize: [463, 308], lightImage: "/korum-reference/concept-step-1-light.png", lightSize: [488, 244] },
+  { title: "The sides compete", body: "Every purchase raises that side's market cap and its share against the other.", darkImage: "/korum-reference/concept-step-2-dark.png", darkSize: [487, 332], lightImage: "/korum-reference/concept-step-2-light.png", lightSize: [488, 270], middle: true },
+  { title: "You stay in control", body: "Buy or sell whenever you want.", darkImage: "/korum-reference/concept-step-3-dark.png", darkSize: [441, 303], lightImage: "/korum-reference/concept-step-3-light.png", lightSize: [488, 239] },
 ];
 
 const lexicon = [
-  { term: "VS", definition: "One debate, two tokens.", icon: "vs" },
-  { term: "Side", definition: "Each of the two tokens in a matchup.", icon: "side" },
-  { term: "Trader", definition: "Someone who holds one side.", icon: "trader" },
-  { term: "Join", definition: "Take a position on one side.", icon: "join" },
-  { term: "Badges", definition: "Your trading, creator, and referral level, visible to everyone.", icon: "badges" },
-  { term: "Hot Take", definition: "A matchup that is heating up right now.", icon: "hot-take" },
+  { term: "VS", definition: "One debate, two tokens.", icon: "/korum-icons/flash.svg" },
+  { term: "Side", definition: "Each of the two tokens in a matchup.", icon: "/korum-icons/DobleFlag.svg" },
+  { term: "Trader", definition: "Someone who holds one side.", icon: "/korum-icons/Side.svg" },
+  { term: "Join", definition: "Take a position on one side.", icon: "/korum-icons/Raly.svg" },
+  { term: "Badges", definition: "Your trading, creator, and referral level, visible to everyone.", icon: "/korum-icons/Badge.svg" },
+  { term: "Hot Take", definition: "A matchup that is heating up right now.", icon: "/korum-icons/fire.svg" },
 ];
 
 const feeTiers: FeeTier[] = [
@@ -41,6 +42,7 @@ export default function ConceptPage() {
   return (
     <PageWrapper>
       <div className="page concept-page" id="page-concept">
+        <ScrollReveal rootSelector="#page-concept" />
         <section className="earn-hero concept-hero">
           <div className="wrap">
             <span className="vs-hero-badge">Concept</span>
@@ -55,8 +57,10 @@ export default function ConceptPage() {
             <div className="steps-row three-steps-row">
               {steps.map((step) => (
                 <article className={`step-card three-steps-card${step.middle ? " three-steps-middle" : ""}`} key={step.title}>
-                  <Image className="step-image step-image-dark" src={`/korum-reference/concept-step-${step.image}-dark.png`} alt="" width={463} height={308} loading="eager" />
-                  <Image className="step-image step-image-light" src={`/korum-reference/concept-step-${step.image}-light.png`} alt="" width={463} height={308} loading="eager" />
+                  <div className="step-image-wrap" aria-hidden="true">
+                    <Image className="step-image step-image-dark" src={step.darkImage} alt="" width={step.darkSize[0]} height={step.darkSize[1]} loading="eager" />
+                    <Image className="step-image step-image-light" src={step.lightImage} alt="" width={step.lightSize[0]} height={step.lightSize[1]} loading="eager" />
+                  </div>
                   <h3>{step.title}</h3><p>{step.body}</p>
                 </article>
               ))}
@@ -78,7 +82,7 @@ export default function ConceptPage() {
             <div className="lexicon-grid">
               {lexicon.map((item) => (
                 <article className="lex-card" key={item.term}>
-                  <div className="lex-icon-ring"><span className="lex-dot lex-dot1" /><span className="lex-dot lex-dot2" /><span className="lex-icon" style={{ WebkitMaskImage: `url(/korum-reference/concept-icon-${item.icon}.svg)`, maskImage: `url(/korum-reference/concept-icon-${item.icon}.svg)` }} /></div>
+                  <div className="lex-icon-ring"><span className="lex-dot lex-dot1" /><span className="lex-dot lex-dot2" /><span className="lex-icon" style={{ WebkitMaskImage: `url(${item.icon})`, maskImage: `url(${item.icon})` }} /></div>
                   <div className="lex-content"><span className="lex-term">{item.term}</span><span className="lex-dash" /><span className="lex-def">{item.definition}</span></div>
                 </article>
               ))}

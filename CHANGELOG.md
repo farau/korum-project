@@ -8,6 +8,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- Scroll-triggered reveal animations across Earn, Concept, and Analytics, with reduced-motion support.
+- Count-up animations for the 70% creator share and 10% referral commission on Earn while keeping the fee range fixed.
+- Reference-derived SVG artwork for Earn, Concept, Analytics, and Leaderboard cards and badges.
+- Curve-aware chart periods with short bonding-curve windows and 5-minute through all-time graduated-pool ranges.
 - RainbowKit wallet connection with Wagmi, Robinhood Chain, and Robinhood Chain Testnet.
 - SSR wallet-state hydration through Wagmi cookies and the root Next.js layout.
 - Short-lived, server-signed wallet challenges with origin, network, nonce, and expiration validation.
@@ -83,6 +87,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- Rebuilt Explore Versus cards to match the reference proportions, localized controls, quick-amount trading flow, full-card navigation, and hover-only white animated border.
+- Restyled Explore category filters as transparent liquid-glass controls with theme-aware selected states and stronger gradient borders.
+- Extended the Explore grid behind the first card row, reduced animated-line density, aligned streaks to grid lines, and harmonized search, filter, ticker, and card surfaces in both themes.
+- Realigned page containers and the Explore filter banner, enlarged the shared header and footer controls, tightened navigation spacing, and restored the reference moon icon in dark mode.
+- Refined Earn cards, icons, hover elevation, calculator proportions, result borders, illustration alignment, and light-theme surfaces without replacing their original backgrounds.
+- Restored Concept step artwork, hover behavior, centered hero spacing, glass controls, gradient borders, reference icons, and stronger light-theme card contrast.
+- Restyled every Analytics panel with stronger glass borders and contrast, aligned its hero spacing with Earn and Concept, and expanded medium-width cards.
+- Updated Versus details with market-preference copy, indexed creator status and badge tiers, simplified metadata, and chart controls based on the active trading venue.
+- Prevented duplicate Versus publication attempts, exposed transaction-preparation feedback, and redirected successful creation directly to the new Versus page.
+- Enlarged and repositioned the Leaderboard podium, restored its transparent theme-specific reference artwork, shortened wallet labels consistently, and enhanced the iridescent crown animation.
 - Copied profile referral values as complete shareable links using the current application origin and the `?ref=` query parameter.
 - Replaced EVM-address referral codes with random six-character Base62 codes generated securely, stored, and uniquely bound to wallets.
 - Moved referrer relationships out of `users`; `ReferralRegistry` is authoritative and Goldsky provides the queryable PostgreSQL projection.
@@ -117,6 +131,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- Kept the Leaderboard podium visible independently of the number of indexed traders while positioning available entries explicitly as second, first, and third.
+- Corrected Analytics mobile and tablet layouts so cards use the available width and Weekly and Annual charts no longer overlap.
+- Removed the stray Analytics hero divider and ensured period-selector indicator dots remain visible above button borders.
+- Limited Explore trade-row red and green arrival backgrounds to their one-second entrance animation in both themes.
+- Corrected Concept step-image sizing and vertical alignment, Earn calculator illustration alignment, and shared light-theme card borders.
 - Opened RainbowKit's account modal from the connected address button and hid the Profile shortcut while disconnected.
 - Opened the RainbowKit signature prompt immediately after connecting a wallet without a matching authenticated session.
 - Restricted Explore background grids to the hero in both themes and kept Leaderboard grid-free.

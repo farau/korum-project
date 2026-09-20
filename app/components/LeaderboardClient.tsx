@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import React, { useEffect, useRef, useState } from "react";
 import { BADGE_TIERS, type BadgeTierName } from "../lib/badges";
 import { formatMarketValue } from "../lib/markets/format";
@@ -17,7 +18,7 @@ function formatLeaderboardAmount(usd: number | null, eth: number | null, signed 
 function TierBadge({ badge }: { badge: BadgeTierName | null }) {
   if (!badge) return null;
   const tier = BADGE_TIERS.find((candidate) => candidate.name === badge);
-  return tier ? <span className={`lb-tier-badge ${tier.className}`}>{tier.name}</span> : null;
+  return tier ? <span className={`lb-tier-badge ${tier.className}`}><Image src="/korum-icons/Badge.svg" alt="" width={12} height={12} />{tier.name}</span> : null;
 }
 
 function CrownIcon() {
@@ -25,11 +26,11 @@ function CrownIcon() {
     <svg viewBox="0 0 73.07 65.16" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
       <defs>
         <linearGradient id="lbCrownRainbow" x1="0" y1="0" x2="73.07" y2="65.16" gradientUnits="userSpaceOnUse">
-          <stop offset="0%" stopColor="var(--rainbow-1)" />
-          <stop offset="25%" stopColor="var(--rainbow-2)" />
-          <stop offset="50%" stopColor="var(--rainbow-3)" />
-          <stop offset="75%" stopColor="var(--rainbow-4)" />
-          <stop offset="100%" stopColor="var(--rainbow-5)" />
+          <stop offset="0%" stopColor="#00a1fd" />
+          <stop offset="25%" stopColor="#d794f3" />
+          <stop offset="50%" stopColor="#f3d8ad" />
+          <stop offset="75%" stopColor="#9dda72" />
+          <stop offset="100%" stopColor="#07ccc3" />
         </linearGradient>
       </defs>
       <g fill="url(#lbCrownRainbow)">
@@ -71,6 +72,11 @@ export default function LeaderboardClient({ initialData }: { initialData: Trader
   const [error, setError] = useState<string | null>(null);
   const skipInitialRequest = useRef(true);
   const { address } = useWallet();
+  const podiumEntries = [
+    { row: podiumRows[1], place: 2 },
+    { row: podiumRows[0], place: 1 },
+    { row: podiumRows[2], place: 3 },
+  ].filter((entry): entry is { row: TraderLeaderboardRow; place: number } => Boolean(entry.row));
 
   useEffect(() => {
     const timeout = window.setTimeout(() => {
@@ -123,15 +129,17 @@ export default function LeaderboardClient({ initialData }: { initialData: Trader
           <h1 className="lb-main-title">LEADERBOARD</h1>
         </div>
 
-        {!search && podiumRows.length === 3 && (
+        {!search && (
           <div className="lb-podium" aria-label="Leaderboard podium">
             <span className="lb-podium-blocks-bg" aria-hidden="true" />
-            {[podiumRows[1], podiumRows[0], podiumRows[2]].map((row) => (
-              <article className={`lb-podium-card rank${row.rank}`} key={row.wallet}>
+            {podiumEntries.map(({ row, place }) => (
+              <article className={`lb-podium-card rank${place}`} key={row.wallet}>
                 <div className="lb-podium-avatar-wrap">
                   <span className="lb-podium-avatar">{row.name.charAt(0).toUpperCase()}</span>
                 </div>
-                <strong className="lb-podium-name">{row.name}</strong>
+                <strong className="lb-podium-name" title={row.name}>
+                  {row.name.startsWith("0x") ? shortenAddress(row.name) : row.name}
+                </strong>
                 <TierBadge badge={row.badge} />
                 <span className="lb-podium-pnl">{formatLeaderboardAmount(row.pnlUsd, row.pnlEth, true)}</span>
               </article>

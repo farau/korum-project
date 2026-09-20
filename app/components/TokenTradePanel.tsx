@@ -121,11 +121,13 @@ export default function TokenTradePanel({
   token,
   onStatus,
   initialMode = "buy",
+  initialAmount,
   compact = false,
 }: {
   token: DebateToken;
   onStatus: (message: string) => void;
   initialMode?: TradeMode;
+  initialAmount?: string;
   compact?: boolean;
 }) {
   const queryClient = useQueryClient();
@@ -137,7 +139,7 @@ export default function TokenTradePanel({
   const { writeContractAsync, isPending: isWalletPromptOpen, reset: resetWrite } = useWriteContract();
 
   const [mode, setMode] = useState<TradeMode>(initialMode);
-  const [amount, setAmount] = useState(initialMode === "buy" ? "0.01" : "");
+  const [amount, setAmount] = useState(initialAmount ?? (initialMode === "buy" ? "0.01" : ""));
   const [quote, setQuote] = useState<Quote | null>(null);
   const [quoteError, setQuoteError] = useState<string | null>(null);
   const [isQuoting, setIsQuoting] = useState(false);
