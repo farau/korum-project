@@ -6,6 +6,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed
+
+- Moved Explore search to a guarded Railway-backed API with a two-character minimum, 400 ms debounce, cancelled stale requests, 24-result hydration cap, 45-second Redis/shared HTTP caching, and a 30-requests-per-minute client-IP budget.
+- Improved responsive behavior across Explore, the Filters button, notifications, and the mobile header.
+- Made the VS button visible on mobile layouts.
+- Translated the complete Versus card interface to English.
+- Limited card navigation to the upper card area so trading controls remain interactive without unintended redirects.
+- Calculated USD amounts from the ETH/USD rate supplied by the pipeline.
+- Displayed creator usernames instead of wallet addresses where available.
+- Refined the wallet modal visuals, including its spacing, controls, and responsive presentation.
+- Replaced the connected-wallet address button with the shared hexagonal Profile avatar and a notification-styled responsive account panel for profile access and session-aware disconnection.
+- Reworked the wallet-gated Profile state with clearer connect-versus-sign guidance, security assurances, a locked account preview, feature summaries, loading and error feedback, and a responsive mobile layout.
+
+### Fixed
+
+- Displayed market age in days in the Explore Table view after the first 24 hours.
+
 ## [0.2.0] - 2026-09-20
 
 ### Added

@@ -12,6 +12,8 @@ import { getDatabase } from "./client";
 const DEFAULT_LIMIT = 100;
 const MAX_LIMIT = 250;
 export const INDEXED_DEBATES_CACHE_SECONDS = 15;
+export const INDEXED_DEBATE_SEARCH_CACHE_SECONDS = 45;
+export const INDEXED_DEBATE_SEARCH_LIMIT = 24;
 
 type IndexedDebateRow = {
   chainId: number;
@@ -21,6 +23,7 @@ type IndexedDebateRow = {
   category: string;
   socialsJson: string;
   creatorWallet: string;
+  creatorDisplayName: string | null;
   creatorIsNew: boolean;
   creatorVersusCreated: number;
   creatorVolumeWei: string;
@@ -72,6 +75,11 @@ type IndexedDebateOptions = {
   limit?: number;
   versusId?: string;
   watchlistUserId?: string;
+  versusIds?: string[];
+};
+
+type IndexedDebateIdRow = {
+  versusId: string;
 };
 
 function publicAssetUrl(uri: string) {
@@ -252,7 +260,7 @@ function toDebate(row: IndexedDebateRow, quoteUsd: number | null): Debate | null
     launchedAt: createdAt,
     launchedAtUtc: createdAt,
     launchTimestamp: createdAtTimestamp,
-    creatorName: creatorLabel(row.creatorWallet),
+    creatorName: row.creatorDisplayName?.trim() || creatorLabel(row.creatorWallet),
     creatorAddress: row.creatorWallet,
     creatorIsNew: row.creatorIsNew,
     creatorRankLabel: creatorBadge?.name,
@@ -360,9 +368,10 @@ function toDebate(row: IndexedDebateRow, quoteUsd: number | null): Debate | null
   };
 }
 
-async function readIndexedDebates({ limit = DEFAULT_LIMIT, versusId, watchlistUserId }: IndexedDebateOptions = {}) {
+async function readIndexedDebates({ limit = DEFAULT_LIMIT, versusId, watchlistUserId, versusIds }: IndexedDebateOptions = {}) {
   const database = getDatabase();
   const safeLimit = Math.min(MAX_LIMIT, Math.max(1, Math.trunc(limit)));
+  const normalizedVersusIds = versusIds?.filter((id) => /^\d{1,78}$/.test(id)).slice(0, MAX_LIMIT);
   const watchlistJoin = watchlistUserId ? `
     INNER JOIN user_watchlist watchlist
       ON watchlist.chain_id = v.chain_id
@@ -370,12 +379,17 @@ async function readIndexedDebates({ limit = DEFAULT_LIMIT, versusId, watchlistUs
       AND watchlist.user_id = $2::uuid
   ` : "";
   const versusPredicate = versusId ? "AND v.versus_id = $2::numeric" : "";
-  const parameters: Array<string | number> = versusId
+  const versusIdsPredicate = normalizedVersusIds?.length
+    ? "AND v.versus_id = ANY(string_to_array($2, ',')::numeric[])"
+    : "";
+  const parameters: Array<string | number> = normalizedVersusIds?.length
+    ? [KORUM_CHAIN_ID, normalizedVersusIds.join(","), safeLimit]
+    : versusId
     ? [KORUM_CHAIN_ID, versusId, safeLimit]
     : watchlistUserId
       ? [KORUM_CHAIN_ID, watchlistUserId, safeLimit]
       : [KORUM_CHAIN_ID, safeLimit];
-  const limitParameter = versusId || watchlistUserId ? "$3" : "$2";
+  const limitParameter = normalizedVersusIds?.length || versusId || watchlistUserId ? "$3" : "$2";
   const orderBy = watchlistUserId
     ? "watchlist.added_at DESC"
     : "v.created_at DESC, v.versus_id DESC";
@@ -389,6 +403,7 @@ async function readIndexedDebates({ limit = DEFAULT_LIMIT, versusId, watchlistUs
       v.category,
       v.socials_json AS "socialsJson",
       v.creator_wallet AS "creatorWallet",
+      NULLIF(BTRIM(creator.display_name), '') AS "creatorDisplayName",
       COALESCE(creator.created_at > NOW() - INTERVAL '7 days', FALSE) AS "creatorIsNew",
       COALESCE(creator_stats.versus_created, 0)::INTEGER AS "creatorVersusCreated",
       COALESCE(creator_stats.generated_volume_wei, 0)::TEXT AS "creatorVolumeWei",
@@ -515,6 +530,7 @@ async function readIndexedDebates({ limit = DEFAULT_LIMIT, versusId, watchlistUs
     ) stats_versus ON TRUE
     WHERE v.chain_id = $1
       ${versusPredicate}
+      ${versusIdsPredicate}
     ORDER BY ${orderBy}
     LIMIT ${limitParameter}
   `, parameters);
@@ -540,6 +556,71 @@ export const getIndexedDebates = cache((limit = DEFAULT_LIMIT) => getCachedIndex
 
 export function getIndexedDebatesWithDiagnostic(diagnostic: CacheDiagnostic, limit = DEFAULT_LIMIT) {
   return getCachedIndexedDebates(limit, diagnostic);
+}
+
+async function searchIndexedDebateIds(searchQuery: string, limit: number) {
+  const database = getDatabase();
+  return database.unsafe<IndexedDebateIdRow[]>(`
+    SELECT v.versus_id::TEXT AS "versusId"
+    FROM indexer.versuses v
+    INNER JOIN indexer.versus_camps camp_a
+      ON camp_a.chain_id = v.chain_id
+      AND camp_a.versus_id = v.versus_id
+      AND camp_a.side = 0
+    INNER JOIN indexer.versus_camps camp_b
+      ON camp_b.chain_id = v.chain_id
+      AND camp_b.versus_id = v.versus_id
+      AND camp_b.side = 1
+    WHERE v.chain_id = $1
+      AND (
+        STRPOS(LOWER(v.title), $2) > 0
+        OR STRPOS(LOWER(v.description), $2) > 0
+        OR STRPOS(LOWER(v.category), $2) > 0
+        OR STRPOS(v.versus_id::TEXT, $2) > 0
+        OR STRPOS(LOWER(camp_a.name), $2) > 0
+        OR STRPOS(LOWER(camp_a.symbol), $2) > 0
+        OR STRPOS(LOWER(camp_b.name), $2) > 0
+        OR STRPOS(LOWER(camp_b.symbol), $2) > 0
+      )
+    ORDER BY
+      CASE
+        WHEN LOWER(v.title) = $2 THEN 0
+        WHEN LOWER(camp_a.symbol) = $2 OR LOWER(camp_b.symbol) = $2 THEN 1
+        WHEN LOWER(camp_a.name) = $2 OR LOWER(camp_b.name) = $2 THEN 2
+        ELSE 3
+      END,
+      v.created_at DESC,
+      v.versus_id DESC
+    LIMIT $3
+  `, [KORUM_CHAIN_ID, searchQuery, limit]);
+}
+
+export function searchIndexedDebatesWithDiagnostic(
+  searchQuery: string,
+  diagnostic?: CacheDiagnostic,
+  limit = INDEXED_DEBATE_SEARCH_LIMIT,
+) {
+  const normalizedSearch = searchQuery.trim().replace(/\s+/g, " ").slice(0, 100).toLocaleLowerCase("en-US");
+  if (normalizedSearch.length < 2) return Promise.resolve([]);
+  const safeLimit = Math.min(INDEXED_DEBATE_SEARCH_LIMIT, Math.max(1, Math.trunc(limit)));
+
+  return rememberJson(
+    redisCacheKey("debates", "search-v2", normalizedSearch, safeLimit),
+    INDEXED_DEBATE_SEARCH_CACHE_SECONDS,
+    async () => {
+      const matches = await searchIndexedDebateIds(normalizedSearch, safeLimit);
+      const versusIds = matches.map((match) => match.versusId);
+      if (versusIds.length === 0) return [];
+
+      const debates = await readIndexedDebates({ limit: versusIds.length, versusIds });
+      const debateById = new Map(debates.map((debate) => [String(debate.id), debate]));
+      return versusIds.flatMap((versusId) => {
+        const debate = debateById.get(versusId);
+        return debate ? [debate] : [];
+      });
+    },
+    diagnostic,
+  );
 }
 
 async function getCachedIndexedDebateById(versusId: string, diagnostic?: CacheDiagnostic) {

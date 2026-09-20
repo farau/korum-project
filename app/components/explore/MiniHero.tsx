@@ -15,6 +15,7 @@ export default function MiniHero() {
             id="searchInput"
             placeholder="Search for a debate, token, or category…"
             className="korum-search-input"
+            maxLength={100}
             value={query}
             onChange={(event) => setQuery(event.target.value)}
           />

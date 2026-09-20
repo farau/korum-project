@@ -9,7 +9,7 @@ import {
 } from "@rainbow-me/rainbowkit";
 import { useRouter } from "next/navigation";
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
-import { useAccount } from "wagmi";
+import { useAccount, useDisconnect } from "wagmi";
 
 type WalletContextValue = {
   address: string | null;
@@ -20,6 +20,7 @@ type WalletContextValue = {
   authError: string | null;
   connect: () => void;
   openWallet: () => void;
+  disconnect: () => Promise<void>;
 };
 
 type SessionResponse = {
@@ -176,6 +177,7 @@ export function WalletAuthenticationProvider({ children }: { children: React.Rea
 
 export function WalletProvider({ children }: { children: React.ReactNode }) {
   const { address, isConnected, status: accountStatus } = useAccount();
+  const { disconnectAsync } = useDisconnect();
   const { openAccountModal } = useAccountModal();
   const { openConnectModal } = useConnectModal();
   const authContext = useContext(AuthContext);
@@ -227,6 +229,14 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     openConnectModal?.();
   }, [authenticationStatus, openAccountModal, openConnectModal]);
 
+  const disconnect = useCallback(async () => {
+    const [, walletResult] = await Promise.allSettled([
+      authContext.signOut(),
+      disconnectAsync(),
+    ]);
+    if (walletResult.status === "rejected") throw walletResult.reason;
+  }, [authContext, disconnectAsync]);
+
   // Wagmi may restore a cookie-backed account on the server before the matching
   // connector exists in the browser. Hide account state until mount so every
   // consumer gets the same first render and React can hydrate deterministically.
@@ -253,11 +263,13 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     authError: authContext.authError,
     connect,
     openWallet,
+    disconnect,
   }), [
     authContext.authError,
     authenticated,
     authenticating,
     connect,
+    disconnect,
     hydrated,
     connected,
     normalizedAddress,

@@ -4,13 +4,14 @@ import React, { useEffect, useMemo, useState } from "react";
 import VsCard from "./VsCard";
 import VsTable from "./VsTable";
 import type { Debate } from "../../lib/debates";
-import { useIndexedDebates } from "../../hooks/useIndexedMarkets";
+import { useIndexedDebates, useIndexedDebateSearch } from "../../hooks/useIndexedMarkets";
 import { useExploreSearch } from "./ExploreSearchProvider";
 
 type SortMode = "trending" | "marketCap" | "volume" | "holders" | "recent";
 type PaginationItem = number | "start-ellipsis" | "end-ellipsis";
 
 const PAGE_SIZE = 12;
+const EMPTY_DEBATES: Debate[] = [];
 
 const sortLabels: Array<{ value: SortMode; label: string }> = [
   { value: "trending", label: "Trending" },
@@ -47,10 +48,15 @@ function newestTimestamp(debate: Debate) {
   );
 }
 
-function ageHours(debate: Debate, now: number | null) {
+function ageLabel(debate: Debate, now: number | null) {
   const timestamp = newestTimestamp(debate);
-  if (!timestamp || !now) return Math.round(debate.createdMinutesAgo / 60);
-  return Math.max(0, Math.round((now - timestamp) / 3_600_000));
+  const minutes = timestamp && now
+    ? Math.max(0, Math.floor((now - timestamp) / 60_000))
+    : Math.max(0, debate.createdMinutesAgo);
+
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  return `${Math.floor(hours / 24)}d ago`;
 }
 
 function normalizeSearch(value: string) {
@@ -61,14 +67,13 @@ function normalizeSearch(value: string) {
     .trim();
 }
 
-function compactSearch(value: string) {
-  return normalizeSearch(value).replace(/[^a-z0-9]/g, "");
-}
-
-function matchesSearch(debate: Debate, query: string) {
-  if (!query) return true;
-  const value = `${debate.tokenA?.name || debate.sideA} ${debate.tokenB?.name || debate.sideB} ${debate.tokenA?.symbol || debate.tokenASymbol || ""} ${debate.tokenB?.symbol || debate.tokenBSymbol || ""} ${debate.category}`;
-  return normalizeSearch(value).includes(query) || compactSearch(value).includes(compactSearch(query));
+function useDebouncedValue(value: string, delay: number) {
+  const [debouncedValue, setDebouncedValue] = useState(value);
+  useEffect(() => {
+    const timer = window.setTimeout(() => setDebouncedValue(value), delay);
+    return () => window.clearTimeout(timer);
+  }, [delay, value]);
+  return debouncedValue;
 }
 
 function paginationItems(currentPage: number, totalPages: number): PaginationItem[] {
@@ -104,7 +109,7 @@ function PaginatedResults({ debates, view, now }: { debates: Debate[]; view: "gr
           {pageDebates.map((debate, index) => <VsCard key={debate.id} debate={debate} index={pageStart + index} inlineTrading />)}
         </div>
       ) : (
-        <VsTable debates={pageDebates} ageLabel={(debate) => `${ageHours(debate, now)}h ago`} />
+        <VsTable debates={pageDebates} ageLabel={(debate) => ageLabel(debate, now)} />
       )}
 
       {totalPages > 1 ? (
@@ -142,13 +147,20 @@ type VsListClientProps = {
 export default function VsListClient({ indexedDebates, indexedReadFailed }: VsListClientProps) {
   const liveDebates = useIndexedDebates(indexedDebates);
   const { query, category } = useExploreSearch();
+  const trimmedQuery = query.trim();
+  const searchTooShort = trimmedQuery.length > 0 && trimmedQuery.length < 2;
+  const debouncedQuery = useDebouncedValue(trimmedQuery, 400);
+  const activeSearchQuery = trimmedQuery.length >= 2 && debouncedQuery.length >= 2 ? debouncedQuery : "";
+  const searchedDebates = useIndexedDebateSearch(activeSearchQuery, Boolean(activeSearchQuery));
   const [sortMode, setSortMode] = useState<SortMode>("trending");
   const [menuOpen, setMenuOpen] = useState(false);
   const [view, setView] = useState<"grid" | "table">("grid");
   const [now, setNow] = useState<number | null>(null);
-  const currentIndexedDebates = liveDebates.data ?? indexedDebates;
-  const currentIndexedReadFailed = currentIndexedDebates.length === 0 && (indexedReadFailed || liveDebates.isError);
-  const indexedFeedEmpty = currentIndexedDebates.length === 0;
+  const baseDebates = liveDebates.data ?? indexedDebates;
+  const currentIndexedDebates = activeSearchQuery ? searchedDebates.data ?? EMPTY_DEBATES : baseDebates;
+  const searchPending = trimmedQuery.length >= 2 && (trimmedQuery !== debouncedQuery || searchedDebates.isPending || searchedDebates.isPlaceholderData);
+  const currentIndexedReadFailed = currentIndexedDebates.length === 0 && (activeSearchQuery ? searchedDebates.isError : indexedReadFailed || liveDebates.isError);
+  const indexedFeedEmpty = !trimmedQuery && baseDebates.length === 0;
 
   useEffect(() => {
     const syncNow = () => setNow(Date.now());
@@ -162,19 +174,18 @@ export default function VsListClient({ indexedDebates, indexedReadFailed }: VsLi
 
   const filtered = useMemo(() => {
     const debates = currentIndexedDebates;
-    const normalizedQuery = normalizeSearch(query);
     const list = category === "HotTake"
       ? [...debates].sort((a, b) => debateVolume(b) - debateVolume(a)).slice(0, 12)
       : debates.filter((debate) => category === "All" || normalizeSearch(debate.category) === normalizeSearch(category));
-    const searchedList = list.filter((debate) => matchesSearch(debate, normalizedQuery));
+    const searchedList = [...list];
     if (sortMode === "marketCap" || sortMode === "trending") searchedList.sort((a, b) => totalMarketCap(b) - totalMarketCap(a));
     if (sortMode === "volume") searchedList.sort((a, b) => debateVolume(b) - debateVolume(a));
     if (sortMode === "holders") searchedList.sort((a, b) => debateParticipants(b) - debateParticipants(a));
     if (sortMode === "recent") searchedList.sort((a, b) => newestTimestamp(b) - newestTimestamp(a));
     return searchedList;
-  }, [category, currentIndexedDebates, query, sortMode]);
+  }, [category, currentIndexedDebates, sortMode]);
 
-  const paginationKey = `indexed:${category}:${query}:${sortMode}:${filtered.map((debate) => debate.id).join(",")}`;
+  const paginationKey = `indexed:${category}:${activeSearchQuery}:${sortMode}:${filtered.map((debate) => debate.id).join(",")}`;
 
   return (
     <section className="grid-section">
@@ -198,10 +209,20 @@ export default function VsListClient({ indexedDebates, indexedReadFailed }: VsLi
 
           <div className="filter-right-group">
             <div className={`custom-select ${menuOpen ? "open" : ""}`}>
-              <button type="button" className="custom-select-btn filters-toggle" onClick={() => setMenuOpen((open) => !open)}>
+              <button
+                type="button"
+                className="custom-select-btn filters-toggle"
+                aria-expanded={menuOpen}
+                aria-controls="explore-filters-menu"
+                onClick={() => setMenuOpen((open) => !open)}
+              >
                 Filters <span className="chevron">▾</span>
               </button>
-              <div className="custom-select-menu filters-sort-menu">
+              <div
+                id="explore-filters-menu"
+                className="custom-select-menu filters-sort-menu"
+                aria-hidden={!menuOpen}
+              >
                 <div className="fs-section-title">Sort by</div>
                 {sortLabels.map((item) => (
                   <button
@@ -245,7 +266,19 @@ export default function VsListClient({ indexedDebates, indexedReadFailed }: VsLi
           </div>
         </div>
 
-        {filtered.length === 0 ? (
+        {searchTooShort ? (
+          <div className="explore-empty-versus" role="status" aria-live="polite">
+            <span className="explore-empty-versus-icon" aria-hidden="true">VS</span>
+            <h2>Keep typing…</h2>
+            <p>Enter at least 2 characters to search all versus.</p>
+          </div>
+        ) : searchPending ? (
+          <div className="explore-empty-versus" role="status" aria-live="polite">
+            <span className="explore-empty-versus-icon" aria-hidden="true">VS</span>
+            <h2>Searching versus…</h2>
+            <p>Querying the complete Railway index.</p>
+          </div>
+        ) : filtered.length === 0 ? (
           <div className="explore-empty-versus" role="status">
             <span className="explore-empty-versus-icon" aria-hidden="true">VS</span>
             <h2>{currentIndexedReadFailed

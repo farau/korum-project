@@ -24,10 +24,17 @@ function debateParticipants(debate: Debate) {
   return debate.participantCount ?? 0;
 }
 
+function quickAmountUsd(amount: string, ethUsd: number | undefined) {
+  if (typeof ethUsd !== "number" || !Number.isFinite(ethUsd) || ethUsd <= 0) {
+    return "USD price unavailable";
+  }
+  return `≈ ${formatMarketValue(Number(amount) * ethUsd, "USD")}`;
+}
+
 function fmtAgeFromMinutes(minutes: number) {
-  if (minutes < 60) return `il y a ${minutes} min`;
-  if (minutes < 1440) return `il y a ${Math.round(minutes / 60)}h`;
-  return `il y a ${Math.round(minutes / 1440)}j`;
+  if (minutes < 60) return `${minutes}m ago`;
+  if (minutes < 1440) return `${Math.round(minutes / 60)}h ago`;
+  return `${Math.round(minutes / 1440)}d ago`;
 }
 
 function timestampMs(value?: string | number) {
@@ -94,6 +101,7 @@ export default function VsCard({ debate, index = 0, inlineTrading = false }: { d
   const tokenA = getTokenA(debate);
   const tokenB = getTokenB(debate);
   const currency = debate.marketCurrency ?? "USD";
+  const ethUsd = debate.quoteUsd ?? tokenA.quoteUsd ?? tokenB.quoteUsd;
   const sideAPercentage = tokenA.marketCap && tokenB.marketCap ? Math.round((tokenA.marketCap / (tokenA.marketCap + tokenB.marketCap)) * 100) : debate.sideAPercentage || 50;
   const leaderIsA = sideAPercentage >= 50;
   const { toggle, has } = useWatchlist();
@@ -192,7 +200,7 @@ export default function VsCard({ debate, index = 0, inlineTrading = false }: { d
 
       <div className="vs-body">
         <div className="creator-line">
-          <span>par</span>
+          <span>by</span>
           <span className="name">{creatorName}</span>
           {creatorRankLabel && creatorRankClass ? <span className={`creator-rank ${creatorRankClass}`}>{creatorRankLabel}</span> : null}
           {debate.creatorIsNew ? <span className="creator-rank new">NEW CREATOR</span> : null}
@@ -231,7 +239,7 @@ export default function VsCard({ debate, index = 0, inlineTrading = false }: { d
               <rect x="10.3" y="9" width="3.4" height="11" />
               <rect x="16.6" y="4" width="3.4" height="16" />
             </svg>
-            <span className="stat-text"><span className="lbl">MCAP total</span><span className="val">{formatMarketValue(totalMarketCap(debate), currency, 1)}</span></span>
+            <span className="stat-text"><span className="lbl">Total MCAP</span><span className="val">{formatMarketValue(totalMarketCap(debate), currency, 1)}</span></span>
           </div>
           <div className="stat-item">
             <svg className="stat-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -240,45 +248,45 @@ export default function VsCard({ debate, index = 0, inlineTrading = false }: { d
               <circle cx="17" cy="9" r="2.2" />
               <path d="M15.3 14.4c2.5.4 4.1 2.2 4.1 4.9" />
             </svg>
-            <span className="stat-text"><span className="lbl">Parieurs</span><span className="val">{debateParticipants(debate).toLocaleString("fr-FR")}</span></span>
+            <span className="stat-text"><span className="lbl">Traders</span><span className="val">{debateParticipants(debate).toLocaleString("en-US")}</span></span>
           </div>
           <div className="stat-item">
             <svg className="stat-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
               <path d="M3 16l5-6 4 3 5-7 4 4" />
             </svg>
-            <span className="stat-text"><span className="lbl">Vol 24h</span><span className="val">{formatMarketValue(debateVolume(debate), currency, 1)}</span></span>
+            <span className="stat-text"><span className="lbl">24h Vol</span><span className="val">{formatMarketValue(debateVolume(debate), currency, 1)}</span></span>
           </div>
         </div>
 
-        <div className="trade-toggle">
-          <button type="button" data-mode-btn="buy" className={mode === "buy" ? "active" : ""} onClick={() => selectTradeMode("buy")}>Acheter</button>
-          <button type="button" data-mode-btn="sell" className={mode === "sell" ? "active" : ""} onClick={() => selectTradeMode("sell")}>Vendre</button>
-        </div>
+        <div className="vs-trading-zone" onClick={(event) => event.stopPropagation()}>
+          <div className="trade-toggle">
+            <button type="button" data-mode-btn="buy" className={mode === "buy" ? "active" : ""} onClick={() => selectTradeMode("buy")}>Buy</button>
+            <button type="button" data-mode-btn="sell" className={mode === "sell" ? "active" : ""} onClick={() => selectTradeMode("sell")}>Sell</button>
+          </div>
 
-        <div className="vs-quick-amount">
-          <span className="qa-label">Mise</span>
-          {qa.map((quickAmount) => (
-            <button
-              type="button"
-              className={`qa-btn ${amount === quickAmount ? "active" : ""}`}
-              data-usd={`≈ ${formatMarketValue(Number(quickAmount) * 3200, "USD")}`}
-              onClick={() => { setAmount(quickAmount); setTradeExpanded(false); setTradeStatus(""); }}
-              key={quickAmount}
-            >
-              {quickAmount.replace(".", ",")}
-            </button>
-          ))}
-          <button type="button" className={`qa-btn qa-btn-max ${amount === "max" ? "active" : ""}`} data-usd="≈ max" onClick={() => { setAmount("max"); setTradeExpanded(false); setTradeStatus(""); }}>MAX</button>
-          <span className="qa-unit" aria-label="ether">◆ ETH</span>
-        </div>
+          <div className="vs-quick-amount">
+            <span className="qa-label">Amount</span>
+            {qa.map((quickAmount) => (
+              <button
+                type="button"
+                className={`qa-btn ${amount === quickAmount ? "active" : ""}`}
+                data-usd={quickAmountUsd(quickAmount, ethUsd)}
+                onClick={() => { setAmount(quickAmount); setTradeExpanded(false); setTradeStatus(""); }}
+                key={quickAmount}
+              >
+                {quickAmount}
+              </button>
+            ))}
+            <button type="button" className={`qa-btn qa-btn-max ${amount === "max" ? "active" : ""}`} data-usd="≈ max" onClick={() => { setAmount("max"); setTradeExpanded(false); setTradeStatus(""); }}>MAX</button>
+            <span className="qa-unit" aria-label="ether">◆ ETH</span>
+          </div>
 
-        <div className="vs-buy-row">
-          <button className={`vs-buy ${side === "sideA" ? "active" : ""}`} type="button" onClick={() => { setSide("sideA"); setTradeStatus(""); }}>{tokenA.symbol}</button>
-          <button className={`vs-buy ${side === "sideB" ? "active" : ""}`} type="button" onClick={() => { setSide("sideB"); setTradeStatus(""); }}>{tokenB.symbol}</button>
-        </div>
+          <div className="vs-buy-row">
+            <button className={`vs-buy ${side === "sideA" ? "active" : ""}`} type="button" onClick={() => { setSide("sideA"); setTradeStatus(""); }}>{tokenA.symbol}</button>
+            <button className={`vs-buy ${side === "sideB" ? "active" : ""}`} type="button" onClick={() => { setSide("sideB"); setTradeStatus(""); }}>{tokenB.symbol}</button>
+          </div>
 
-        {inlineTrading && tradeExpanded ? (
-          <>
+          {inlineTrading && tradeExpanded ? (
             <div className="vs-inline-trade">
               <TokenTradePanel
                 key={`${selectedToken.address ?? selectedToken.symbol}-${mode}`}
@@ -290,33 +298,33 @@ export default function VsCard({ debate, index = 0, inlineTrading = false }: { d
               />
               {tradeStatus ? <p className="vs-inline-trade-status" role="status">{tradeStatus}</p> : null}
             </div>
-          </>
-        ) : (
-          <button type="button" className="vs-cta-buy" onClick={() => inlineTrading && setTradeExpanded(true)}>
-            <span className="vs-cta-label">{mode === "buy" ? "Acheter" : "Vendre"} {selected}</span>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-              <line x1="5" y1="12" x2="19" y2="12" />
-              <polyline points="12 5 19 12 12 19" />
-            </svg>
+          ) : (
+            <button type="button" className="vs-cta-buy" onClick={() => inlineTrading && setTradeExpanded(true)}>
+              <span className="vs-cta-label">{mode === "buy" ? "Buy" : "Sell"} {selected}</span>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <line x1="5" y1="12" x2="19" y2="12" />
+                <polyline points="12 5 19 12 12 19" />
+              </svg>
+            </button>
+          )}
+
+          <div className="vs-foot-note" aria-hidden="true">
+            <span className="fn-item">▣ Exit anytime</span>
+            <span className="fn-sep" />
+            <span className="fn-item">▤ Earn from generated volume</span>
+          </div>
+
+          <button
+            type="button"
+            className={`watchlist-mini ${starred ? "active" : ""}`}
+            aria-label={starred ? "Remove from watchlist" : "Add to watchlist"}
+            aria-pressed={starred}
+            title={starred ? "Remove from watchlist" : "Add to watchlist"}
+            onClick={() => toggle(debate.id, `${debate.sideA} vs ${debate.sideB}`)}
+          >
+            {starred ? "★" : "☆"}
           </button>
-        )}
-
-        <div className="vs-foot-note" aria-hidden="true">
-          <span className="fn-item">▣ Sors quand tu veux</span>
-          <span className="fn-sep" />
-          <span className="fn-item">▤ Payé sur le volume généré</span>
         </div>
-
-        <button
-          type="button"
-          className={`watchlist-mini ${starred ? "active" : ""}`}
-          aria-label={starred ? "Remove from watchlist" : "Add to watchlist"}
-          aria-pressed={starred}
-          title={starred ? "Remove from watchlist" : "Add to watchlist"}
-          onClick={() => toggle(debate.id, `${debate.sideA} vs ${debate.sideB}`)}
-        >
-          {starred ? "★" : "☆"}
-        </button>
         </div>
       </article>
     </>

@@ -7,6 +7,7 @@ import { useWatchlist } from "../hooks/useWatchlist";
 import { BADGE_TIERS, calculateBadgeProgress, type BadgeTier } from "../lib/badges";
 import { formatMarketValue, formatTokenAmount } from "../lib/markets/format";
 import type { UserProfile, UserProfileActivityPage, UserProfileStats } from "../lib/profile";
+import ProfileAvatar from "./ProfileAvatar";
 import { shortenAddress, useWallet } from "./WalletProvider";
 
 type ProfileTab = "information" | "activity" | "referrals" | "badges" | "watchlist" | "simulator";
@@ -26,10 +27,6 @@ const PROFILE_TABS: Array<{ id: ProfileTab; label: string }> = [
   { id: "watchlist", label: "Watchlist" },
   { id: "simulator", label: "Global simulator" },
 ];
-
-function walletInitial(address: string) {
-  return address.slice(2, 4).toUpperCase();
-}
 
 function chainName(chainId: number | null) {
   if (chainId === 4663) return "Robinhood Chain";
@@ -447,9 +444,68 @@ function SimulatorPanel() {
 }
 
 function LockedProfile({ connected, authenticating, authError, connect, loading = false }: { connected: boolean; authenticating: boolean; authError: string | null; connect: () => void; loading?: boolean }) {
+  const title = loading ? "Loading your profile" : connected ? "Verify your wallet" : "Unlock your Korum profile";
+  const description = loading
+    ? "Checking your wallet connection and restoring your secure session."
+    : connected
+      ? "Your wallet is connected. Sign the secure message to access the profile linked to this address."
+      : "Connect your EVM wallet to bring your activity, badges, referrals, and saved Versus together.";
+  const buttonLabel = authenticating ? "Waiting for signature…" : connected ? "Sign in with wallet" : "Connect wallet";
+
   return (
     <div className="page profile-page">
-      <section className="profile-reference-hero profile-locked-hero"><div className="wrap profile-locked-card"><span className="vs-hero-badge">Profile</span><h1>Wallet required</h1><p>{loading ? "Loading wallet status..." : "Connect and sign with your EVM wallet to access the profile linked to that address."}</p>{authError ? <p role="alert">{authError}</p> : null}{!loading ? <button type="button" className="btn btn-solid wallet-shine-btn" disabled={authenticating} onClick={connect}>{authenticating ? "Waiting for signature..." : connected ? "Sign in with wallet" : "Connect wallet"}</button> : null}</div></section>
+      <section className="profile-reference-hero profile-locked-hero" aria-live={loading ? "polite" : undefined}>
+        <div className="wrap profile-locked-wrap">
+          <div className={`profile-locked-card${loading ? " is-loading" : ""}`}>
+            <div className="profile-locked-copy">
+              <span className="profile-locked-eyebrow"><span aria-hidden="true" /> Wallet required</span>
+              <h1>{title}</h1>
+              <p>{description}</p>
+
+              {authError ? <div className="profile-locked-error" role="alert"><span aria-hidden="true">!</span>{authError}</div> : null}
+
+              {!loading ? (
+                <button type="button" className="btn btn-solid wallet-shine-btn profile-unlock-button" disabled={authenticating} onClick={connect}>
+                  <Icon name="wallet" />
+                  <span>{buttonLabel}</span>
+                  <span className="profile-unlock-arrow" aria-hidden="true">→</span>
+                </button>
+              ) : <div className="profile-locked-loading" role="status"><span aria-hidden="true" /> Checking wallet status…</div>}
+
+              <div className="profile-locked-assurances" aria-label="Wallet connection information">
+                <span><strong>No custody</strong>Korum never holds your funds</span>
+                <span><strong>Secure access</strong>A signature proves wallet ownership</span>
+              </div>
+            </div>
+
+            <div className="profile-locked-preview" aria-hidden="true">
+              <div className="profile-preview-glow" />
+              <div className="profile-preview-card">
+                <div className="profile-preview-heading">
+                  <div className="profile-preview-avatar">KR</div>
+                  <div><span>Your profile</span><strong>0x•••• · ••••</strong></div>
+                  <span className="profile-preview-lock">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="5" y="10" width="14" height="10" rx="2" /><path d="M8.5 10V7.5a3.5 3.5 0 0 1 7 0V10" /></svg>
+                  </span>
+                </div>
+                <div className="profile-preview-pills"><span>Wallet verified</span><span>Robinhood Chain</span></div>
+                <div className="profile-preview-stats">
+                  <span><small>Activity</small><strong>—</strong></span>
+                  <span><small>Badge</small><strong>Locked</strong></span>
+                  <span><small>Watchlist</small><strong>—</strong></span>
+                </div>
+                <div className="profile-preview-chart"><i /><i /><i /><i /><i /><i /><i /><i /></div>
+              </div>
+            </div>
+          </div>
+
+          <div className="profile-locked-benefits">
+            <article><span className="profile-benefit-icon"><Icon name="trade" /></span><div><strong>Track your activity</strong><p>Review indexed trades and estimated performance.</p></div></article>
+            <article><span className="profile-benefit-icon"><Icon name="users" /></span><div><strong>Grow your reputation</strong><p>Follow badges, referrals, and creator progress.</p></div></article>
+            <article><span className="profile-benefit-icon"><Icon name="bolt" /></span><div><strong>Keep your Versus close</strong><p>Find every market saved to your watchlist.</p></div></article>
+          </div>
+        </div>
+      </section>
     </div>
   );
 }
@@ -477,7 +533,7 @@ export default function ProfileClient({ profile, stats, sessionAddress, sessionC
   return (
     <div className="page profile-page">
       <section className="profile-reference-hero">
-        <div className="wrap"><div className="profile-reference-card"><div className="profile-avatar-hex" aria-hidden="true">{walletInitial(address)}</div><div className="profile-reference-main"><h1>{currentProfile.displayName || shortenAddress(address)}</h1><p>{currentProfile.bio || "Profile linked to your connected EVM wallet."}</p><div className="profile-reference-badges"><span>Wallet verified</span><span>{chainName(sessionChainId)}</span></div></div></div></div>
+        <div className="wrap"><div className="profile-reference-card"><ProfileAvatar address={address} className="profile-avatar-hex" /><div className="profile-reference-main"><h1>{currentProfile.displayName || shortenAddress(address)}</h1><p>{currentProfile.bio || "Profile linked to your connected EVM wallet."}</p><div className="profile-reference-badges"><span>Wallet verified</span><span>{chainName(sessionChainId)}</span></div></div></div></div>
       </section>
       <section className="profile-reference-content">
         <div className="wrap">

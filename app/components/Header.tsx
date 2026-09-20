@@ -9,6 +9,7 @@ import {
   storeNotifications,
   type AppNotification,
 } from "../lib/notifications/client";
+import ProfileAvatar from "./ProfileAvatar";
 import { shortenAddress, useWallet } from "./WalletProvider";
 
 const navItems = [
@@ -51,13 +52,21 @@ function ThemeIcon() {
   );
 }
 
+function DisconnectIcon() {
+  return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M10 4H5.5A1.5 1.5 0 0 0 4 5.5v13A1.5 1.5 0 0 0 5.5 20H10" /><path d="m15 16 4-4-4-4M19 12H9" /></svg>;
+}
+
 export default function Header() {
   const pathname = usePathname();
   const [menuOpen, setMenuOpen] = useState(false);
   const [notificationOpen, setNotificationOpen] = useState(false);
+  const [walletMenuOpen, setWalletMenuOpen] = useState(false);
+  const [disconnecting, setDisconnecting] = useState(false);
+  const [disconnectError, setDisconnectError] = useState<string | null>(null);
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const notificationCenterRef = useRef<HTMLDivElement>(null);
-  const { address, connected, authenticating, connect, openWallet, hydrated: walletHydrated } = useWallet();
+  const walletCenterRef = useRef<HTMLDivElement>(null);
+  const { address, connected, authenticating, connect, disconnect, hydrated: walletHydrated } = useWallet();
 
   useEffect(() => {
     let cancelled = false;
@@ -137,11 +146,31 @@ export default function Header() {
     };
   }, [notificationOpen]);
 
+  useEffect(() => {
+    if (!walletMenuOpen) return;
+
+    function closeOnOutsideClick(event: PointerEvent) {
+      if (!walletCenterRef.current?.contains(event.target as Node)) setWalletMenuOpen(false);
+    }
+
+    function closeOnEscape(event: KeyboardEvent) {
+      if (event.key === "Escape") setWalletMenuOpen(false);
+    }
+
+    document.addEventListener("pointerdown", closeOnOutsideClick);
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.removeEventListener("pointerdown", closeOnOutsideClick);
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [walletMenuOpen]);
+
   const hasUnreadNotifications = notifications.some((notification) => !notification.read);
 
   function toggleNotifications() {
     const nextOpen = !notificationOpen;
     setNotificationOpen(nextOpen);
+    if (nextOpen) setWalletMenuOpen(false);
     if (!hasUnreadNotifications) return;
 
     setNotifications((current) => {
@@ -175,6 +204,25 @@ export default function Header() {
     applyTheme();
   }
 
+  function toggleWalletMenu() {
+    setWalletMenuOpen((open) => !open);
+    setNotificationOpen(false);
+    setDisconnectError(null);
+  }
+
+  async function disconnectWallet() {
+    setDisconnecting(true);
+    setDisconnectError(null);
+    try {
+      await disconnect();
+      setWalletMenuOpen(false);
+    } catch {
+      setDisconnectError("Unable to disconnect the wallet. Try again.");
+    } finally {
+      setDisconnecting(false);
+    }
+  }
+
   return (
     <header className="topbar">
       <div className="topbar-inner">
@@ -182,7 +230,7 @@ export default function Header() {
           <LogoMark />
         </Link>
 
-        <nav className={`topnav${menuOpen ? " open" : ""}`}>
+        <nav className={`topnav${menuOpen ? " open" : ""}`} id="primary-navigation" aria-label="Main navigation">
           {navItems.map((item) => (
             <Link key={item.href} href={item.href} className={pathname === item.href ? "active" : undefined} onClick={() => setMenuOpen(false)}>
               {item.label}
@@ -232,28 +280,68 @@ export default function Header() {
             <ThemeIcon />
           </button>
 
-          {walletHydrated && connected ? (
-            <Link href="/profile" className="icon-btn header-icon" aria-label="Profile">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="3.4" /><path d="M5 20c0-4 3.5-6.5 7-6.5s7 2.5 7 6.5" /></svg>
-            </Link>
-          ) : null}
+          <Link href="/create" className="btn btn-create" aria-label="Create a VS">
+            <span className="btn-create-label-desktop">Create a VS</span>
+            <span className="btn-create-label-mobile" aria-hidden="true">VS</span>
+          </Link>
 
-          <Link href="/create" className="btn btn-create">Create a VS</Link>
+          {connected && address ? (
+            <div className="wallet-account-center" ref={walletCenterRef}>
+              <button
+                type="button"
+                className="wallet-avatar-button"
+                aria-label="Open wallet menu"
+                aria-expanded={walletMenuOpen}
+                aria-controls="wallet-account-panel"
+                onClick={toggleWalletMenu}
+              >
+                <ProfileAvatar address={address} />
+              </button>
 
-          <button
-            type="button"
-            className="btn btn-solid wallet-shine-btn"
-            disabled={!walletHydrated || authenticating}
-            onClick={connected ? openWallet : connect}
-            aria-busy={authenticating}
-            title={authenticating ? "Authenticating wallet..." : undefined}
-          >
-            {address ? shortenAddress(address) : connected ? "Connecting..." : "Connect wallet"}
-          </button>
+              {walletMenuOpen ? (
+                <section className="wallet-account-panel" id="wallet-account-panel" role="dialog" aria-label="Connected wallet">
+                  <div className="wallet-account-summary">
+                    <ProfileAvatar address={address} className="wallet-avatar-large" />
+                    <div className="wallet-account-copy">
+                      <span>Connected with</span>
+                      <strong>{shortenAddress(address)}</strong>
+                    </div>
+                    <Link href="/profile" className="wallet-profile-link" onClick={() => setWalletMenuOpen(false)}>See Profile</Link>
+                  </div>
+                  <div className="wallet-account-divider" />
+                  <button type="button" className="wallet-disconnect-button" disabled={disconnecting} onClick={disconnectWallet}>
+                    <DisconnectIcon />
+                    <span>{disconnecting ? "Disconnecting…" : "Disconnect wallet"}</span>
+                  </button>
+                  {disconnectError ? <p className="wallet-disconnect-error" role="alert">{disconnectError}</p> : null}
+                </section>
+              ) : null}
+            </div>
+          ) : (
+            <button
+              type="button"
+              className="btn btn-solid wallet-shine-btn"
+              disabled={!walletHydrated || authenticating}
+              onClick={connect}
+              aria-busy={authenticating}
+              title={authenticating ? "Authenticating wallet..." : undefined}
+            >
+              {connected ? "Connecting..." : "Connect wallet"}
+            </button>
+          )}
 
         </div>
 
-        <button type="button" className="navtoggle" aria-label="Menu" aria-expanded={menuOpen} onClick={() => setMenuOpen((open) => !open)}>☰</button>
+        <button
+          type="button"
+          className="navtoggle"
+          aria-label={menuOpen ? "Close menu" : "Open menu"}
+          aria-controls="primary-navigation"
+          aria-expanded={menuOpen}
+          onClick={() => setMenuOpen((open) => !open)}
+        >
+          <span aria-hidden="true">{menuOpen ? "×" : "☰"}</span>
+        </button>
       </div>
     </header>
   );
