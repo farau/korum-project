@@ -1,5 +1,7 @@
 import "server-only";
 
+import { INDEXER_SCHEMA } from "../../config/deployment";
+
 import { redisCacheKey, rememberJson, type CacheDiagnostic } from "../cache/redis";
 import { getEthUsdQuote } from "../markets/quote-usd";
 import { unitsNumber } from "../markets/math";
@@ -64,8 +66,8 @@ async function loadAnalytics(period: AnalyticsPeriod): Promise<AnalyticsSnapshot
         COALESCE(SUM(trade.fee_creator), 0)::TEXT AS "creatorFeesEth",
         COUNT(DISTINCT trade.trader_address)::INTEGER AS traders,
         COUNT(DISTINCT camp.versus_id)::INTEGER AS "activeVersus"
-      FROM indexer.camp_trades trade
-      JOIN indexer.versus_camps camp
+      FROM ${INDEXER_SCHEMA}.camp_trades trade
+      JOIN ${INDEXER_SCHEMA}.versus_camps camp
         ON camp.chain_id = trade.chain_id
         AND camp.token_address = trade.token_address
       WHERE trade.chain_id = $1
@@ -76,7 +78,7 @@ async function loadAnalytics(period: AnalyticsPeriod): Promise<AnalyticsSnapshot
         FLOOR(EXTRACT(EPOCH FROM trade.traded_at) / $3) * $3 AS timestamp,
         COALESCE(SUM(trade.eth_gross), 0)::TEXT AS "volumeEth",
         COUNT(*)::INTEGER AS trades
-      FROM indexer.camp_trades trade
+      FROM ${INDEXER_SCHEMA}.camp_trades trade
       WHERE trade.chain_id = $1
         AND trade.traded_at >= TO_TIMESTAMP($2::DOUBLE PRECISION)
       GROUP BY FLOOR(EXTRACT(EPOCH FROM trade.traded_at) / $3)

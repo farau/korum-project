@@ -1,9 +1,13 @@
+import { readFile } from "node:fs/promises";
 import { randomInt } from "node:crypto";
 import process from "node:process";
 import postgres from "postgres";
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 
 const appUrl = process.env.KORUM_TEST_APP_URL || "http://localhost:3000";
+const chainId = process.env.NEXT_PUBLIC_KORUM_NETWORK === "mainnet" ? 4663 : 46630;
+const deployment = JSON.parse(await readFile(new URL(`../contracts/deployments/${chainId}.json`, import.meta.url)));
+const schema = deployment.readModelSchema;
 const databaseUrl = process.env.DATABASE_PUBLIC_URL || process.env.DATABASE_URL;
 const tunnelHost = process.env.KORUM_DB_TUNNEL_HOST;
 const usesSecureCookies = new URL(appUrl).protocol === "https:";
@@ -246,12 +250,12 @@ try {
       versus.versus_id::TEXT AS versus_id,
       camp_a.name AS side_a,
       camp_b.name AS side_b
-    FROM indexer.versuses versus
-    INNER JOIN indexer.versus_camps camp_a
+    FROM ${database(schema)}.versuses versus
+    INNER JOIN ${database(schema)}.versus_camps camp_a
       ON camp_a.chain_id = versus.chain_id
       AND camp_a.versus_id = versus.versus_id
       AND camp_a.side = 0
-    INNER JOIN indexer.versus_camps camp_b
+    INNER JOIN ${database(schema)}.versus_camps camp_b
       ON camp_b.chain_id = versus.chain_id
       AND camp_b.versus_id = versus.versus_id
       AND camp_b.side = 1

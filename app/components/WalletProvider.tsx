@@ -10,6 +10,7 @@ import {
 import { useRouter } from "next/navigation";
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { useAccount, useDisconnect } from "wagmi";
+import { WalletSessionGuard, walletMatches, isWalletConnectorReady } from "../lib/auth/wallet-session-guard";
 
 type WalletContextValue = {
   address: string | null;
@@ -49,28 +50,41 @@ async function responseError(response: Response, fallback: string) {
 
 export function WalletAuthenticationProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter();
-  const { address, isConnected, status: accountStatus } = useAccount();
+  const { address, connector: restoredConnector, isConnected, status: accountStatus } = useAccount();
+  const connector = isWalletConnectorReady(accountStatus, restoredConnector) ? restoredConnector : undefined;
+  const { disconnectAsync } = useDisconnect();
+  const [sessionGuard] = useState(() => new WalletSessionGuard());
+  const previousAddress = useRef<string | null>(null);
   const [authenticationStatus, setAuthenticationStatus] = useState<AuthenticationStatus>("loading");
   const [sessionAddress, setSessionAddress] = useState<string | null>(null);
   const [authError, setAuthError] = useState<string | null>(null);
 
+  const deleteSession = useCallback(async () => {
+    const response = await fetch("/api/auth/session", { method: "DELETE", credentials: "same-origin" });
+    if (!response.ok) throw new Error("Unable to close the wallet session. Please retry disconnecting.");
+  }, []);
+
   const signOut = useCallback(async () => {
+    sessionGuard.invalidate();
+    // Hide all authenticated data immediately, before waiting for the network.
+    setSessionAddress(null);
+    setAuthenticationStatus("unauthenticated");
     try {
-      await fetch("/api/auth/session", {
-        method: "DELETE",
-        credentials: "same-origin",
-      });
+      await sessionGuard.run(deleteSession);
     } catch {
-      setAuthError("Unable to close the wallet session cleanly.");
+      setAuthError("Unable to close the wallet session. Please retry disconnecting.");
     } finally {
-      setSessionAddress(null);
-      setAuthenticationStatus("unauthenticated");
       router.refresh();
     }
-  }, [router]);
+  }, [deleteSession, router, sessionGuard]);
+
+  const invalidateWallet = useCallback(async () => {
+    await Promise.allSettled([signOut(), disconnectAsync()]);
+  }, [disconnectAsync, signOut]);
 
   const authenticationAdapter = useMemo(() => createAuthenticationAdapter<string>({
     getNonce: async () => {
+      await sessionGuard.settled();
       setAuthError(null);
       const response = await fetch("/api/auth/challenge", {
         credentials: "same-origin",
@@ -99,68 +113,145 @@ export function WalletAuthenticationProvider({ children }: { children: React.Rea
       return challenge.message;
     },
     verify: async ({ message, signature }) => {
-      const response = await fetch("/api/auth/verify", {
-        method: "POST",
-        credentials: "same-origin",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message, signature }),
+      const guard = sessionGuard;
+      guard.invalidate();
+      const revision = guard.revision;
+      return guard.run(async () => {
+        if (!guard.isCurrent(revision) || !connector || !walletMatches(address, await connector.getAccounts())) return false;
+        const response = await fetch("/api/auth/verify", {
+          method: "POST",
+          credentials: "same-origin",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ message, signature }),
+        });
+        const verified = await response.json() as SessionResponse & { error?: string };
+        // A signature can finish after accountsChanged or logout. Clear its
+        // cookie inside this queue, before any subsequent sign-in can run.
+        const accounts = await connector.getAccounts().catch(() => []);
+        if (!guard.isCurrent(revision) || !walletMatches(verified.address, accounts) || !walletMatches(address, accounts)) {
+          setSessionAddress(null);
+          setAuthenticationStatus("unauthenticated");
+          await deleteSession();
+          router.refresh();
+          return false;
+        }
+        if (!response.ok || !verified.authenticated || !verified.address) {
+          setSessionAddress(null);
+          setAuthenticationStatus("unauthenticated");
+          setAuthError(verified.error || "Wallet authentication failed.");
+          return false;
+        }
+        setSessionAddress(verified.address);
+        setAuthenticationStatus("authenticated");
+        setAuthError(null);
+        router.refresh();
+        return true;
       });
-      const verified = await response.json() as SessionResponse & { error?: string };
-      if (!response.ok || !verified.authenticated || !verified.address) {
-        setSessionAddress(null);
-        setAuthenticationStatus("unauthenticated");
-        setAuthError(verified.error || "Wallet authentication failed.");
-        return false;
-      }
-
-      setSessionAddress(verified.address);
-      setAuthenticationStatus("authenticated");
-      setAuthError(null);
-      router.refresh();
-      return true;
     },
     signOut,
-  }), [router, signOut]);
+  }), [address, connector, deleteSession, router, signOut, sessionGuard]);
 
   useEffect(() => {
     if (accountStatus === "connecting" || accountStatus === "reconnecting") return;
-    if (!isConnected || !address) {
-      const resetTimer = window.setTimeout(() => {
-        setSessionAddress(null);
-        setAuthenticationStatus("unauthenticated");
-      }, 0);
-      return () => window.clearTimeout(resetTimer);
-    }
-
+    const nextAddress = isConnected && address ? address.toLowerCase() : null;
+    const previous = previousAddress.current;
+    previousAddress.current = nextAddress;
     let cancelled = false;
-    const loadTimer = window.setTimeout(() => {
+    const guard = sessionGuard;
+    guard.invalidate();
+    const revision = guard.revision;
+    const timer = window.setTimeout(async () => {
+      if (previous && previous !== nextAddress) {
+        await invalidateWallet();
+        return;
+      }
+      if (!nextAddress) {
+        // Also expire restored server cookies when the wallet disconnected
+        // while the page was closed.
+        await signOut();
+        return;
+      }
+      setSessionAddress(null);
       setAuthenticationStatus("loading");
       setAuthError(null);
-      fetch("/api/auth/session", { credentials: "same-origin", cache: "no-store" })
-        .then((response) => response.json() as Promise<SessionResponse>)
-        .then((session) => {
-          if (cancelled) return;
-          const matches = session.authenticated
-            && session.address?.toLowerCase() === address.toLowerCase();
-          setSessionAddress(matches && session.address ? session.address : null);
-          setAuthenticationStatus(matches ? "authenticated" : "unauthenticated");
-        })
-        .catch(() => {
-          if (cancelled) return;
-          setSessionAddress(null);
-          setAuthenticationStatus("unauthenticated");
-          setAuthError("Unable to check the wallet session.");
-        });
+      if (!connector) return; // Wait for Wagmi to replace its cookie descriptor.
+      try {
+        await guard.settled();
+        const accounts = await connector.getAccounts();
+        if (cancelled || !guard.isCurrent(revision)) return;
+        if (!walletMatches(nextAddress, accounts)) {
+          await invalidateWallet();
+          return;
+        }
+        const response = await fetch("/api/auth/session", { credentials: "same-origin", cache: "no-store" });
+        if (!response.ok) throw new Error("Session check failed");
+        const session = await response.json() as SessionResponse;
+        if (cancelled || !guard.isCurrent(revision)) return;
+        if (session.authenticated && !walletMatches(session.address, accounts)) {
+          await invalidateWallet();
+          return;
+        }
+        setSessionAddress(session.authenticated ? session.address ?? null : null);
+        setAuthenticationStatus(session.authenticated ? "authenticated" : "unauthenticated");
+      } catch {
+        if (cancelled || !guard.isCurrent(revision)) return;
+        setSessionAddress(null);
+        setAuthenticationStatus("unauthenticated");
+        setAuthError("Unable to check the wallet session.");
+      }
     }, 0);
-
     return () => {
       cancelled = true;
-      window.clearTimeout(loadTimer);
+      window.clearTimeout(timer);
+      guard.invalidate();
     };
-  }, [accountStatus, address, isConnected]);
+  }, [accountStatus, address, connector, isConnected, invalidateWallet, signOut, sessionGuard]);
 
-  const authContext = useMemo<AuthContextValue>(() => ({ authenticationStatus, authError, sessionAddress, signOut }), [
-    authenticationStatus,
+  useEffect(() => {
+    if (!connector || !isConnected || !address) return;
+    let cancelled = false;
+    let removeListener: (() => void) | undefined;
+    const checkAccounts = (accounts: readonly string[]) => {
+      if (!cancelled && !walletMatches(address, accounts)) void invalidateWallet();
+    };
+    const recheck = () => {
+      if (document.visibilityState !== "hidden") {
+        void Promise.resolve().then(() => connector.getAccounts()).then(checkAccounts).catch(() => {
+          if (!cancelled) void invalidateWallet();
+        });
+      }
+    };
+    // Listen on the selected connector, not window.ethereum (which may point
+    // at a different extension when several wallets are installed).
+    void Promise.resolve().then(() => connector.getProvider()).then(provider => {
+      if (cancelled) return;
+      const events = provider as {
+        on?: (event: "accountsChanged", listener: typeof checkAccounts) => void;
+        removeListener?: (event: "accountsChanged", listener: typeof checkAccounts) => void;
+      } | undefined;
+      if (typeof events?.on === "function" && typeof events.removeListener === "function") {
+        events.on("accountsChanged", checkAccounts);
+        removeListener = () => events.removeListener?.("accountsChanged", checkAccounts);
+      }
+      recheck();
+    }).catch(() => { if (!cancelled) void invalidateWallet(); });
+    window.addEventListener("focus", recheck);
+    document.addEventListener("visibilitychange", recheck);
+    return () => {
+      cancelled = true;
+      removeListener?.();
+      window.removeEventListener("focus", recheck);
+      document.removeEventListener("visibilitychange", recheck);
+    };
+  }, [address, connector, invalidateWallet, isConnected]);
+
+  const effectiveStatus: AuthenticationStatus = isConnected && !connector
+    ? "loading" : authenticationStatus === "authenticated"
+    && (!isConnected || !walletMatches(sessionAddress, address ? [address] : []))
+    ? "unauthenticated" : authenticationStatus;
+
+  const authContext = useMemo<AuthContextValue>(() => ({ authenticationStatus: effectiveStatus, authError, sessionAddress, signOut }), [
+    effectiveStatus,
     authError,
     sessionAddress,
     signOut,
@@ -168,7 +259,7 @@ export function WalletAuthenticationProvider({ children }: { children: React.Rea
 
   return (
     <AuthContext.Provider value={authContext}>
-      <RainbowKitAuthenticationProvider adapter={authenticationAdapter} status={authenticationStatus}>
+      <RainbowKitAuthenticationProvider adapter={authenticationAdapter} status={effectiveStatus}>
         {children}
       </RainbowKitAuthenticationProvider>
     </AuthContext.Provider>

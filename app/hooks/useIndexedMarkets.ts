@@ -2,14 +2,16 @@
 
 import { useQuery } from "@tanstack/react-query";
 
+import { DEPLOYMENT_CACHE_SCOPE } from "../config/deployment";
+
 import type { Debate } from "../lib/debates";
 
-export const INDEXED_DEBATES_QUERY_KEY = ["indexed-debates"] as const;
-export const INDEXED_DEBATES_SEARCH_QUERY_KEY = "indexed-debates-search";
-export const INDEXED_DEBATE_QUERY_KEY = "indexed-debate";
-export const TOKEN_CHART_QUERY_KEY = "token-chart";
-export const TOKEN_TRADES_QUERY_KEY = "token-trades";
-export const RECENT_MARKET_TRADES_QUERY_KEY = "recent-market-trades";
+export const INDEXED_DEBATES_QUERY_KEY = ["indexed-debates", DEPLOYMENT_CACHE_SCOPE] as const;
+export const INDEXED_DEBATES_SEARCH_QUERY_KEY = `indexed-debates-search:${DEPLOYMENT_CACHE_SCOPE}`;
+export const INDEXED_DEBATE_QUERY_KEY = `indexed-debate:${DEPLOYMENT_CACHE_SCOPE}`;
+export const TOKEN_CHART_QUERY_KEY = `token-chart:${DEPLOYMENT_CACHE_SCOPE}`;
+export const TOKEN_TRADES_QUERY_KEY = `token-trades:${DEPLOYMENT_CACHE_SCOPE}`;
+export const RECENT_MARKET_TRADES_QUERY_KEY = `recent-market-trades:${DEPLOYMENT_CACHE_SCOPE}`;
 
 const DEBATES_REFRESH_MS = 15_000;
 const DETAIL_REFRESH_MS = 15_000;

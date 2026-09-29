@@ -4,6 +4,14 @@ Korum is a Next.js application for creating and exploring tokenized matchups. Ea
 
 The current repository is a functional dApp connected to Robinhood Testnet contracts. Railway stores application data and Goldsky-indexed protocol projections, which are the exclusive source for Versus and market activity displayed by the application. Wallet connection is provided by RainbowKit and authenticated through a server-verified wallet signature.
 
+## Testnet v2
+
+Deployment addresses, launch IDs, database schema and cache version are selected by chain ID from `contracts/deployments/`. Testnet uses config `1`, native ETH only, and the economics ID returned by `KorumPairRegistry.resolve(address(0))` (currently `1`). Graduation is 0.042 ETH per camp, or 0.084 ETH across a Versus. Quotes now come from `KorumLens`; `KorumSeeder` handles graduation internally.
+
+Apply migration `0011_create_v2_read_model.sql` before running this version. It preserves the old `indexer` schema and watchlists, and creates `indexer_v2` plus `user_watchlist_v2` so reset Versus IDs cannot refer to old contracts. Wallet profiles and avatars remain shared. The existing Goldsky pipeline now indexes v2 into the new schema; its source is `korum_deployment_v2_logs`. Deploy the frontend from this revision to complete the application rollout. Mainnet remains unconfigured and never inherits testnet addresses.
+
+Read-only contract verification: `node --experimental-strip-types scripts/check-contracts-v2.mjs`.
+
 ## Current Status
 
 - The interface and all canonical routes are in English.
@@ -258,7 +266,7 @@ The challenge cookie is also `HttpOnly`, short-lived, and limited to `/api/auth`
 
 `/profile` reads the session on the server and does not send profile data to unauthenticated clients. `/api/profile` applies the same protection to profile reads, indexed wallet statistics, and username/bio updates. Every future wallet-specific Railway query must repeat this server-side authorization check; hiding content in React is not a security boundary.
 
-The current profile mirrors the Korum reference layout while keeping its controls reactive. Its Information, Activity, Referrals, Badges, Watchlist, and Global simulator tabs are client-side React views. The server derives referral count from `indexer.referral_bindings`, created Versus from `indexer.versuses`, joined Versus from indexed trades, and trade count, gross volume, net positions, and cash flow from the trigger-maintained `indexer.trader_totals` and `indexer.trader_positions` aggregates. Every read is scoped to the configured chain and authenticated wallet. These wallet-scoped statistics are cached for 20 seconds in the private server-side Redis service under a hashed wallet key; the authenticated Profile response remains `private, no-store` and is never stored by a shared HTTP cache. Activity is loaded lazily in pages of 10 raw trades through `/api/profile/activity`, with a separate 20-second private Redis entry for each wallet and page. Gross volume is displayed in USD with the shared ETH/USD quote, falling back to ETH when no quote is available. Estimated PNL is sales received net of fees plus the full-position liquidation value of each remaining trade-derived position minus purchases paid. For an active curve, the server reconstructs `KorumCore.quoteSell` locally from indexed reserves and reads only the public launch configuration on-chain; it therefore includes bonding-curve price impact and current sell fees without disclosing position sizes to an RPC provider. It excludes gas and cannot account for ERC-20 transfers outside Korum until `Transfer` events are indexed. Graduated positions remain unavailable until the Uniswap v4 Quoter integration is added. Badge progression is derived from the seven threshold pairs shown in Profile: Creator uses created Versus plus generated curve volume, Trader uses trade count plus gross volume, and Referrer uses confirmed referrals plus their wallets' gross volume. Both conditions are required within a path, and the highest tier reached across the three paths becomes the public leaderboard badge. The tier itself is not persisted because thresholds and the ETH/USD conversion can change; authoritative counters and volumes remain in Railway. Total wallet valuation continues to display an explicit pending state rather than a fabricated value. Profile-image uploads are available in Account information; X account linking remains disabled.
+The current profile mirrors the Korum reference layout while keeping its controls reactive. Its Information, Activity, Referrals, Badges, Watchlist, and Global simulator tabs are client-side React views. The server derives referral count from `indexer_v2.referral_bindings`, created Versus from `indexer_v2.versuses`, joined Versus from indexed trades, and trade count, gross volume, net positions, and cash flow from the trigger-maintained `indexer_v2.trader_totals` and `indexer_v2.trader_positions` aggregates. Every read is scoped to the configured chain and authenticated wallet. These wallet-scoped statistics are cached for 20 seconds in the private server-side Redis service under a hashed wallet key; the authenticated Profile response remains `private, no-store` and is never stored by a shared HTTP cache. Activity is loaded lazily in pages of 10 raw trades through `/api/profile/activity`, with a separate 20-second private Redis entry for each wallet and page. Gross volume is displayed in USD with the shared ETH/USD quote, falling back to ETH when no quote is available. Estimated PNL is sales received net of fees plus the full-position liquidation value of each remaining trade-derived position minus purchases paid. For an active curve, the server reconstructs `KorumLens.quoteSell` locally from indexed reserves and reads only the public launch configuration on-chain; it therefore includes bonding-curve price impact and current sell fees without disclosing position sizes to an RPC provider. It excludes gas and cannot account for ERC-20 transfers outside Korum until `Transfer` events are indexed. Graduated positions remain unavailable until the Uniswap v4 Quoter integration is added. Badge progression is derived from the seven threshold pairs shown in Profile: Creator uses created Versus plus generated curve volume, Trader uses trade count plus gross volume, and Referrer uses confirmed referrals plus their wallets' gross volume. Both conditions are required within a path, and the highest tier reached across the three paths becomes the public leaderboard badge. The tier itself is not persisted because thresholds and the ETH/USD conversion can change; authoritative counters and volumes remain in Railway. Total wallet valuation continues to display an explicit pending state rather than a fabricated value. Profile-image uploads are available in Account information; X account linking remains disabled.
 
 ## User Database
 
@@ -307,17 +315,17 @@ The flow check requires the local app and a migrated development/staging databas
 
 ## Goldsky Read Model
 
-Migration `0002_create_indexer_read_model.sql` creates the isolated `indexer` schema in the Railway PostgreSQL database. Migration `0005_create_market_read_model.sql` adds trade and curve-lifecycle projections, `0006_add_trade_feed_index.sql` adds the ticker timeline index, `0007_add_profile_stats_index.sql` adds the wallet-oriented Activity index, `0008_create_trader_aggregates.sql` adds incrementally maintained trader totals and positions, and `0009_fix_trader_aggregate_deltas.sql` makes replay updates and deletions constraint-safe:
+Migration `0002_create_indexer_read_model.sql` creates the isolated `indexer_v2` schema in the Railway PostgreSQL database. Migration `0005_create_market_read_model.sql` adds trade and curve-lifecycle projections, `0006_add_trade_feed_index.sql` adds the ticker timeline index, `0007_add_profile_stats_index.sql` adds the wallet-oriented Activity index, `0008_create_trader_aggregates.sql` adds incrementally maintained trader totals and positions, and `0009_fix_trader_aggregate_deltas.sql` makes replay updates and deletions constraint-safe:
 
-- `indexer.referral_bindings` mirrors confirmed `ReferrerBound` events, keyed by chain and referred wallet.
-- `indexer.versuses` mirrors `VersusCreated`, including the descriptive strings that are emitted but not stored by the contract.
-- `indexer.versus_camps` mirrors both `CampCreated` events, including token metadata and launch parameters.
-- `indexer.camp_trades` stores normalized pre-bonding and post-bonding trades with their exact event provenance.
-- `indexer.camp_curve_lifecycle` and `indexer.camp_graduations` reconstruct venue status and the structurally locked residual supply.
-- `indexer.camp_market_state` exposes the latest trade state, circulating supply, adjusted FDV supply, and lifecycle state for server-side market calculations.
-- `indexer.trader_totals` and `indexer.trader_positions` are transactionally updated by a `camp_trades` trigger and backfilled from the historical trade model.
+- `indexer_v2.referral_bindings` mirrors confirmed `ReferrerBound` events, keyed by chain and referred wallet.
+- `indexer_v2.versuses` mirrors `VersusCreated`, including the descriptive strings that are emitted but not stored by the contract.
+- `indexer_v2.versus_camps` mirrors both `CampCreated` events, including token metadata and launch parameters.
+- `indexer_v2.camp_trades` stores normalized pre-bonding and post-bonding trades with their exact event provenance.
+- `indexer_v2.camp_curve_lifecycle` and `indexer_v2.camp_graduations` reconstruct venue status and the structurally locked residual supply.
+- `indexer_v2.camp_market_state` exposes the latest trade state, circulating supply, adjusted FDV supply, and lifecycle state for server-side market calculations.
+- `indexer_v2.trader_totals` and `indexer_v2.trader_positions` are transactionally updated by a `camp_trades` trigger and backfilled from the historical trade model.
 
-Goldsky owns writes to the `indexer` schema; the application owns `public.users` and `public.user_watchlist`. The indexer tables do not reference `users` because an on-chain participant may never create a Korum profile. Camps also have no foreign key to `versuses`: the factory emits both `CampCreated` logs before `VersusCreated`, and independent sink writes must remain valid in that order.
+Goldsky owns writes to the `indexer_v2` schema; the application owns `public.users` and `public.user_watchlist_v2`. The indexer tables do not reference `users` because an on-chain participant may never create a Korum profile. Camps also have no foreign key to `versuses`: the factory emits both `CampCreated` logs before `VersusCreated`, and independent sink writes must remain valid in that order.
 
 The deployed Goldsky pipeline lowercases every EVM address and hash, converts event timestamps to UTC `timestamptz`, and starts from the earliest relevant deployment block. PostgreSQL sinks upsert through table-aligned keys so replayed logs remain idempotent. Changes to addresses, event signatures, or projections require updating the canonical ABI/manifest, validating the committed pipeline, applying it explicitly, and verifying the resulting staging events.
 
@@ -341,7 +349,7 @@ In a deployed Railway application service, set `DATABASE_URL` to the private `${
 | `korum-theme` | `dark` or `light` |
 | `korum-notifications-v2:<wallet-or-anonymous>` | Bounded notification history isolated by normalized wallet address, with a separate anonymous scope |
 
-The watchlist is not browser persistence: its source of truth is `public.user_watchlist` in Railway and its cross-tab refresh signal uses `BroadcastChannel` without storing membership locally. Reads of genuine browser preferences are deferred until client hydration to avoid server/client markup mismatches.
+The watchlist is not browser persistence: its source of truth is `public.user_watchlist_v2` in Railway and its cross-tab refresh signal uses `BroadcastChannel` without storing membership locally. Reads of genuine browser preferences are deferred until client hydration to avoid server/client markup mismatches.
 
 Wagmi and the authenticated session additionally use cookies. The signed session cookie is intentionally unavailable through browser JavaScript.
 
@@ -356,7 +364,7 @@ Reference media is stored in `public/korum-reference`. Production image domains 
 The implemented integration rules are:
 
 1. Keep the `Debate` and `DebateToken` interfaces as the frontend contract.
-2. Read `indexer.*` only through the server adapters in `app/lib/db`; browsers use Route Handlers or serialized Server Component data.
+2. Read `indexer_v2.*` only through the server adapters in `app/lib/db`; browsers use Route Handlers or serialized Server Component data.
 3. Normalize timestamps, nullable fields, token units, prices, market caps, adjusted FDVs, and event venues at that boundary.
 4. Use the Redis-backed public endpoints and shared TanStack Query keys for reactive market reads.
 5. Preserve loading, empty, and API-error states on every data-driven page.

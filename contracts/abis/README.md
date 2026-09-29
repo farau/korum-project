@@ -7,6 +7,10 @@ KorumCore.json
 KorumFactory.json
 KorumRouter.json
 KorumHook.json
+KorumLens.json
+KorumPairRegistry.json
+KorumSeeder.json
+LiquidityLocker.json
 FeeEscrow.json
 ReferralRegistry.json
 VersusToken.json

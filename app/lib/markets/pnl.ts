@@ -3,13 +3,8 @@ import "server-only";
 import { KORUM_CORE_ABI, KORUM_CORE_ADDRESS } from "../contracts/korum";
 import { getKorumServerPublicClient } from "../contracts/server-client";
 
-export type LaunchConfig = {
-  tier1Eth: bigint;
-  tier2Eth: bigint;
-  fee1Bps: number;
-  fee2Bps: number;
-  fee3Bps: number;
-};
+import type { LaunchConfig } from "../contracts/economics";
+export type { LaunchConfig } from "../contracts/economics";
 
 const launchConfigPromises = new Map<string, Promise<LaunchConfig | null>>();
 

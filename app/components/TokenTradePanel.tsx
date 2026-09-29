@@ -7,6 +7,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import {
   BaseError,
   formatUnits,
+  formatEther,
   getAddress,
   isAddress,
   parseEther,
@@ -37,6 +38,7 @@ import {
 import {
   KORUM_CHAIN,
   KORUM_CORE_ABI,
+  KORUM_LENS_ABI, KORUM_LENS_ADDRESS,
   KORUM_CORE_ADDRESS,
   KORUM_HOOK_ADDRESS,
   KORUM_ROUTER_ABI,
@@ -53,6 +55,8 @@ type TransactionStep = "idle" | "approving" | "submitting" | "confirming" | "suc
 
 type CurveState = {
   configId: number;
+  quoteAsset: Address;
+  graduationQuote: bigint;
   status: number;
 };
 
@@ -185,6 +189,11 @@ export default function TokenTradePanel({
     query: { enabled: Boolean(tokenAddress), refetchInterval: 15_000 },
   });
   const curve = curveData as CurveState | undefined;
+  const buyPresets = useMemo(() => {
+    if (!curve?.graduationQuote || curve.quoteAsset !== zeroAddress) return [];
+    return [...new Set([1, 5, 10, 25, 50, 100].map(percent => curve.graduationQuote * BigInt(percent) / HUNDRED)
+      .filter(value => value > ZERO).map(value => formatEther(value)))];
+  }, [curve]);
 
   const { data: configData } = useReadContract({
     address: KORUM_CORE_ADDRESS,
@@ -223,7 +232,7 @@ export default function TokenTradePanel({
 
 
   useEffect(() => {
-    if (!publicClient || !tokenAddress || !amountRaw || !curve || (curve.status === 3 && !config)) return;
+    if (!publicClient || !tokenAddress || !amountRaw || !curve || curve.quoteAsset !== zeroAddress || (curve.status === 3 && !config)) return;
     let cancelled = false;
     const timer = window.setTimeout(() => {
       setIsQuoting(true);
@@ -235,16 +244,16 @@ export default function TokenTradePanel({
           if (curve.status === 1) {
             if (mode === "buy") {
               const result = await publicClient.readContract({
-                address: KORUM_CORE_ADDRESS,
-                abi: KORUM_CORE_ABI,
+                address: KORUM_LENS_ADDRESS,
+                abi: KORUM_LENS_ABI,
                 functionName: "quoteBuy",
                 args: [tokenAddress, amountRaw],
               }) as readonly [bigint, bigint, bigint];
               nextQuote = { amountIn: amountRaw, amountOut: result[0], fee: result[1], ethAccepted: result[2], mode, venueStatus: curve.status };
             } else {
               const result = await publicClient.readContract({
-                address: KORUM_CORE_ADDRESS,
-                abi: KORUM_CORE_ABI,
+                address: KORUM_LENS_ADDRESS,
+                abi: KORUM_LENS_ABI,
                 functionName: "quoteSell",
                 args: [tokenAddress, amountRaw],
               }) as readonly [bigint, bigint];
@@ -309,7 +318,7 @@ export default function TokenTradePanel({
     };
   }, [address, allowance, amountRaw, config, curve, mode, pendingReferrer, publicClient, symbol, tokenAddress]);
 
-  const currentQuote = quote?.amountIn === amountRaw
+  const currentQuote = curve?.quoteAsset === zeroAddress && quote?.amountIn === amountRaw
     && quote.mode === mode
     && quote.venueStatus === curve?.status
     ? quote
@@ -323,7 +332,7 @@ export default function TokenTradePanel({
     && amountRaw !== null
     && allowance !== undefined
     && allowance < amountRaw;
-  const venueAvailable = curve?.status === 1 || curve?.status === 3;
+  const venueAvailable = curve?.quoteAsset?.toLowerCase() === zeroAddress && (curve.status === 1 || curve.status === 3);
   const transactionBusy = transactionStep === "approving"
     || transactionStep === "submitting"
     || transactionStep === "confirming"
@@ -402,19 +411,19 @@ export default function TokenTradePanel({
         contractAddress = KORUM_CORE_ADDRESS;
         if (mode === "buy") {
           const result = await publicClient.readContract({
-            address: KORUM_CORE_ADDRESS,
-            abi: KORUM_CORE_ABI,
+            address: KORUM_LENS_ADDRESS,
+            abi: KORUM_LENS_ABI,
             functionName: "quoteBuy",
             args: [tokenAddress, amountRaw],
           }) as readonly [bigint, bigint, bigint];
           freshAmountOut = result[0];
           value = amountRaw;
           functionName = "buy";
-          args = [tokenAddress, address, minimumOutput(freshAmountOut), verifiedReferrer];
+          args = [tokenAddress, address, amountRaw, minimumOutput(freshAmountOut), verifiedReferrer];
         } else {
           const result = await publicClient.readContract({
-            address: KORUM_CORE_ADDRESS,
-            abi: KORUM_CORE_ABI,
+            address: KORUM_LENS_ADDRESS,
+            abi: KORUM_LENS_ABI,
             functionName: "quoteSell",
             args: [tokenAddress, amountRaw],
           }) as readonly [bigint, bigint];
@@ -559,6 +568,9 @@ export default function TokenTradePanel({
   } else if (curve?.status === 2) {
     buttonLabel = "GRADUATION IN PROGRESS";
     buttonHint = "Trading resumes automatically on the pool";
+  } else if (curve && curve.quoteAsset !== zeroAddress) {
+    buttonLabel = "TRADING UNAVAILABLE";
+    buttonHint = "Only native ETH pairs are supported";
   } else if (curve?.status === 0 || curveError || !tokenAddress) {
     buttonLabel = "TRADING UNAVAILABLE";
     buttonHint = !tokenAddress ? "No deployed token address" : "This is not an active Korum token";
@@ -618,7 +630,7 @@ export default function TokenTradePanel({
 
       {mode === "buy" ? (
         <div className={styles.quickAmounts}>
-          {["0.001", "0.005", "0.01", "0.05", "0.1", "0.5"].map((value) => (
+          {buyPresets.map((value) => (
             <button type="button" className={amount === value ? styles.quickSelected : ""} onClick={() => selectBuyAmount(value)} key={value}>{value}</button>
           ))}
         </div>

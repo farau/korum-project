@@ -1,5 +1,12 @@
 # Referral and Indexer Architecture
 
+> Testnet v2 uses `indexer_v2` and `public.user_watchlist_v2`. Migration
+> `0011_create_v2_read_model.sql` recreates the projections from migrations
+> 0002–0009 in this new namespace; those earlier migrations still describe the
+> preserved v1 schema. Users and avatars are not migrated. The pipeline was
+> updated in place on 2026-09-29, with a renamed source to replay v2 contracts.
+
+
 Status: accepted  
 Last updated: 2026-09-14
 
@@ -13,9 +20,9 @@ Korum uses three distinct data layers. They intentionally do not duplicate the s
 
 | Layer | Responsibility | Source of truth |
 | --- | --- | --- |
-| Railway PostgreSQL `public.users` and `public.user_watchlist` | Wallet profiles, editable usernames, short shareable referral codes, and user watchlists | Korum application |
+| Railway PostgreSQL `public.users` and `public.user_watchlist_v2` | Wallet profiles, editable usernames, short shareable referral codes, and user watchlists | Korum application |
 | `ReferralRegistry` | Permanent `user -> referrer` binding used by the protocol | Smart contract |
-| Railway PostgreSQL `indexer.*` | Queryable projections of contract events | Goldsky replaying on-chain events |
+| Railway PostgreSQL `indexer_v2.*` | Queryable projections of contract events | Goldsky replaying on-chain events |
 
 The application must never store a mutable `referred_by` relationship on `users`. Once a referral is bound, `ReferralRegistry.referrerOf(user)` is authoritative. The indexed PostgreSQL copy exists for frontend queries and analytics, not for contract correctness.
 
@@ -130,9 +137,10 @@ Frontend contract access is centralized in `app/lib/contracts/korum.ts`. This mo
 
 Before allowing publication, `CreateVersusForm` reads live protocol state through Wagmi:
 
-- `KorumCore.configCount()` and `getConfig(configId)` select the latest active launch configuration;
+- `KorumCore.getConfig(configId)` reads the manifest’s chain-specific launch configuration (`1` on testnet);
 - `KorumFactory.MIN_CREATOR_BUY_BPS()` and `MAX_CREATOR_BUY_BPS()` constrain each initial purchase;
-- `KorumCore.quoteCreatorInitialBuy()` estimates each camp's purchase cost;
+- `KorumPairRegistry.resolve(address(0))` is read before each preview to resolve the current economics ID and pair parameters;
+- `KorumLens.quoteCreatorInitialBuy(configId, virtualQuote, graduationQuote, tokenAmount)` estimates each camp's purchase cost;
 - the connected wallet's native balance is compared with the estimated total.
 
 The form validates the debate metadata, distinct camp names and symbols, initial-purchase bounds, optional X handle, and acceptance of the Terms of Use. Camp image files are local previews only: the current application does not upload media. Each camp therefore requires a public `https://`, `ipfs://`, or `ar://` URI that can safely be stored on-chain.
@@ -142,7 +150,7 @@ Publication follows this sequence:
 1. Require a connected, application-authenticated wallet and switch it to the configured Korum chain when necessary.
 2. Generate a cryptographically random `bytes32` salt and build the exact `VersusParams` payload, with the connected wallet as `creatorFeeRecipient`.
 3. Resolve the candidate referrer from the pending server-validated attribution, or use `address(0)` when none exists.
-4. Call `KorumFactory.previewCost(params)` immediately before submission so the attached native value is based on the final payload and current contract state.
+4. Resolve the pair again, set `params.quoteAsset = address(0)` and `params.expectedEconomicsId` from the registry, then call `KorumLens.previewCost(params, virtualQuote, graduationQuote)` immediately before submission so the attached native value is based on the final payload and current contract state.
 5. Run `simulateContract` to surface a revert before prompting the wallet.
 6. Submit `KorumFactory.createVersus(params, candidateReferrer)` with the quoted value and wait for one confirmation.
 7. Decode `VersusCreated` from the receipt for immediate transaction feedback, then apply the referral cookie lifecycle described above.
@@ -242,7 +250,7 @@ The committed `contracts/deployments/4663.json` manifest deliberately contains n
 
 ### Curve state, market cap, and adjusted FDV
 
-`indexer.camp_market_state` reconstructs the latest camp state without replaying curve arithmetic in the frontend:
+`indexer_v2.camp_market_state` reconstructs the latest camp state without replaying curve arithmetic in the frontend:
 
 - the latest trade from either venue supplies the current `sqrtPriceX96After` and cumulative volume;
 - the latest `venue = 0` trade permanently preserves the final pre-bonding `realEthAfter` and `tokenReserveAfter`, even after pool trades begin;
@@ -267,11 +275,11 @@ After graduation, both market cap and Adjusted FDV use `totalSupply - Graduated.
 
 ## Database-backed watchlist and notifications
 
-The watchlist is user-owned application data in Railway PostgreSQL, not an indexed blockchain fact. `public.user_watchlist` binds the authenticated `users.id` to `(chain_id, versus_id)`, with a composite primary key preventing duplicates and `ON DELETE CASCADE` removing preferences when a user is deleted. It intentionally has no foreign key to `indexer.versuses`: a Goldsky reindex or temporary projection removal must not erase the user's preference.
+The watchlist is user-owned application data in Railway PostgreSQL, not an indexed blockchain fact. `public.user_watchlist_v2` binds the authenticated `users.id` to `(chain_id, versus_id)`, with a composite primary key preventing duplicates and `ON DELETE CASCADE` removing preferences when a user is deleted. It intentionally has no foreign key to `indexer_v2.versuses`: a Goldsky reindex or temporary projection removal must not erase the user's preference.
 
 `/api/watchlist` is the only browser-facing data boundary:
 
-- `GET` returns the authenticated wallet user's Versus IDs and their complete joined `indexer.versuses`/`indexer.versus_camps` projections for the configured chain;
+- `GET` returns the authenticated wallet user's Versus IDs and their complete joined `indexer_v2.versuses`/`indexer_v2.versus_camps` projections for the configured chain;
 - `POST` verifies that the Versus exists in the Goldsky read model before inserting it;
 - `DELETE` removes the selected ID idempotently;
 - every operation requires the signed wallet session, and mutations enforce same-origin requests.
@@ -282,20 +290,20 @@ The star on an Explore card or table row and the star on `/vs/[id]` use the same
 
 ## Indexed read model
 
-Goldsky writes only to the `indexer` PostgreSQL schema:
+Goldsky writes only to the `indexer_v2` PostgreSQL schema:
 
 | Event | Destination table | Primary identity |
 | --- | --- | --- |
-| `ReferrerBound` | `indexer.referral_bindings` | `(chain_id, user_wallet)` |
-| `VersusCreated` | `indexer.versuses` | `(chain_id, versus_id)` |
-| `CampCreated` | `indexer.versus_camps` | `(chain_id, versus_id, side)` |
-| `Trade` | `indexer.camp_trades` | `(chain_id, transaction_hash, log_index)` |
-| `GraduationPending`, `Graduated`, `CurveReopened` | `indexer.camp_curve_lifecycle` | `(chain_id, transaction_hash, log_index)` |
-| `Graduated` | `indexer.camp_graduations` | `(chain_id, token_address)` |
+| `ReferrerBound` | `indexer_v2.referral_bindings` | `(chain_id, user_wallet)` |
+| `VersusCreated` | `indexer_v2.versuses` | `(chain_id, versus_id)` |
+| `CampCreated` | `indexer_v2.versus_camps` | `(chain_id, versus_id, side)` |
+| `Trade` | `indexer_v2.camp_trades` | `(chain_id, transaction_hash, log_index)` |
+| `GraduationPending`, `Graduated`, `CurveReopened` | `indexer_v2.camp_curve_lifecycle` | `(chain_id, transaction_hash, log_index)` |
+| `Graduated` | `indexer_v2.camp_graduations` | `(chain_id, token_address)` |
 
-`indexer.referral_bindings` is useful for reverse lookups, referral counts, leaderboards, and historical API reads. It is not consulted by contracts and must not override a direct `referrerOf` read.
+`indexer_v2.referral_bindings` is useful for reverse lookups, referral counts, leaderboards, and historical API reads. It is not consulted by contracts and must not override a direct `referrerOf` read.
 
-`indexer.versus_camps` deliberately has no foreign key to `indexer.versuses`. The factory emits both `CampCreated` events before `VersusCreated`, so each camp must be insertable before its parent projection exists.
+`indexer_v2.versus_camps` deliberately has no foreign key to `indexer_v2.versuses`. The factory emits both `CampCreated` events before `VersusCreated`, so each camp must be insertable before its parent projection exists.
 
 Goldsky transforms must:
 
@@ -312,7 +320,7 @@ The browser never connects directly to PostgreSQL. Server Components and Route H
 
 `app/lib/db/debates.ts` is the server-only adapter between Railway's normalized indexer schema and the frontend `Debate` model. The Explore Server Component calls it directly, while browser-only consumers such as Watchlist and Analytics use `GET /api/debates`. Database credentials therefore remain on the server.
 
-The query starts from `indexer.versuses` and uses inner joins for side `0` and side `1` in `indexer.versus_camps`. A Versus is intentionally hidden during the short interval where Goldsky has written only part of the three-event projection. Results are scoped to the active `KORUM_CHAIN_ID`, ordered newest first, and capped server-side.
+The query starts from `indexer_v2.versuses` and uses inner joins for side `0` and side `1` in `indexer_v2.versus_camps`. A Versus is intentionally hidden during the short interval where Goldsky has written only part of the three-event projection. Results are scoped to the active `KORUM_CHAIN_ID`, ordered newest first, and capped server-side.
 
 The adapter exposes on-chain metadata plus the market view: current price, 24-hour volume/trades, distinct traders, curve progress, circulating and locked supply, circulating market cap, adjusted FDV, and recent price history. Explore's `Traders` count comes from distinct non-zero `Trade.trader` addresses across both camps; per-token table rows use the corresponding camp count. Holder counts and liquidity remain absent until their own authoritative projections exist and never override trader counts. `ipfs://` and `ar://` media identifiers are translated to public gateways for the current image components.
 
@@ -344,13 +352,13 @@ All keys use the versioned `korum:v1:<network>:` namespace. Including `testnet` 
 
 The quote retains a small per-process promise cache as an L1 deduplicator and uses Redis as the replica-shared L2 cache. Other cached loaders also deduplicate simultaneous misses inside one process. Public market Route Handlers publish matching short `Cache-Control` and `stale-while-revalidate` directives. Authentication, referral, notification, and watchlist endpoints remain private and `no-store`. The Profile endpoint also remains `private, no-store`, while its expensive derived statistics use the private Redis service as a short-lived server-side optimization.
 
-Profile summary statistics and Activity history follow the same authenticated private path. `app/lib/db/profile-stats.ts` scopes every aggregate query to the configured chain and the wallet recovered from the signed session. It counts reverse referral bindings, created and joined Versus, and reads trade count, gross volume, remaining token quantity, and net cash flow from `indexer.trader_totals` and `indexer.trader_positions`. The complete derived summary, including estimated PNL, is stored for 20 seconds in private Railway Redis under a network-scoped SHA-256 wallet key. Activity is deliberately separate: `app/lib/db/profile-activity.ts` performs an indexed `LIMIT 11 OFFSET …` read against raw trades only when the Activity tab mounts, returns 10 rows plus a `hasNext` signal, and caches each wallet/page pair privately for 20 seconds. Raw wallet addresses are not used in Redis key names, simultaneous misses are deduplicated per web process, and Redis failure falls through to PostgreSQL. Both authenticated responses retain `Cache-Control: private, no-store`, so neither a CDN nor a shared browser cache stores wallet data. `0007_add_profile_stats_index.sql` supports the remaining raw Activity and joined-Versus reads.
+Profile summary statistics and Activity history follow the same authenticated private path. `app/lib/db/profile-stats.ts` scopes every aggregate query to the configured chain and the wallet recovered from the signed session. It counts reverse referral bindings, created and joined Versus, and reads trade count, gross volume, remaining token quantity, and net cash flow from `indexer_v2.trader_totals` and `indexer_v2.trader_positions`. The complete derived summary, including estimated PNL, is stored for 20 seconds in private Railway Redis under a network-scoped SHA-256 wallet key. Activity is deliberately separate: `app/lib/db/profile-activity.ts` performs an indexed `LIMIT 11 OFFSET …` read against raw trades only when the Activity tab mounts, returns 10 rows plus a `hasNext` signal, and caches each wallet/page pair privately for 20 seconds. Raw wallet addresses are not used in Redis key names, simultaneous misses are deduplicated per web process, and Redis failure falls through to PostgreSQL. Both authenticated responses retain `Cache-Control: private, no-store`, so neither a CDN nor a shared browser cache stores wallet data. `0007_add_profile_stats_index.sql` supports the remaining raw Activity and joined-Versus reads.
 
 Badge rules are centralized in `app/lib/badges.ts` and shared by Profile and Leaderboard. Each of the seven tiers requires both conditions for one path: Creator combines the number of created Versus with the sum of their camps' indexed cumulative curve volume; Trader combines `trader_totals.trade_count` with `trader_totals.total_volume_wei`; Referrer combines confirmed `referral_bindings` with the referred wallets' stored trader totals. The public badge is the maximum tier reached across those three independent paths, never a function of leaderboard rank. Railway stores the source counters and volumes, not a denormalized badge label: the label is derived using the current product thresholds and cached ETH/USD quote, preventing stale rows when thresholds or exchange rates change. Leaderboard badge enrichment runs only for the paginated wallets already selected by PostgreSQL and does not rescan complete trade history.
 
-Profile PNL is intentionally labeled **estimated**. For every traded token, the server calculates `net cash flow = Σ(sell ethGross - sell feeTotal) - Σ(buy ethGross)` and derives the remaining token quantity from buys minus sells. For an open pre-bonding position, it reconstructs `KorumCore.quoteSell` locally as `gross = (virtualEth + realEth) × tokensIn / (tokenReserve + tokensIn)`, selects the current sell fee from `cumulativeVolume` and the on-chain `getConfig(configId)` thresholds, then subtracts that fee. Only the public config ID is sent to the RPC; the wallet and position size remain inside the server/database boundary. Published launch configs are immutable and their successful reads are deduplicated for the lifetime of each web process. The server sums `net cash flow + liquidation value` across tokens and Versus. Multiplying the whole balance by `sqrtPriceX96After` is explicitly forbidden here: that is a marginal-price valuation and can show an artificial profit when one buyer moved the bonding curve themselves. Gas is excluded because it belongs to transaction receipts rather than `Trade`. External ERC-20 transfers are also excluded until `Transfer` events are indexed. A negative trade-derived position, failed config read, more than 25 open positions, or a graduated position makes the estimate unavailable instead of presenting a knowingly invalid value; graduated liquidation requires the deployed Uniswap v4 Quoter and protocol-fee-aware pool quoting.
+Profile PNL is intentionally labeled **estimated**. For every traded token, the server calculates `net cash flow = Σ(sell ethGross - sell feeTotal) - Σ(buy ethGross)` and derives the remaining token quantity from buys minus sells. For an open pre-bonding position, it reconstructs `KorumLens.quoteSell` locally as `gross = (virtualEth + realEth) × tokensIn / (tokenReserve + tokensIn)`, selects the current sell fee from `cumulativeVolume` and the on-chain `getConfig(configId)` thresholds, then subtracts that fee. Only the public config ID is sent to the RPC; the wallet and position size remain inside the server/database boundary. Published launch configs are immutable and their successful reads are deduplicated for the lifetime of each web process. The server sums `net cash flow + liquidation value` across tokens and Versus. Multiplying the whole balance by `sqrtPriceX96After` is explicitly forbidden here: that is a marginal-price valuation and can show an artificial profit when one buyer moved the bonding curve themselves. Gas is excluded because it belongs to transaction receipts rather than `Trade`. External ERC-20 transfers are also excluded until `Transfer` events are indexed. A negative trade-derived position, failed config read, more than 25 open positions, or a graduated position makes the estimate unavailable instead of presenting a knowingly invalid value; graduated liquidation requires the deployed Uniswap v4 Quoter and protocol-fee-aware pool quoting.
 
-The public trader leaderboard reuses that same all-time PNL definition and the same immutable launch-configuration reads. It no longer scans and groups the complete `camp_trades` history. Migration `0008_create_trader_aggregates.sql` backfills `indexer.trader_totals` and `indexer.trader_positions`, then installs an `AFTER INSERT OR UPDATE OR DELETE` trigger on `camp_trades`; migration `0009_fix_trader_aggregate_deltas.sql` makes subtraction constraint-safe for replay updates and deletions. Every Goldsky sink write therefore updates total gross volume, trade count, remaining token quantity, and net cash flow in the same PostgreSQL transaction; replayed upserts subtract the previous event contribution before applying the new one. At read time PostgreSQL only combines these compact rows with current curve reserves to calculate executable liquidation PNL. It joins `public.users` only to display an optional username. Sorting, wallet/username search, rank assignment, and 12-row pagination are server-side. `/api/leaderboard` never sends the complete trader population to the browser. Only unfiltered sort/page combinations are stored in Redis for 300 seconds and receive `s-maxage=300, stale-while-revalidate=300`, limiting their maximum routine staleness to about ten minutes while protecting the most frequently requested rankings. Free-text searches bypass Redis and shared HTTP caches (`private, no-store`) because their high-cardinality keys have little reuse; they query the compact aggregate tables directly. PNL is not presented for a trader whose position cannot be valued accurately, including a graduated open position. Period filters are intentionally absent: computing “weekly PNL” without the acquisition cost of inventory held before the week would not represent actual PNL.
+The public trader leaderboard reuses that same all-time PNL definition and the same immutable launch-configuration reads. It no longer scans and groups the complete `camp_trades` history. Migration `0008_create_trader_aggregates.sql` backfills `indexer_v2.trader_totals` and `indexer_v2.trader_positions`, then installs an `AFTER INSERT OR UPDATE OR DELETE` trigger on `camp_trades`; migration `0009_fix_trader_aggregate_deltas.sql` makes subtraction constraint-safe for replay updates and deletions. Every Goldsky sink write therefore updates total gross volume, trade count, remaining token quantity, and net cash flow in the same PostgreSQL transaction; replayed upserts subtract the previous event contribution before applying the new one. At read time PostgreSQL only combines these compact rows with current curve reserves to calculate executable liquidation PNL. It joins `public.users` only to display an optional username. Sorting, wallet/username search, rank assignment, and 12-row pagination are server-side. `/api/leaderboard` never sends the complete trader population to the browser. Only unfiltered sort/page combinations are stored in Redis for 300 seconds and receive `s-maxage=300, stale-while-revalidate=300`, limiting their maximum routine staleness to about ten minutes while protecting the most frequently requested rankings. Free-text searches bypass Redis and shared HTTP caches (`private, no-store`) because their high-cardinality keys have little reuse; they query the compact aggregate tables directly. PNL is not presented for a trader whose position cannot be valued accurately, including a graduated open position. Period filters are intentionally absent: computing “weekly PNL” without the acquisition cost of inventory held before the week would not represent actual PNL.
 
 Public Versus and market API responses expose `X-Korum-Cache` (`HIT`, `MISS`, `DEDUPED`, or `BYPASS`) and `X-Korum-Cache-Layer` (`redis`, `memory`, or `postgres`) for operational diagnostics in browser developer tools. `MISS` means Redis was reachable but did not contain the key, while `BYPASS` means Redis was not configured or temporarily unavailable and the authoritative loader was used directly. These headers describe the server-side request that originally produced the response; when browser developer tools show `(memory cache)` or `(disk cache)`, the browser may be replaying those original headers without contacting the server again.
 
@@ -394,7 +402,7 @@ The Robinhood Testnet indexer was deployed on 2026-09-12 with the following iden
 | Mode | Streaming, with an initial historical phase |
 | Resource size | `s` |
 | PostgreSQL secret | `KORUM_STAGING_RAILWAY_POSTGRES` |
-| Destination | Railway `staging` PostgreSQL, schema `indexer` |
+| Destination | Railway `staging` PostgreSQL, schema `indexer_v2` |
 
 The pipeline was initially observed in `Running` state. Treat that as deployment history, not a permanent guarantee; always query Goldsky for the current state.
 
@@ -404,12 +412,12 @@ The source reads raw logs only for the contracts that emit the current projectio
 
 | Contract | Address | Deployment block | Events consumed |
 | --- | --- | ---: | --- |
-| `ReferralRegistry` | `0xe72f5f1d4c6793c67f962e2e8c36ee1f0750a24c` | `116108291` | `ReferrerBound` |
-| `KorumFactory` | `0x18d70d9ca430747b81e6afb667abdc923b16b417` | `116108344` | `CampCreated`, `VersusCreated` |
-| `KorumCore` | `0x08e1f34e0fb10a0339ecba8cba2021ea2bb1171e` | `116108373` | `Trade`, `GraduationPending`, `Graduated`, `CurveReopened` |
-| `KorumHook` | `0x63bab3ba5bdfc46d65fcaf3beacf8ee94438e0cc` | `116108400` | `Trade` |
+| `ReferralRegistry` | `0x4CAB1f34bF69337DAfDBDbB2184519bb804fA5f6` | `123181130` | `ReferrerBound` |
+| `KorumFactory` | `0x4Be4652a39299A82f1B459534984931aFf52dA12` | `123181169` | `CampCreated`, `VersusCreated` |
+| `KorumCore` | `0x771735Be66bA0E4dcE80E1F120fAe539810e7691` | `123181245` | `Trade`, `GraduationPending`, `Graduated`, `CurveReopened` |
+| `KorumHook` | `0xc0c5DB0dFE3E115489f9733AFe1c7a11119AE0cC` | `123181266` | `Trade` |
 
-All four contracts share one filtered source. Consequently, the filter begins at block `116108291`, the earliest relevant deployment block. The address condition prevents unrelated chain logs from reaching the decoder. Addresses and deployment blocks are canonically recorded in `contracts/deployments/46630.json`; a contract redeployment must update that file and the pipeline together.
+All four contracts share one filtered source. Consequently, the filter begins at block `123181130`, the earliest relevant deployment block. The address condition prevents unrelated chain logs from reaching the decoder. Addresses and deployment blocks are canonically recorded in `contracts/deployments/46630.json`; a contract redeployment must update that file and the pipeline together.
 
 ### Decode-once, fan-out pattern
 
@@ -423,12 +431,12 @@ Goldsky event parameters are one-indexed: the first Solidity parameter is `decod
 
 | Event | Important parameter mapping | Destination |
 | --- | --- | --- |
-| `ReferrerBound(user, referrer, at)` | `1 -> user_wallet`, `2 -> referrer_wallet`, `3 -> bound_at` | `indexer.referral_bindings` |
-| `VersusCreated(versusId, creator, configId, creatorFeeRecipient, tokenA, tokenB, createdAt, title, description, category, socialsJson)` | Parameters `1..11` map in the same order; the emitting address becomes `factory_address` | `indexer.versuses` |
-| `CampCreated(versusId, token, side, name, symbol, uri, virtualEth, graduationEth, totalSupply)` | `1 -> versus_id`, `2 -> token_address`, `3 -> side`, `4..9 -> metadata and launch values` | `indexer.versus_camps` |
-| `Trade(token, trader, referrer, venue, …)` | `1 -> token_address`, `2 -> trader_address`, `3 -> referrer_address`, `4 -> venue`, and all post-trade values through parameter `19` | `indexer.camp_trades` |
-| Curve lifecycle events | Token and event timestamp plus explicit status derived from the event signature | `indexer.camp_curve_lifecycle` |
-| `Graduated(token, poolId, …, tokenResidual, at)` | Exact pool launch values and structurally locked residual | `indexer.camp_graduations` |
+| `ReferrerBound(user, referrer, at)` | `1 -> user_wallet`, `2 -> referrer_wallet`, `3 -> bound_at` | `indexer_v2.referral_bindings` |
+| `VersusCreated(versusId, creator, configId, creatorFeeRecipient, tokenA, tokenB, createdAt, title, description, category, socialsJson)` | Parameters `1..11` map in the same order; the emitting address becomes `factory_address` | `indexer_v2.versuses` |
+| `CampCreated(versusId, token, side, name, symbol, uri, economicsId, quoteAsset, virtualQuote, graduationQuote, totalSupply)` | `1 -> versus_id`, `2 -> token_address`, `3 -> side`, `4..6 -> metadata`, `7 -> economics_id`, `8 -> quote_asset`, `9..11 -> launch values` | `indexer_v2.versus_camps` |
+| `Trade(token, trader, referrer, venue, …)` | `1 -> token_address`, `2 -> trader_address`, `3 -> referrer_address`, `4 -> venue`, and all post-trade values through parameter `19` | `indexer_v2.camp_trades` |
+| Curve lifecycle events | Token and event timestamp plus explicit status derived from the event signature | `indexer_v2.camp_curve_lifecycle` |
+| `Graduated(token, poolId, …, tokenResidual, at)` | Exact pool launch values and structurally locked residual | `indexer_v2.camp_graduations` |
 
 Every row also receives the constant `chain_id = 46630` plus the source `transaction_hash`, `block_hash`, `block_number`, and `log_index`. These fields make indexed data auditable back to the originating log.
 
@@ -475,15 +483,15 @@ Connection rules by runtime:
 
 RPC credentials follow the same boundary: browsers call the official public Robinhood endpoint and the same-origin fallback route; only the application server calls the credentialed Alchemy endpoint.
 
-Renaming a Railway environment does not require a YAML change because the YAML references a Goldsky secret by name. If Railway rotates the password, port, host, or database, update the Goldsky secret in place and verify the running sinks. For production, prefer a dedicated PostgreSQL writer role restricted to the `indexer` schema rather than sharing an application-owner credential.
+Renaming a Railway environment does not require a YAML change because the YAML references a Goldsky secret by name. If Railway rotates the password, port, host, or database, update the Goldsky secret in place and verify the running sinks. For production, prefer a dedicated PostgreSQL writer role restricted to the `indexer_v2` schema rather than sharing an application-owner credential.
 
-The application credential may read `indexer.*` and manage `public.users` plus `public.user_watchlist`; Goldsky should write only `indexer.*`. PostgreSQL permissions are the enforcement boundary. The schema naming convention alone is not a permission boundary.
+The application credential may read `indexer_v2.*` and manage `public.users` plus `public.user_watchlist_v2`; Goldsky should write only `indexer_v2.*`. PostgreSQL permissions are the enforcement boundary. The schema naming convention alone is not a permission boundary.
 
 ## Checkpoints, backfill, and re-deployments
 
-The pipeline is streaming. On its first deployment, Goldsky processed the bounded historical phase and then switched to the live Robinhood log stream. The market extension performs one deliberate replay from the earliest relevant deployment block so historical Core and Hook trades are not omitted.
+The pipeline is streaming. On its first deployment, Goldsky processed the bounded historical phase and then switched to the live Robinhood log stream. The v2 deployment performs one deliberate replay from the earliest relevant deployment block so historical Core and Hook trades are not omitted.
 
-Goldsky checkpoints are tied to the pipeline name and source name. The market extension deliberately renamed the source to `korum_protocol_logs_v2` once so Core and Hook history would be backfilled after expanding the address filter. Preserve both `korum-robinhood-testnet-indexer` and `korum_protocol_logs_v2` during ordinary future YAML updates so processing resumes without replaying all history.
+Goldsky checkpoints are tied to the pipeline name and source name. The v2 deployment deliberately renamed the source to `korum_deployment_v2_logs` once so events from the new contracts are backfilled into the isolated v2 schema. Preserve both `korum-robinhood-testnet-indexer` and `korum_deployment_v2_logs` during ordinary future YAML updates so processing resumes without replaying all history.
 
 Changing an address filter does not by itself rewind an existing checkpoint. If a newly added contract already emitted historical events, use a deliberate backfill strategy: deploy a temporary bounded/backfill pipeline, or reset/recreate the relevant source only after evaluating duplicate and reorganization behavior. Never rename the pipeline or source casually; doing so can trigger a full replay.
 
@@ -524,7 +532,7 @@ For an end-to-end staging test:
 1. Execute a real `createVersus` transaction and, separately, a referral-eligible write with an unbound wallet.
 2. Confirm the transaction receipts contain the expected events.
 3. Watch Goldsky logs for decode or PostgreSQL sink errors.
-4. Query the relevant `indexer` creation, trade, lifecycle, and graduation tables by chain ID and transaction hash.
+4. Query the relevant `indexer_v2` creation, trade, lifecycle, and graduation tables by chain ID and transaction hash.
 5. Confirm the frontend reads the resulting versus only after both camps and the versus row exist.
 
 When triaging failures, start with these boundaries:

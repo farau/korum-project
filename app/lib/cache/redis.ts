@@ -2,7 +2,7 @@ import "server-only";
 
 import Redis from "ioredis";
 
-import { KORUM_NETWORK } from "../../config/korum-network";
+import { DEPLOYMENT_CACHE_SCOPE } from "../../config/deployment";
 
 type RedisClient = Redis;
 
@@ -91,7 +91,7 @@ export function redisCacheKey(...parts: Array<string | number>) {
   const suffix = parts
     .map((part) => encodeURIComponent(String(part).trim().toLowerCase()))
     .join(":");
-  return `${CACHE_NAMESPACE}:${KORUM_NETWORK}:${suffix}`;
+  return `${CACHE_NAMESPACE}:${DEPLOYMENT_CACHE_SCOPE}:${suffix}`;
 }
 
 async function readJson<T>(key: string) {

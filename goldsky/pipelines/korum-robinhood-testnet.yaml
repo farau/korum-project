@@ -4,19 +4,19 @@ resource_size: s
 sources:
   # Renaming the source resets its checkpoint so historical Core/Hook events
   # are backfilled after expanding the contract-address filter.
-  korum_protocol_logs_v2:
+  korum_deployment_v2_logs:
     type: dataset
     dataset_name: robinhood_testnet.raw_logs
     version: 1.1.0
     primary_key: id
     start_at: earliest
     filter: >-
-      block_number >= 116108291
+      block_number >= 123181130
       AND address IN (
-        '0x08e1f34e0fb10a0339ecba8cba2021ea2bb1171e',
-        '0x18d70d9ca430747b81e6afb667abdc923b16b417',
-        '0x63bab3ba5bdfc46d65fcaf3beacf8ee94438e0cc',
-        '0xe72f5f1d4c6793c67f962e2e8c36ee1f0750a24c'
+        '0x771735be66ba0e4dce80e1f120fae539810e7691',
+        '0x4be4652a39299a82f1b459534984931aff52da12',
+        '0xc0c5db0dfe3e115489f9733afe1c7a11119ae0cc',
+        '0x4cab1f34bf69337dafdbdbb2184519bb804fa5f6'
       )
 
 transforms:
@@ -25,10 +25,10 @@ transforms:
     primary_key: id
     sql: |
       SELECT
-        _gs_log_decode('[{"anonymous":false,"inputs":[{"indexed":true,"name":"token","type":"address"},{"indexed":false,"name":"at","type":"uint64"}],"name":"CurveReopened","type":"event"},{"anonymous":false,"inputs":[{"indexed":true,"name":"token","type":"address"},{"indexed":false,"name":"poolId","type":"bytes32"},{"indexed":false,"name":"sqrtPriceX96","type":"uint160"},{"indexed":false,"name":"ethDeposited","type":"uint128"},{"indexed":false,"name":"tokensDeposited","type":"uint256"},{"indexed":false,"name":"positionTokenId","type":"uint256"},{"indexed":false,"name":"ethResidual","type":"uint128"},{"indexed":false,"name":"tokenResidual","type":"uint256"},{"indexed":false,"name":"at","type":"uint64"}],"name":"Graduated","type":"event"},{"anonymous":false,"inputs":[{"indexed":true,"name":"token","type":"address"},{"indexed":false,"name":"at","type":"uint64"}],"name":"GraduationPending","type":"event"},{"anonymous":false,"inputs":[{"indexed":true,"name":"token","type":"address"},{"indexed":true,"name":"trader","type":"address"},{"indexed":true,"name":"referrer","type":"address"},{"indexed":false,"name":"venue","type":"uint8"},{"indexed":false,"name":"kind","type":"uint8"},{"indexed":false,"name":"isBuy","type":"bool"},{"indexed":false,"name":"ethGross","type":"uint128"},{"indexed":false,"name":"tokenAmount","type":"uint256"},{"indexed":false,"name":"feeTotal","type":"uint128"},{"indexed":false,"name":"feeCreator","type":"uint128"},{"indexed":false,"name":"feeReferrer","type":"uint128"},{"indexed":false,"name":"feePlatform","type":"uint128"},{"indexed":false,"name":"tierFeeBps","type":"uint16"},{"indexed":false,"name":"tierCreatorShareBps","type":"uint16"},{"indexed":false,"name":"snipeTaxBps","type":"uint16"},{"indexed":false,"name":"sqrtPriceX96After","type":"uint160"},{"indexed":false,"name":"realEthAfter","type":"uint128"},{"indexed":false,"name":"tokenReserveAfter","type":"uint256"},{"indexed":false,"name":"cumulativeVolumeAfter","type":"uint128"}],"name":"Trade","type":"event"},{"anonymous":false,"inputs":[{"indexed":true,"name":"versusId","type":"uint256"},{"indexed":true,"name":"token","type":"address"},{"indexed":false,"name":"side","type":"uint8"},{"indexed":false,"name":"name","type":"string"},{"indexed":false,"name":"symbol","type":"string"},{"indexed":false,"name":"uri","type":"string"},{"indexed":false,"name":"virtualEth","type":"uint128"},{"indexed":false,"name":"graduationEth","type":"uint128"},{"indexed":false,"name":"totalSupply","type":"uint256"}],"name":"CampCreated","type":"event"},{"anonymous":false,"inputs":[{"indexed":true,"name":"versusId","type":"uint256"},{"indexed":true,"name":"creator","type":"address"},{"indexed":true,"name":"configId","type":"uint32"},{"indexed":false,"name":"creatorFeeRecipient","type":"address"},{"indexed":false,"name":"tokenA","type":"address"},{"indexed":false,"name":"tokenB","type":"address"},{"indexed":false,"name":"createdAt","type":"uint64"},{"indexed":false,"name":"title","type":"string"},{"indexed":false,"name":"description","type":"string"},{"indexed":false,"name":"category","type":"string"},{"indexed":false,"name":"socialsJson","type":"string"}],"name":"VersusCreated","type":"event"},{"anonymous":false,"inputs":[{"indexed":true,"name":"user","type":"address"},{"indexed":true,"name":"referrer","type":"address"},{"indexed":false,"name":"at","type":"uint64"}],"name":"ReferrerBound","type":"event"}]', topics, `data`) AS `decoded`,
+        _gs_log_decode('[{"anonymous":false,"inputs":[{"indexed":true,"internalType":"address","name":"token","type":"address"},{"indexed":false,"internalType":"uint64","name":"at","type":"uint64"}],"name":"CurveReopened","type":"event"},{"anonymous":false,"inputs":[{"indexed":true,"internalType":"address","name":"token","type":"address"},{"indexed":false,"internalType":"bytes32","name":"poolId","type":"bytes32"},{"indexed":false,"internalType":"uint160","name":"sqrtPriceX96","type":"uint160"},{"indexed":false,"internalType":"uint128","name":"quoteDeposited","type":"uint128"},{"indexed":false,"internalType":"uint256","name":"tokensDeposited","type":"uint256"},{"indexed":false,"internalType":"uint256","name":"positionTokenId","type":"uint256"},{"indexed":false,"internalType":"uint128","name":"quoteResidual","type":"uint128"},{"indexed":false,"internalType":"uint256","name":"tokenResidual","type":"uint256"},{"indexed":false,"internalType":"uint64","name":"at","type":"uint64"}],"name":"Graduated","type":"event"},{"anonymous":false,"inputs":[{"indexed":true,"internalType":"address","name":"token","type":"address"},{"indexed":false,"internalType":"uint64","name":"at","type":"uint64"}],"name":"GraduationPending","type":"event"},{"anonymous":false,"inputs":[{"indexed":true,"internalType":"address","name":"token","type":"address"},{"indexed":true,"internalType":"address","name":"trader","type":"address"},{"indexed":true,"internalType":"address","name":"referrer","type":"address"},{"indexed":false,"internalType":"uint8","name":"venue","type":"uint8"},{"indexed":false,"internalType":"uint8","name":"kind","type":"uint8"},{"indexed":false,"internalType":"bool","name":"isBuy","type":"bool"},{"indexed":false,"internalType":"uint128","name":"quoteGross","type":"uint128"},{"indexed":false,"internalType":"uint256","name":"tokenAmount","type":"uint256"},{"indexed":false,"internalType":"uint128","name":"feeTotal","type":"uint128"},{"indexed":false,"internalType":"uint128","name":"feeCreator","type":"uint128"},{"indexed":false,"internalType":"uint128","name":"feeReferrer","type":"uint128"},{"indexed":false,"internalType":"uint128","name":"feePlatform","type":"uint128"},{"indexed":false,"internalType":"uint16","name":"tierFeeBps","type":"uint16"},{"indexed":false,"internalType":"uint16","name":"tierCreatorShareBps","type":"uint16"},{"indexed":false,"internalType":"uint16","name":"snipeTaxBps","type":"uint16"},{"indexed":false,"internalType":"uint160","name":"sqrtPriceX96After","type":"uint160"},{"indexed":false,"internalType":"uint128","name":"realQuoteAfter","type":"uint128"},{"indexed":false,"internalType":"uint256","name":"tokenReserveAfter","type":"uint256"},{"indexed":false,"internalType":"uint128","name":"cumulativeVolumeAfter","type":"uint128"}],"name":"Trade","type":"event"},{"anonymous":false,"inputs":[{"indexed":true,"internalType":"uint256","name":"versusId","type":"uint256"},{"indexed":true,"internalType":"address","name":"token","type":"address"},{"indexed":false,"internalType":"uint8","name":"side","type":"uint8"},{"indexed":false,"internalType":"string","name":"name","type":"string"},{"indexed":false,"internalType":"string","name":"symbol","type":"string"},{"indexed":false,"internalType":"string","name":"uri","type":"string"},{"indexed":false,"internalType":"uint32","name":"economicsId","type":"uint32"},{"indexed":false,"internalType":"address","name":"quoteAsset","type":"address"},{"indexed":false,"internalType":"uint128","name":"virtualQuote","type":"uint128"},{"indexed":false,"internalType":"uint128","name":"graduationQuote","type":"uint128"},{"indexed":false,"internalType":"uint256","name":"totalSupply","type":"uint256"}],"name":"CampCreated","type":"event"},{"anonymous":false,"inputs":[{"indexed":true,"internalType":"uint256","name":"versusId","type":"uint256"},{"indexed":true,"internalType":"address","name":"creator","type":"address"},{"indexed":true,"internalType":"uint32","name":"configId","type":"uint32"},{"indexed":false,"internalType":"address","name":"creatorFeeRecipient","type":"address"},{"indexed":false,"internalType":"address","name":"tokenA","type":"address"},{"indexed":false,"internalType":"address","name":"tokenB","type":"address"},{"indexed":false,"internalType":"uint64","name":"createdAt","type":"uint64"},{"indexed":false,"internalType":"string","name":"title","type":"string"},{"indexed":false,"internalType":"string","name":"description","type":"string"},{"indexed":false,"internalType":"string","name":"category","type":"string"},{"indexed":false,"internalType":"string","name":"socialsJson","type":"string"}],"name":"VersusCreated","type":"event"},{"anonymous":false,"inputs":[{"indexed":true,"internalType":"address","name":"user","type":"address"},{"indexed":true,"internalType":"address","name":"referrer","type":"address"},{"indexed":false,"internalType":"uint64","name":"at","type":"uint64"}],"name":"ReferrerBound","type":"event"}]', topics, `data`) AS `decoded`,
         id, block_number, block_hash, transaction_hash, log_index, address,
         block_timestamp, _gs_op
-      FROM korum_protocol_logs_v2
+      FROM korum_deployment_v2_logs
 
   referral_bindings:
     type: sql
@@ -79,15 +79,18 @@ transforms:
         decoded.event_params[4] AS name,
         decoded.event_params[5] AS symbol,
         decoded.event_params[6] AS uri,
-        to_u256(decoded.event_params[7]) AS virtual_eth,
-        to_u256(decoded.event_params[8]) AS graduation_eth,
-        to_u256(decoded.event_params[9]) AS total_supply,
+        CAST(decoded.event_params[7] AS BIGINT) AS economics_id,
+        lower(decoded.event_params[8]) AS quote_asset,
+        to_u256(decoded.event_params[9]) AS virtual_eth,
+        to_u256(decoded.event_params[10]) AS graduation_eth,
+        to_u256(decoded.event_params[11]) AS total_supply,
         to_timestamp(block_timestamp) AS block_timestamp,
         lower(transaction_hash) AS transaction_hash,
         lower(block_hash) AS block_hash, block_number,
         CAST(log_index AS INT) AS log_index, _gs_op
       FROM decoded_korum_events
       WHERE decoded.event_signature = 'CampCreated'
+        AND lower(decoded.event_params[8]) = '0x0000000000000000000000000000000000000000'
 
   camp_trades:
     type: sql
@@ -199,7 +202,7 @@ sinks:
   referral_bindings_postgres:
     type: postgres
     from: referral_bindings
-    schema: indexer
+    schema: indexer_v2
     table: referral_bindings
     secret_name: KORUM_STAGING_RAILWAY_POSTGRES
     primary_key: chain_id,user_wallet
@@ -207,7 +210,7 @@ sinks:
   versuses_postgres:
     type: postgres
     from: versuses
-    schema: indexer
+    schema: indexer_v2
     table: versuses
     secret_name: KORUM_STAGING_RAILWAY_POSTGRES
     primary_key: chain_id,versus_id
@@ -215,7 +218,7 @@ sinks:
   versus_camps_postgres:
     type: postgres
     from: versus_camps
-    schema: indexer
+    schema: indexer_v2
     table: versus_camps
     secret_name: KORUM_STAGING_RAILWAY_POSTGRES
     primary_key: chain_id,versus_id,side
@@ -223,7 +226,7 @@ sinks:
   camp_trades_postgres:
     type: postgres
     from: camp_trades
-    schema: indexer
+    schema: indexer_v2
     table: camp_trades
     secret_name: KORUM_STAGING_RAILWAY_POSTGRES
     primary_key: chain_id,transaction_hash,log_index
@@ -231,7 +234,7 @@ sinks:
   camp_curve_lifecycle_postgres:
     type: postgres
     from: camp_curve_lifecycle
-    schema: indexer
+    schema: indexer_v2
     table: camp_curve_lifecycle
     secret_name: KORUM_STAGING_RAILWAY_POSTGRES
     primary_key: chain_id,transaction_hash,log_index
@@ -239,7 +242,7 @@ sinks:
   camp_graduations_postgres:
     type: postgres
     from: camp_graduations
-    schema: indexer
+    schema: indexer_v2
     table: camp_graduations
     secret_name: KORUM_STAGING_RAILWAY_POSTGRES
     primary_key: chain_id,token_address

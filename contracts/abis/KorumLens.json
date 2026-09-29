@@ -1,0 +1,389 @@
+[
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "core",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "constructor"
+  },
+  {
+    "inputs": [],
+    "name": "CurveNotTrading",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "GraduationThresholdReached",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "CORE",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "components": [
+          {
+            "internalType": "string",
+            "name": "title",
+            "type": "string"
+          },
+          {
+            "internalType": "string",
+            "name": "description",
+            "type": "string"
+          },
+          {
+            "internalType": "string",
+            "name": "category",
+            "type": "string"
+          },
+          {
+            "internalType": "string",
+            "name": "socialsJson",
+            "type": "string"
+          },
+          {
+            "components": [
+              {
+                "internalType": "string",
+                "name": "name",
+                "type": "string"
+              },
+              {
+                "internalType": "string",
+                "name": "symbol",
+                "type": "string"
+              },
+              {
+                "internalType": "string",
+                "name": "uri",
+                "type": "string"
+              }
+            ],
+            "internalType": "struct CampParams",
+            "name": "campA",
+            "type": "tuple"
+          },
+          {
+            "components": [
+              {
+                "internalType": "string",
+                "name": "name",
+                "type": "string"
+              },
+              {
+                "internalType": "string",
+                "name": "symbol",
+                "type": "string"
+              },
+              {
+                "internalType": "string",
+                "name": "uri",
+                "type": "string"
+              }
+            ],
+            "internalType": "struct CampParams",
+            "name": "campB",
+            "type": "tuple"
+          },
+          {
+            "internalType": "uint16",
+            "name": "creatorBuyBpsA",
+            "type": "uint16"
+          },
+          {
+            "internalType": "uint16",
+            "name": "creatorBuyBpsB",
+            "type": "uint16"
+          },
+          {
+            "internalType": "address",
+            "name": "creatorFeeRecipient",
+            "type": "address"
+          },
+          {
+            "internalType": "uint32",
+            "name": "configId",
+            "type": "uint32"
+          },
+          {
+            "internalType": "address",
+            "name": "quoteAsset",
+            "type": "address"
+          },
+          {
+            "internalType": "uint32",
+            "name": "expectedEconomicsId",
+            "type": "uint32"
+          },
+          {
+            "internalType": "bytes32",
+            "name": "salt",
+            "type": "bytes32"
+          }
+        ],
+        "internalType": "struct VersusParams",
+        "name": "p",
+        "type": "tuple"
+      },
+      {
+        "internalType": "uint128",
+        "name": "virtualQuote",
+        "type": "uint128"
+      },
+      {
+        "internalType": "uint128",
+        "name": "graduationQuote",
+        "type": "uint128"
+      }
+    ],
+    "name": "previewCost",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "token",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "quoteIn",
+        "type": "uint256"
+      }
+    ],
+    "name": "quoteBuy",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "tokensOut",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "fee",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "quoteAccepted",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint32",
+        "name": "configId",
+        "type": "uint32"
+      },
+      {
+        "internalType": "uint128",
+        "name": "virtualQuote",
+        "type": "uint128"
+      },
+      {
+        "internalType": "uint128",
+        "name": "graduationQuote",
+        "type": "uint128"
+      },
+      {
+        "internalType": "uint256",
+        "name": "tokenAmount",
+        "type": "uint256"
+      }
+    ],
+    "name": "quoteCreatorInitialBuy",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "quoteSpent",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "components": [
+          {
+            "internalType": "uint256",
+            "name": "totalSupply",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint32",
+            "name": "tier1Num",
+            "type": "uint32"
+          },
+          {
+            "internalType": "uint32",
+            "name": "tier1Den",
+            "type": "uint32"
+          },
+          {
+            "internalType": "uint32",
+            "name": "tier2Num",
+            "type": "uint32"
+          },
+          {
+            "internalType": "uint32",
+            "name": "tier2Den",
+            "type": "uint32"
+          },
+          {
+            "internalType": "uint32",
+            "name": "launchFeeNum",
+            "type": "uint32"
+          },
+          {
+            "internalType": "uint32",
+            "name": "launchFeeDen",
+            "type": "uint32"
+          },
+          {
+            "internalType": "uint32",
+            "name": "snipeWindowSeconds",
+            "type": "uint32"
+          },
+          {
+            "internalType": "int24",
+            "name": "tickSpacing",
+            "type": "int24"
+          },
+          {
+            "internalType": "bool",
+            "name": "active",
+            "type": "bool"
+          },
+          {
+            "internalType": "uint16",
+            "name": "fee1Bps",
+            "type": "uint16"
+          },
+          {
+            "internalType": "uint16",
+            "name": "fee2Bps",
+            "type": "uint16"
+          },
+          {
+            "internalType": "uint16",
+            "name": "fee3Bps",
+            "type": "uint16"
+          },
+          {
+            "internalType": "uint16",
+            "name": "creatorShare1Bps",
+            "type": "uint16"
+          },
+          {
+            "internalType": "uint16",
+            "name": "creatorShare2Bps",
+            "type": "uint16"
+          },
+          {
+            "internalType": "uint16",
+            "name": "creatorShare3Bps",
+            "type": "uint16"
+          },
+          {
+            "internalType": "uint16",
+            "name": "referralBps",
+            "type": "uint16"
+          },
+          {
+            "internalType": "uint16",
+            "name": "snipeStartBps",
+            "type": "uint16"
+          }
+        ],
+        "internalType": "struct LaunchConfig",
+        "name": "c",
+        "type": "tuple"
+      },
+      {
+        "internalType": "uint128",
+        "name": "virtualQuote",
+        "type": "uint128"
+      },
+      {
+        "internalType": "uint128",
+        "name": "graduationQuote",
+        "type": "uint128"
+      },
+      {
+        "internalType": "uint256",
+        "name": "tokenAmount",
+        "type": "uint256"
+      }
+    ],
+    "name": "quoteCreatorInitialBuyForConfig",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "quoteSpent",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "pure",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "token",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "tokensIn",
+        "type": "uint256"
+      }
+    ],
+    "name": "quoteSell",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "quoteOut",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "fee",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  }
+]

@@ -1,5 +1,7 @@
 import "server-only";
 
+import { INDEXER_SCHEMA } from "../../config/deployment";
+
 import { KORUM_CHAIN_ID } from "../../config/korum-network";
 import { redisCacheKey, rememberJson, type CacheDiagnostic } from "../cache/redis";
 import { getEthUsdQuote } from "../markets/quote-usd";
@@ -113,10 +115,10 @@ export async function getTokenChart(tokenAddress: string, range: MarketRange, di
                   THEN camp.total_supply - graduation.token_residual
                 ELSE camp.total_supply - trade.token_reserve_after
               END AS circulating_supply
-            FROM indexer.camp_trades trade
-            JOIN indexer.versus_camps camp
+            FROM ${INDEXER_SCHEMA}.camp_trades trade
+            JOIN ${INDEXER_SCHEMA}.versus_camps camp
               ON camp.chain_id = trade.chain_id AND camp.token_address = trade.token_address
-            LEFT JOIN indexer.camp_graduations graduation
+            LEFT JOIN ${INDEXER_SCHEMA}.camp_graduations graduation
               ON graduation.chain_id = trade.chain_id AND graduation.token_address = trade.token_address
             WHERE trade.chain_id = $1
               AND trade.token_address = $2
@@ -152,10 +154,10 @@ export async function getTokenChart(tokenAddress: string, range: MarketRange, di
           END::TEXT AS "circulatingSupply",
           trade.block_number AS "blockNumber",
           EXTRACT(EPOCH FROM trade.traded_at)::BIGINT AS "timestamp"
-        FROM indexer.camp_trades trade
-        JOIN indexer.versus_camps camp
+        FROM ${INDEXER_SCHEMA}.camp_trades trade
+        JOIN ${INDEXER_SCHEMA}.versus_camps camp
           ON camp.chain_id = trade.chain_id AND camp.token_address = trade.token_address
-        LEFT JOIN indexer.camp_graduations graduation
+        LEFT JOIN ${INDEXER_SCHEMA}.camp_graduations graduation
           ON graduation.chain_id = trade.chain_id AND graduation.token_address = trade.token_address
         WHERE trade.chain_id = $1
           AND trade.token_address = $2
@@ -292,7 +294,7 @@ export async function getTokenTrades(tokenAddress: string, limit = 100, diagnost
           trader_address AS account, transaction_hash AS "transactionHash",
           block_number AS "blockNumber", log_index AS "logIndex",
           EXTRACT(EPOCH FROM traded_at)::BIGINT AS "timestamp"
-        FROM indexer.camp_trades
+        FROM ${INDEXER_SCHEMA}.camp_trades
         WHERE chain_id = $1 AND token_address = $2
         ORDER BY block_number DESC, log_index DESC
         LIMIT $3
@@ -332,8 +334,8 @@ export async function getRecentMarketTrades(limit = 50, diagnostic?: CacheDiagno
             EXTRACT(EPOCH FROM trade.traded_at)::BIGINT AS "timestamp",
             camp.versus_id::TEXT AS "versusId", camp.name AS "tokenName",
             camp.symbol AS "tokenSymbol"
-          FROM indexer.camp_trades trade
-          INNER JOIN indexer.versus_camps camp
+          FROM ${INDEXER_SCHEMA}.camp_trades trade
+          INNER JOIN ${INDEXER_SCHEMA}.versus_camps camp
             ON camp.chain_id = trade.chain_id
             AND camp.token_address = trade.token_address
           WHERE trade.chain_id = $1

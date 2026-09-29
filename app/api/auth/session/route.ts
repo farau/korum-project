@@ -1,6 +1,8 @@
 import { NextResponse, type NextRequest } from "next/server";
 import {
   SESSION_COOKIE_NAME,
+  CHALLENGE_COOKIE_NAME,
+  challengeCookieOptions,
   isSameOriginRequest,
   readWalletSession,
   sessionCookieOptions,
@@ -22,6 +24,7 @@ export function DELETE(request: NextRequest) {
 
   const response = NextResponse.json({ authenticated: false });
   response.cookies.set(SESSION_COOKIE_NAME, "", { ...sessionCookieOptions, maxAge: 0 });
+  response.cookies.set(CHALLENGE_COOKIE_NAME, "", { ...challengeCookieOptions, maxAge: 0 });
   response.headers.set("Cache-Control", "no-store");
   return response;
 }

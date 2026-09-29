@@ -1,7 +1,12 @@
+import { readFile } from "node:fs/promises";
 import { randomBytes, randomInt } from "node:crypto";
 import process from "node:process";
 import postgres from "postgres";
 
+const chainId = process.env.NEXT_PUBLIC_KORUM_NETWORK === "mainnet" ? 4663 : 46630;
+const deployment = JSON.parse(await readFile(new URL(`../contracts/deployments/${chainId}.json`, import.meta.url)));
+const schema = deployment.readModelSchema;
+const watchlistTable = deployment.watchlistTable;
 const databaseUrl = process.env.DATABASE_PUBLIC_URL || process.env.DATABASE_URL;
 if (!databaseUrl) throw new Error("DATABASE_URL or DATABASE_PUBLIC_URL is required to check the watchlist schema.");
 
@@ -20,17 +25,28 @@ try {
   await connection.unsafe("BEGIN");
 
   const [table] = await connection`
-    SELECT TO_REGCLASS('public.user_watchlist')::TEXT AS name
+    SELECT TO_REGCLASS(${`public.${watchlistTable}`})::TEXT AS name
   `;
-  if (table?.name !== "user_watchlist") throw new Error("The user_watchlist table is missing.");
+  if (table?.name !== watchlistTable) throw new Error("The user_watchlist table is missing.");
 
+  // Keep the check usable on a freshly deployed network with no real Versus.
+  // This fixture and all watchlist changes are rolled back in finally.
+  const versusId = BigInt(`0x${randomBytes(16).toString("hex")}`).toString();
+  const eventHash = `0x${randomBytes(32).toString("hex")}`;
+  const tokenA = `0x${randomBytes(20).toString("hex")}`;
+  const tokenB = `0x${randomBytes(20).toString("hex")}`;
   const [versus] = await connection`
-    SELECT chain_id, versus_id::TEXT AS versus_id, title
-    FROM indexer.versuses
-    ORDER BY created_at DESC
-    LIMIT 1
+    INSERT INTO ${connection(schema)}.versuses (
+      chain_id, versus_id, factory_address, creator_wallet, config_id,
+      creator_fee_recipient, token_a_address, token_b_address, created_at,
+      title, description, category, socials_json,
+      transaction_hash, block_hash, block_number, log_index
+    ) VALUES (
+      ${chainId}, ${versusId}, ${deployment.contracts.KorumFactory.address.toLowerCase()}, ${wallet}, ${deployment.launch.configId},
+      ${wallet}, ${tokenA}, ${tokenB}, NOW(),
+      'Watchlist fixture', '', 'test', '{}', ${eventHash}, ${eventHash}, 0, 0
+    ) RETURNING chain_id, versus_id::TEXT AS versus_id, title
   `;
-  if (!versus) throw new Error("No indexed Versus is available for the watchlist schema check.");
 
   const [user] = await connection`
     INSERT INTO users (evm_wallet, referral_code, last_login_chain_id)
@@ -39,14 +55,14 @@ try {
   `;
 
   await connection`
-    INSERT INTO user_watchlist (user_id, chain_id, versus_id)
+    INSERT INTO ${connection(watchlistTable)} (user_id, chain_id, versus_id)
     VALUES (${user.id}, ${versus.chain_id}, ${versus.versus_id})
   `;
 
   const [stored] = await connection`
     SELECT w.user_id, w.versus_id::TEXT AS versus_id, v.title
-    FROM user_watchlist w
-    JOIN indexer.versuses v
+    FROM ${connection(watchlistTable)} w
+    JOIN ${connection(schema)}.versuses v
       ON v.chain_id = w.chain_id AND v.versus_id = w.versus_id
     WHERE w.user_id = ${user.id}
   `;
@@ -57,7 +73,7 @@ try {
   await connection`DELETE FROM users WHERE id = ${user.id}`;
   const [{ count }] = await connection`
     SELECT COUNT(*)::INTEGER AS count
-    FROM user_watchlist
+    FROM ${connection(watchlistTable)}
     WHERE user_id = ${user.id}
   `;
   if (count !== 0) throw new Error("Deleting a user did not cascade to the watchlist.");

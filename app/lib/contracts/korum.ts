@@ -1,20 +1,17 @@
 import type { Abi, Address } from "viem";
 import { getAddress, isAddress, zeroAddress } from "viem";
 
-import { KORUM_CHAIN, KORUM_NETWORK } from "../../config/korum-network";
+import { KORUM_CHAIN } from "../../config/korum-network";
+import { KORUM_DEPLOYMENT as deployment } from "../../config/deployment";
 import korumCoreAbiJson from "../../../contracts/abis/KorumCore.json";
 import korumFactoryAbiJson from "../../../contracts/abis/KorumFactory.json";
 import korumRouterAbiJson from "../../../contracts/abis/KorumRouter.json";
 import referralRegistryAbiJson from "../../../contracts/abis/ReferralRegistry.json";
 import versusTokenAbiJson from "../../../contracts/abis/VersusToken.json";
-import robinhoodMainnetDeployment from "../../../contracts/deployments/4663.json";
-import robinhoodTestnetDeployment from "../../../contracts/deployments/46630.json";
+import lensAbiJson from "../../../contracts/abis/KorumLens.json";
+import pairRegistryAbiJson from "../../../contracts/abis/KorumPairRegistry.json";
 
 export { KORUM_CHAIN };
-
-const deployment = KORUM_NETWORK === "mainnet"
-  ? robinhoodMainnetDeployment
-  : robinhoodTestnetDeployment;
 
 function deployedAddress(contractName: keyof typeof deployment.contracts) {
   const address = deployment.contracts[contractName].address;
@@ -35,6 +32,14 @@ export const KORUM_HOOK_ADDRESS = deployedAddress("KorumHook");
 export const KORUM_ROUTER_ADDRESS = deployedAddress("KorumRouter");
 
 export const REFERRAL_REGISTRY_ADDRESS = deployedAddress("ReferralRegistry");
+export const KORUM_LENS_ADDRESS = deployedAddress("KorumLens");
+export const KORUM_PAIR_REGISTRY_ADDRESS = deployedAddress("KorumPairRegistry");
+export const KORUM_SEEDER_ADDRESS = deployedAddress("KorumSeeder");
+export const KORUM_LAUNCH_CONFIG_ID = deployment.launch.configId;
+export const KORUM_QUOTE_ASSET = deployment.launch.quoteAsset as Address;
+if (!KORUM_LAUNCH_CONFIG_ID || KORUM_QUOTE_ASSET !== zeroAddress) {
+  throw new Error(`Configure a native-ETH launch preset for chain ${KORUM_CHAIN.id}.`);
+}
 
 // The JSON files are the canonical deployed ABIs. Keeping these imports here
 // prevents components from duplicating addresses or hand-written fragments.
@@ -43,3 +48,5 @@ export const KORUM_FACTORY_ABI = korumFactoryAbiJson as Abi;
 export const KORUM_ROUTER_ABI = korumRouterAbiJson as Abi;
 export const REFERRAL_REGISTRY_ABI = referralRegistryAbiJson as Abi;
 export const VERSUS_TOKEN_ABI = versusTokenAbiJson as Abi;
+export const KORUM_LENS_ABI = lensAbiJson as Abi;
+export const KORUM_PAIR_REGISTRY_ABI = pairRegistryAbiJson as Abi;

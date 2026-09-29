@@ -30,9 +30,20 @@ intentionally contains `null` values until the Korum mainnet deployment exists.
 The contract adapter fails immediately when `mainnet` is selected with an
 incomplete manifest. Never reuse the testnet Korum addresses as mainnet defaults.
 
-The `deploymentBlock` values are intentionally `null` until they are verified
-from the deployment transactions. They must be filled before an indexer
-backfill is configured.
+Testnet v2 addresses, ABIs and deployment blocks were retrieved from the
+[Robinhood testnet explorer](https://explorer.testnet.chain.robinhood.com) on
+2026-09-29. Mainnet blocks remain unset. `KorumSeeder` was discovered through
+`KorumCore.SEEDER()` and its constructor arguments; its address is
+`0xDdC5e687E7CFB489b1e7b26E19285ABF75775048`.
+
+The manifest also owns `launch.configId`, `launch.quoteAsset`, `version`,
+`readModelSchema` and `watchlistTable`. Resolve the economics ID on-chain before
+quoting and submitting a launch. Testnet currently admits native ETH only.
+`KorumLens` supplies quotes, `KorumPairRegistry` supplies pair economics, and
+`KorumSeeder` is invoked internally by Core during graduation.
+
+The explorer provides the LiquidityLocker ABI/source but currently reports
+`is_verified: false` for that address; do not describe it as verified.
 
 Database credentials, private keys, RPC credentials, and Goldsky API keys are
 secrets. They do not belong in this directory.

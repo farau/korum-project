@@ -1,4 +1,7 @@
 import "server-only";
+import { sellFeeBps } from "../contracts/economics";
+
+import { INDEXER_SCHEMA } from "../../config/deployment";
 
 import { createHash } from "node:crypto";
 import { formatEther, formatUnits } from "viem";
@@ -31,6 +34,7 @@ type PositionRow = {
   tokenSymbol: string;
   configId: number | string;
   virtualEth: string | null;
+  graduationEth: string | null;
   realEthAfter: string | null;
   tokenReserveAfter: string | null;
   cumulativeVolumeAfter: string | null;
@@ -60,20 +64,21 @@ async function loadVersusPositions(wallet: string, versusId: string): Promise<Ve
         camp.symbol AS "tokenSymbol",
         versus.config_id AS "configId",
         market.virtual_eth::TEXT AS "virtualEth",
+        market.graduation_eth::TEXT AS "graduationEth",
         market.real_eth_after::TEXT AS "realEthAfter",
         market.token_reserve_after::TEXT AS "tokenReserveAfter",
         market.cumulative_volume_after::TEXT AS "cumulativeVolumeAfter",
         position.net_token_amount::TEXT AS "netTokenAmount",
         position.net_cash_flow_wei::TEXT AS "netCashFlowWei",
         market.curve_status AS "curveStatus"
-      FROM indexer.trader_positions position
-      JOIN indexer.versus_camps camp
+      FROM ${INDEXER_SCHEMA}.trader_positions position
+      JOIN ${INDEXER_SCHEMA}.versus_camps camp
         ON camp.chain_id = position.chain_id
         AND camp.token_address = position.token_address
-      JOIN indexer.versuses versus
+      JOIN ${INDEXER_SCHEMA}.versuses versus
         ON versus.chain_id = camp.chain_id
         AND versus.versus_id = camp.versus_id
-      LEFT JOIN indexer.camp_market_state market
+      LEFT JOIN ${INDEXER_SCHEMA}.camp_market_state market
         ON market.chain_id = position.chain_id
         AND market.token_address = position.token_address
       WHERE position.chain_id = $1
@@ -95,6 +100,7 @@ async function loadVersusPositions(wallet: string, versusId: string): Promise<Ve
     const netTokens = parseInteger(row.netTokenAmount);
     const netCashFlow = parseInteger(row.netCashFlowWei);
     const virtualEth = parseInteger(row.virtualEth);
+    const graduationEth = parseInteger(row.graduationEth);
     const realEthAfter = parseInteger(row.realEthAfter);
     const tokenReserveAfter = parseInteger(row.tokenReserveAfter);
     const cumulativeVolumeAfter = parseInteger(row.cumulativeVolumeAfter);
@@ -102,6 +108,7 @@ async function loadVersusPositions(wallet: string, versusId: string): Promise<Ve
     const canCalculate = netTokens !== null
       && netCashFlow !== null
       && virtualEth !== null
+      && graduationEth !== null
       && realEthAfter !== null
       && tokenReserveAfter !== null
       && cumulativeVolumeAfter !== null
@@ -113,9 +120,7 @@ async function loadVersusPositions(wallet: string, versusId: string): Promise<Ve
     let pnlWei: bigint | null = null;
     if (canCalculate) {
       const gross = (virtualEth + realEthAfter) * netTokens / (tokenReserveAfter + netTokens);
-      const feeBps = cumulativeVolumeAfter < config.tier1Eth
-        ? config.fee1Bps
-        : cumulativeVolumeAfter < config.tier2Eth ? config.fee2Bps : config.fee3Bps;
+      const feeBps = sellFeeBps(config, graduationEth, cumulativeVolumeAfter);
       valueWei = gross - gross * BigInt(feeBps) / BigInt(10_000);
       pnlWei = netCashFlow + valueWei;
     }

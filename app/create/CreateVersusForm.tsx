@@ -2,6 +2,8 @@
 
 import { usePendingReferral } from "../hooks/usePendingReferral";
 import { fetchPendingReferral } from "../lib/referrals/client";
+import { useQuery } from "@tanstack/react-query";
+import { launchFee, type LaunchConfig, type PairEconomics } from "../lib/contracts/economics";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent } from "react";
@@ -31,6 +33,9 @@ import { useWallet } from "../components/WalletProvider";
 import {
   KORUM_CHAIN,
   KORUM_CORE_ABI,
+  KORUM_LENS_ABI, KORUM_LENS_ADDRESS,
+  KORUM_PAIR_REGISTRY_ABI, KORUM_PAIR_REGISTRY_ADDRESS,
+  KORUM_LAUNCH_CONFIG_ID, KORUM_QUOTE_ASSET,
   KORUM_CORE_ADDRESS,
   KORUM_FACTORY_ABI,
   KORUM_FACTORY_ADDRESS,
@@ -103,25 +108,6 @@ const CATEGORIES = [
 const PUBLIC_URI_PATTERN = /^(https?:\/\/|ipfs:\/\/|ar:\/\/)/i;
 const MAX_IMAGE_SIZE = 5 * 1024 * 1024;
 
-type LaunchConfig = {
-  virtualEth: bigint;
-  graduationEth: bigint;
-  totalSupply: bigint;
-  tier1Eth: bigint;
-  tier2Eth: bigint;
-  fee1Bps: number;
-  fee2Bps: number;
-  fee3Bps: number;
-  creatorShare1Bps: number;
-  creatorShare2Bps: number;
-  creatorShare3Bps: number;
-  referralBps: number;
-  snipeStartBps: number;
-  snipeWindowSeconds: number;
-  launchFeeWei: bigint;
-  tickSpacing: number;
-  active: boolean;
-};
 
 type VersusParams = {
   title: string;
@@ -134,6 +120,8 @@ type VersusParams = {
   creatorBuyBpsB: number;
   creatorFeeRecipient: Address;
   configId: number;
+  quoteAsset: Address;
+  expectedEconomicsId: number;
   salt: Hex;
 };
 
@@ -180,6 +168,11 @@ function formatTokenAmount(value?: bigint) {
 }
 
 function errorMessage(error: unknown) {
+  const details = error instanceof BaseError ? error.message : String(error);
+  if (/EconomicsVersionMismatch/.test(details)) return "Launch conditions changed. Review the updated estimate and try again.";
+  if (/AssetNotAdmitted|QuoteAssetClosed/.test(details)) return "Native ETH launches are temporarily unavailable. Please try again later.";
+  if (/ConfigInactive/.test(details)) return "New launches are temporarily paused.";
+  if (/InsufficientPayment/.test(details)) return "The launch cost changed. Refresh the estimate and try again.";
   if (error instanceof BaseError) return error.shortMessage;
   if (error instanceof Error) return error.message;
   return "The transaction could not be prepared.";
@@ -258,15 +251,7 @@ export default function CreateVersusForm({ initialPendingReferral }: { initialPe
     return () => document.removeEventListener("keydown", close);
   }, [previewOpen]);
 
-  const { data: configCountData, error: configCountError, isLoading: isLoadingConfigCount } = useReadContract({
-    address: KORUM_CORE_ADDRESS,
-    abi: KORUM_CORE_ABI,
-    functionName: "configCount",
-    chainId: KORUM_CHAIN.id,
-    query: { staleTime: 60_000 },
-  });
-  const configId = Number(configCountData ?? 0);
-
+  const configId = KORUM_LAUNCH_CONFIG_ID!;
   const { data: configData, error: configError, isLoading: isLoadingConfig } = useReadContract({
     address: KORUM_CORE_ADDRESS,
     abi: KORUM_CORE_ABI,
@@ -299,29 +284,40 @@ export default function CreateVersusForm({ initialPendingReferral }: { initialPe
   const tokenAmountA = config ? config.totalSupply * BigInt(effectiveCreatorBuyBpsA) / BigInt(10_000) : undefined;
   const tokenAmountB = config ? config.totalSupply * BigInt(effectiveCreatorBuyBpsB) / BigInt(10_000) : undefined;
 
-  const { data: initialBuyCostAData, isLoading: isLoadingCostA } = useReadContract({
-    address: KORUM_CORE_ADDRESS,
-    abi: KORUM_CORE_ABI,
-    functionName: "quoteCreatorInitialBuy",
-    args: [configId, tokenAmountA ?? BigInt(0)],
-    chainId: KORUM_CHAIN.id,
-    query: { enabled: Boolean(config?.active && tokenAmountA) },
+  // Resolve the admitted pair before every preview, including amount changes.
+  const { data: preview, error: economicsError, isLoading: isLoadingEconomics, isFetching: costsLoading } = useQuery({
+    queryKey: ["launch-preview", KORUM_CHAIN.id, KORUM_PAIR_REGISTRY_ADDRESS, KORUM_LENS_ADDRESS, configId, tokenAmountA?.toString(), tokenAmountB?.toString()],
+    enabled: Boolean(publicClient && config?.active && tokenAmountA && tokenAmountB),
+    staleTime: 0,
+    refetchInterval: 15_000,
+    queryFn: async () => {
+      if (!publicClient || tokenAmountA === undefined || tokenAmountB === undefined) throw new Error("Launch preview unavailable.");
+      const [economicsId, economics] = await publicClient.readContract({
+        address: KORUM_PAIR_REGISTRY_ADDRESS,
+        abi: KORUM_PAIR_REGISTRY_ABI,
+        functionName: "resolve",
+        args: [KORUM_QUOTE_ASSET],
+      }) as readonly [number, PairEconomics];
+      if (!economicsId || economics.quoteAsset.toLowerCase() !== KORUM_QUOTE_ASSET) throw new Error("Only native ETH launches are supported.");
+      const [costA, costB] = await Promise.all([tokenAmountA, tokenAmountB].map(amount => publicClient.readContract({
+        address: KORUM_LENS_ADDRESS,
+        abi: KORUM_LENS_ABI,
+        functionName: "quoteCreatorInitialBuy",
+        args: [configId, economics.virtualQuote, economics.graduationQuote, amount],
+      }) as Promise<bigint>));
+      return { economicsId, economics, costA, costB };
+    },
   });
-  const { data: initialBuyCostBData, isLoading: isLoadingCostB } = useReadContract({
-    address: KORUM_CORE_ADDRESS,
-    abi: KORUM_CORE_ABI,
-    functionName: "quoteCreatorInitialBuy",
-    args: [configId, tokenAmountB ?? BigInt(0)],
-    chainId: KORUM_CHAIN.id,
-    query: { enabled: Boolean(config?.active && tokenAmountB) },
-  });
-  const initialBuyCostA = initialBuyCostAData as bigint | undefined;
-  const initialBuyCostB = initialBuyCostBData as bigint | undefined;
+  const economicsId = preview?.economicsId;
+  const economics = preview?.economics;
+  const initialBuyCostA = economicsError ? undefined : preview?.costA;
+  const initialBuyCostB = economicsError ? undefined : preview?.costB;
   const initialBuyTotal = initialBuyCostA !== undefined && initialBuyCostB !== undefined
     ? initialBuyCostA + initialBuyCostB
     : undefined;
-  const estimatedTotalCost = config && initialBuyTotal !== undefined
-    ? config.launchFeeWei + initialBuyTotal
+  const launchFeeWei = config && economics ? launchFee(config, economics.graduationQuote) : undefined;
+  const estimatedTotalCost = launchFeeWei !== undefined && initialBuyTotal !== undefined
+    ? launchFeeWei + initialBuyTotal
     : undefined;
 
   const { data: balanceData } = useBalance({ address, chainId: KORUM_CHAIN.id });
@@ -345,6 +341,7 @@ export default function CreateVersusForm({ initialPendingReferral }: { initialPe
     }
     if (normalizedXHandle && !/^[A-Za-z0-9_]{1,15}$/.test(normalizedXHandle)) return "The X account is invalid.";
     if (!termsAccepted) return "Accept the Terms of Use before publishing.";
+    if (economicsError || !economicsId || economics?.quoteAsset.toLowerCase() !== KORUM_QUOTE_ASSET) return "Native ETH launch economics are unavailable.";
     if (!configId || !config?.active) return "No active launch configuration is available.";
     return null;
   }, [
@@ -354,6 +351,9 @@ export default function CreateVersusForm({ initialPendingReferral }: { initialPe
     campBName,
     campBSymbol,
     campBUri,
+    economicsId,
+    economicsError,
+    economics,
     config?.active,
     configId,
     normalizedXHandle,
@@ -375,6 +375,8 @@ export default function CreateVersusForm({ initialPendingReferral }: { initialPe
     creatorBuyBpsB: effectiveCreatorBuyBpsB,
     creatorFeeRecipient: creator,
     configId,
+    quoteAsset: KORUM_QUOTE_ASSET,
+    expectedEconomicsId: economicsId ?? 0,
     salt: creationSalt,
   }), [
     campAName,
@@ -385,6 +387,7 @@ export default function CreateVersusForm({ initialPendingReferral }: { initialPe
     campBUri,
     category,
     configId,
+    economicsId,
     effectiveCreatorBuyBpsA,
     effectiveCreatorBuyBpsB,
     description,
@@ -496,13 +499,18 @@ export default function CreateVersusForm({ initialPendingReferral }: { initialPe
     try {
       resetWrite();
       setTransactionHash(undefined);
-      const params = buildParams(address, createSalt());
+      const [expectedEconomicsId, latestEconomics] = await publicClient.readContract({
+        address: KORUM_PAIR_REGISTRY_ADDRESS, abi: KORUM_PAIR_REGISTRY_ABI,
+        functionName: "resolve", args: [KORUM_QUOTE_ASSET],
+      }) as readonly [number, PairEconomics];
+      if (latestEconomics.quoteAsset.toLowerCase() !== KORUM_QUOTE_ASSET) throw new Error("Only native ETH launches are supported.");
+      const params = { ...buildParams(address, createSalt()), expectedEconomicsId };
       const referrer = (await fetchPendingReferral(address))?.evmWallet ?? zeroAddress;
       const latestCost = await publicClient.readContract({
-        address: KORUM_FACTORY_ADDRESS,
-        abi: KORUM_FACTORY_ABI,
+        address: KORUM_LENS_ADDRESS,
+        abi: KORUM_LENS_ABI,
         functionName: "previewCost",
-        args: [params],
+        args: [params, latestEconomics.virtualQuote, latestEconomics.graduationQuote],
       }) as bigint;
 
       await publicClient.simulateContract({
@@ -560,8 +568,7 @@ export default function CreateVersusForm({ initialPendingReferral }: { initialPe
   }
 
   const transactionPending = isSubmitting || isWalletPromptOpen || isConfirming || Boolean(transactionHash && !receipt && !receiptError);
-  const configLoading = isLoadingConfigCount || isLoadingConfig;
-  const costsLoading = isLoadingCostA || isLoadingCostB;
+  const configLoading = isLoadingEconomics || isLoadingConfig;
   const explorerUrl = transactionHash
     ? `${KORUM_CHAIN.blockExplorers.default.url}/tx/${transactionHash}`
     : null;
@@ -582,7 +589,7 @@ export default function CreateVersusForm({ initialPendingReferral }: { initialPe
           <h1>Create your Versus. Make it viral. Earn.</h1>
           <p>Every Versus launches two opposing tokens. You fund their initial position and earn a share of the fees generated by trading.</p>
           <div className={classes.networkBadge}>
-            <span aria-hidden="true" /> {KORUM_CHAIN.name} · Contract deployed
+            <span aria-hidden="true" /> {KORUM_CHAIN.name} · Native ETH
           </div>
         </div>
       </section>
@@ -660,7 +667,13 @@ export default function CreateVersusForm({ initialPendingReferral }: { initialPe
                 </div>
               </div>
               {fileError ? <p className={classes.inlineError}>{fileError}</p> : null}
-              <div className={classes.infoNote}><InfoIcon /><span>Supply from configuration #{configId || "…"}: <strong>{formatTokenAmount(config?.totalSupply)} tokens</strong> per side. Data and costs are read directly from the contracts.</span></div>
+              <div className={classes.infoNote}><InfoIcon /><span>Token supply: <strong>{formatTokenAmount(config?.totalSupply)} tokens</strong> per side.</span></div>
+
+              <div className={classes.infoNote}><InfoIcon /><span>
+                Each side trades against native ETH and graduates independently to a Uniswap pool at <strong>{economicsError || !economics ? "…" : formatEth(economics.graduationQuote)}</strong> in its bonding curve.
+                {economics && !economicsError ? <> That is <strong>{formatEth(economics.graduationQuote * BigInt(2))}</strong> across both sides.</> : null}
+                {" "}This is a trading milestone, not an upfront launch cost.
+              </span></div>
 
               <p className={classes.sectionTitle}>3. Required initial purchase</p>
               <p className={classes.sectionNote}>Choose between {(minBuyBps / 100).toLocaleString("en-US")}% and {(maxBuyBps / 100).toLocaleString("en-US")}% of each side’s supply. Purchased tokens will be sent to the publishing wallet.</p>
@@ -697,11 +710,11 @@ export default function CreateVersusForm({ initialPendingReferral }: { initialPe
                 <span>I accept the <Link href="/terms" target="_blank">Terms of Use</Link> and confirm that this Versus follows Korum’s rules.</span>
               </label>
 
-              {configCountError || configError ? <p className={classes.inlineError}>Unable to read the contract configuration. Check access to the Robinhood Testnet RPC.</p> : null}
-              <div className={classes.costRow}><span>Launch fee · config #{configId || "…"}</span><strong>{configLoading ? "…" : formatEth(config?.launchFeeWei)}</strong></div>
+              {economicsError || configError ? <p className={classes.inlineError}>Unable to refresh launch conditions on {KORUM_CHAIN.name}. Please try again shortly.</p> : null}
+              <div className={classes.costRow}><span>Launch fee</span><strong>{configLoading ? "…" : formatEth(launchFeeWei)}</strong></div>
               <div className={classes.costRow}><span>Initial purchases · both sides</span><strong>{costsLoading ? "…" : formatEth(initialBuyTotal)}</strong></div>
-              <div className={`${classes.costRow} ${classes.costTotal}`}><span>Estimated total</span><strong>{formatEth(estimatedTotalCost)}</strong></div>
-              {insufficientBalance ? <p className={classes.inlineError}>The connected wallet does not have enough ETH on Robinhood Testnet for this launch.</p> : null}
+              <div className={`${classes.costRow} ${classes.costTotal}`}><span>Estimated total · excluding gas</span><strong>{costsLoading ? "…" : formatEth(estimatedTotalCost)}</strong></div>
+              {insufficientBalance ? <p className={classes.inlineError}>The connected wallet does not have enough ETH on {KORUM_CHAIN.name} for this launch.</p> : null}
               {submitError || receiptError ? <p className={classes.submitError} role="alert">{submitError || errorMessage(receiptError)}</p> : null}
 
               {transactionHash ? (
@@ -709,7 +722,7 @@ export default function CreateVersusForm({ initialPendingReferral }: { initialPe
                   <span>{receipt?.status === "success" ? "✓" : receipt?.status === "reverted" ? "!" : "↗"}</span>
                   <div>
                     <strong>{receipt?.status === "success" ? `Versus${createdVersusId ? ` #${createdVersusId}` : ""} created` : receipt?.status === "reverted" ? "Transaction reverted on-chain" : "Transaction submitted"}</strong>
-                    <p>{receipt?.status === "success" ? "Goldsky will now project the events into Railway." : receipt?.status === "reverted" ? "No Versus was created, and the referral remains available for another attempt." : "Waiting for on-chain confirmation."}</p>
+                    <p>{receipt?.status === "success" ? "Your Versus will appear once its on-chain activity has been indexed." : receipt?.status === "reverted" ? "No Versus was created, and the referral remains available for another attempt." : "Waiting for on-chain confirmation."}</p>
                     {explorerUrl ? <a href={explorerUrl} target="_blank" rel="noreferrer">View transaction ↗</a> : null}
                   </div>
                 </div>

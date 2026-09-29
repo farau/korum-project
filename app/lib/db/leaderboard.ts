@@ -1,5 +1,7 @@
 import "server-only";
 
+import { INDEXER_SCHEMA } from "../../config/deployment";
+
 import { formatEther } from "viem";
 import { KORUM_CHAIN_ID } from "../../config/korum-network";
 import { calculateBadgeProgress } from "../badges";
@@ -43,10 +45,10 @@ async function loadTraderLeaderboard(
   const database = getDatabase();
   const configIds = await database.unsafe<ConfigIdRow[]>(`
     SELECT DISTINCT versus.config_id AS "configId"
-    FROM indexer.trader_positions position
-    JOIN indexer.versus_camps camp
+    FROM ${INDEXER_SCHEMA}.trader_positions position
+    JOIN ${INDEXER_SCHEMA}.versus_camps camp
       ON camp.chain_id = position.chain_id AND camp.token_address = position.token_address
-    JOIN indexer.versuses versus
+    JOIN ${INDEXER_SCHEMA}.versuses versus
       ON versus.chain_id = camp.chain_id AND versus.versus_id = camp.versus_id
     WHERE position.chain_id = $1
   `, [KORUM_CHAIN_ID]);
@@ -56,8 +58,8 @@ async function loadTraderLeaderboard(
     const config = await getLaunchConfig(id);
     return config ? {
       configId: id,
-      tier1Eth: config.tier1Eth.toString(),
-      tier2Eth: config.tier2Eth.toString(),
+      tier1Num: config.tier1Num, tier1Den: config.tier1Den,
+      tier2Num: config.tier2Num, tier2Den: config.tier2Den,
       fee1Bps: config.fee1Bps,
       fee2Bps: config.fee2Bps,
       fee3Bps: config.fee3Bps,
@@ -73,8 +75,8 @@ async function loadTraderLeaderboard(
     WITH configs AS (
       SELECT
         (value->>'configId')::INTEGER AS config_id,
-        (value->>'tier1Eth')::NUMERIC AS tier1_eth,
-        (value->>'tier2Eth')::NUMERIC AS tier2_eth,
+        (value->>'tier1Num')::NUMERIC AS tier1_num, (value->>'tier1Den')::NUMERIC AS tier1_den,
+        (value->>'tier2Num')::NUMERIC AS tier2_num, (value->>'tier2Den')::NUMERIC AS tier2_den,
         (value->>'fee1Bps')::INTEGER AS fee1_bps,
         (value->>'fee2Bps')::INTEGER AS fee2_bps,
         (value->>'fee3Bps')::INTEGER AS fee3_bps
@@ -91,19 +93,19 @@ async function loadTraderLeaderboard(
         market.token_reserve_after,
         market.cumulative_volume_after,
         config.config_id,
-        config.tier1_eth,
-        config.tier2_eth,
+        FLOOR(market.graduation_eth * config.tier1_num / NULLIF(config.tier1_den, 0)) AS tier1_eth,
+        FLOOR(market.graduation_eth * config.tier2_num / NULLIF(config.tier2_den, 0)) AS tier2_eth,
         config.fee1_bps,
         config.fee2_bps,
         config.fee3_bps,
         position.net_token_amount AS net_tokens,
         position.net_cash_flow_wei AS cash_flow
-      FROM indexer.trader_positions position
-      JOIN indexer.versus_camps camp
+      FROM ${INDEXER_SCHEMA}.trader_positions position
+      JOIN ${INDEXER_SCHEMA}.versus_camps camp
         ON camp.chain_id = position.chain_id AND camp.token_address = position.token_address
-      JOIN indexer.versuses versus
+      JOIN ${INDEXER_SCHEMA}.versuses versus
         ON versus.chain_id = camp.chain_id AND versus.versus_id = camp.versus_id
-      LEFT JOIN indexer.camp_market_state market
+      LEFT JOIN ${INDEXER_SCHEMA}.camp_market_state market
         ON market.chain_id = position.chain_id AND market.token_address = position.token_address
       LEFT JOIN configs config ON config.config_id = versus.config_id
       WHERE position.chain_id = $1
@@ -153,7 +155,7 @@ async function loadTraderLeaderboard(
         trader_address,
         total_volume_wei AS volume_wei,
         trade_count::INTEGER AS trade_count
-      FROM indexer.trader_totals
+      FROM ${INDEXER_SCHEMA}.trader_totals
       WHERE chain_id = $1
         AND trader_address <> '0x0000000000000000000000000000000000000000'
     ),
@@ -206,10 +208,10 @@ async function loadTraderLeaderboard(
       SELECT
         COUNT(DISTINCT versus.versus_id)::INTEGER AS versus_created,
         COALESCE(SUM(COALESCE(market.cumulative_volume_after, 0)), 0) AS generated_volume_wei
-      FROM indexer.versuses versus
-      LEFT JOIN indexer.versus_camps camp
+      FROM ${INDEXER_SCHEMA}.versuses versus
+      LEFT JOIN ${INDEXER_SCHEMA}.versus_camps camp
         ON camp.chain_id = versus.chain_id AND camp.versus_id = versus.versus_id
-      LEFT JOIN indexer.camp_market_state market
+      LEFT JOIN ${INDEXER_SCHEMA}.camp_market_state market
         ON market.chain_id = camp.chain_id AND market.token_address = camp.token_address
       WHERE versus.chain_id = $1 AND versus.creator_wallet = paged.trader_wallet
     ) creator ON TRUE
@@ -217,8 +219,8 @@ async function loadTraderLeaderboard(
       SELECT
         COUNT(binding.user_wallet)::INTEGER AS referral_count,
         COALESCE(SUM(COALESCE(referred.total_volume_wei, 0)), 0) AS referred_volume_wei
-      FROM indexer.referral_bindings binding
-      LEFT JOIN indexer.trader_totals referred
+      FROM ${INDEXER_SCHEMA}.referral_bindings binding
+      LEFT JOIN ${INDEXER_SCHEMA}.trader_totals referred
         ON referred.chain_id = binding.chain_id AND referred.trader_address = binding.user_wallet
       WHERE binding.chain_id = $1 AND binding.referrer_wallet = paged.trader_wallet
     ) referral ON TRUE

@@ -1,5 +1,7 @@
 import "server-only";
 
+import { INDEXER_SCHEMA, WATCHLIST_TABLE } from "../../config/deployment";
+
 import { cache } from "react";
 import { calculateBadgeProgress } from "../badges";
 import { KORUM_CHAIN, KORUM_CHAIN_ID } from "../../config/korum-network";
@@ -152,6 +154,7 @@ function campMarket(input: IndexedCampMarket, quoteUsd: number | null) {
     circulatingSupply,
     lockedSupply,
     realEth,
+    graduationTargetEth: graduationEth,
     reserve,
     cumulativeVolumeEth: unitsNumber(input.cumulativeVolume) ?? 0,
     curveStatus: input.curveStatus,
@@ -300,6 +303,7 @@ function toDebate(row: IndexedDebateRow, quoteUsd: number | null): Debate | null
       graduationDisabled: marketA.graduationDisabled,
       graduationProgress: marketA.graduationProgress,
       curveRealEth: marketA.realEth,
+      graduationTargetEth: marketA.graduationTargetEth,
       curveTokenReserve: marketA.reserve,
       cumulativeVolumeEth: marketA.cumulativeVolumeEth,
       liquidity: 0,
@@ -350,6 +354,7 @@ function toDebate(row: IndexedDebateRow, quoteUsd: number | null): Debate | null
       graduationDisabled: marketB.graduationDisabled,
       graduationProgress: marketB.graduationProgress,
       curveRealEth: marketB.realEth,
+      graduationTargetEth: marketB.graduationTargetEth,
       curveTokenReserve: marketB.reserve,
       cumulativeVolumeEth: marketB.cumulativeVolumeEth,
       liquidity: 0,
@@ -373,7 +378,7 @@ async function readIndexedDebates({ limit = DEFAULT_LIMIT, versusId, watchlistUs
   const safeLimit = Math.min(MAX_LIMIT, Math.max(1, Math.trunc(limit)));
   const normalizedVersusIds = versusIds?.filter((id) => /^\d{1,78}$/.test(id)).slice(0, MAX_LIMIT);
   const watchlistJoin = watchlistUserId ? `
-    INNER JOIN user_watchlist watchlist
+    INNER JOIN ${WATCHLIST_TABLE} watchlist
       ON watchlist.chain_id = v.chain_id
       AND watchlist.versus_id = v.versus_id
       AND watchlist.user_id = $2::uuid
@@ -449,33 +454,33 @@ async function readIndexedDebates({ limit = DEFAULT_LIMIT, versusId, watchlistUs
       stats_b.trader_count AS "tokenBTraderCount",
       stats_b.price_history AS "tokenBPriceHistory",
       stats_versus.trader_count AS "versusTraderCount"
-    FROM indexer.versuses v
+    FROM ${INDEXER_SCHEMA}.versuses v
     LEFT JOIN users creator
       ON LOWER(creator.evm_wallet) = LOWER(v.creator_wallet)
     LEFT JOIN LATERAL (
       SELECT
         COUNT(DISTINCT created.versus_id)::INTEGER AS versus_created,
         COALESCE(SUM(COALESCE(creator_market.cumulative_volume_after, 0)), 0) AS generated_volume_wei
-      FROM indexer.versuses created
-      LEFT JOIN indexer.versus_camps creator_camp
+      FROM ${INDEXER_SCHEMA}.versuses created
+      LEFT JOIN ${INDEXER_SCHEMA}.versus_camps creator_camp
         ON creator_camp.chain_id = created.chain_id AND creator_camp.versus_id = created.versus_id
-      LEFT JOIN indexer.camp_market_state creator_market
+      LEFT JOIN ${INDEXER_SCHEMA}.camp_market_state creator_market
         ON creator_market.chain_id = creator_camp.chain_id AND creator_market.token_address = creator_camp.token_address
       WHERE created.chain_id = v.chain_id AND created.creator_wallet = v.creator_wallet
     ) creator_stats ON TRUE
     ${watchlistJoin}
-    INNER JOIN indexer.versus_camps camp_a
+    INNER JOIN ${INDEXER_SCHEMA}.versus_camps camp_a
       ON camp_a.chain_id = v.chain_id
       AND camp_a.versus_id = v.versus_id
       AND camp_a.side = 0
-    INNER JOIN indexer.versus_camps camp_b
+    INNER JOIN ${INDEXER_SCHEMA}.versus_camps camp_b
       ON camp_b.chain_id = v.chain_id
       AND camp_b.versus_id = v.versus_id
       AND camp_b.side = 1
-    INNER JOIN indexer.camp_market_state market_a
+    INNER JOIN ${INDEXER_SCHEMA}.camp_market_state market_a
       ON market_a.chain_id = camp_a.chain_id
       AND market_a.token_address = camp_a.token_address
-    INNER JOIN indexer.camp_market_state market_b
+    INNER JOIN ${INDEXER_SCHEMA}.camp_market_state market_b
       ON market_b.chain_id = camp_b.chain_id
       AND market_b.token_address = camp_b.token_address
     LEFT JOIN LATERAL (
@@ -489,14 +494,14 @@ async function readIndexedDebates({ limit = DEFAULT_LIMIT, versusId, watchlistUs
         COUNT(DISTINCT NULLIF(trade.trader_address, '0x0000000000000000000000000000000000000000'))::INTEGER AS trader_count,
         ARRAY(
           SELECT history.sqrt_price_x96_after::TEXT
-          FROM indexer.camp_trades history
+          FROM ${INDEXER_SCHEMA}.camp_trades history
           WHERE history.chain_id = camp_a.chain_id
             AND history.token_address = camp_a.token_address
             AND history.traded_at >= NOW() - INTERVAL '24 hours'
           ORDER BY history.block_number DESC, history.log_index DESC
           LIMIT 96
         ) AS price_history
-      FROM indexer.camp_trades trade
+      FROM ${INDEXER_SCHEMA}.camp_trades trade
       WHERE trade.chain_id = camp_a.chain_id
         AND trade.token_address = camp_a.token_address
     ) stats_a ON TRUE
@@ -511,20 +516,20 @@ async function readIndexedDebates({ limit = DEFAULT_LIMIT, versusId, watchlistUs
         COUNT(DISTINCT NULLIF(trade.trader_address, '0x0000000000000000000000000000000000000000'))::INTEGER AS trader_count,
         ARRAY(
           SELECT history.sqrt_price_x96_after::TEXT
-          FROM indexer.camp_trades history
+          FROM ${INDEXER_SCHEMA}.camp_trades history
           WHERE history.chain_id = camp_b.chain_id
             AND history.token_address = camp_b.token_address
             AND history.traded_at >= NOW() - INTERVAL '24 hours'
           ORDER BY history.block_number DESC, history.log_index DESC
           LIMIT 96
         ) AS price_history
-      FROM indexer.camp_trades trade
+      FROM ${INDEXER_SCHEMA}.camp_trades trade
       WHERE trade.chain_id = camp_b.chain_id
         AND trade.token_address = camp_b.token_address
     ) stats_b ON TRUE
     LEFT JOIN LATERAL (
       SELECT COUNT(DISTINCT NULLIF(trade.trader_address, '0x0000000000000000000000000000000000000000'))::INTEGER AS trader_count
-      FROM indexer.camp_trades trade
+      FROM ${INDEXER_SCHEMA}.camp_trades trade
       WHERE trade.chain_id = v.chain_id
         AND trade.token_address IN (camp_a.token_address, camp_b.token_address)
     ) stats_versus ON TRUE
@@ -562,12 +567,12 @@ async function searchIndexedDebateIds(searchQuery: string, limit: number) {
   const database = getDatabase();
   return database.unsafe<IndexedDebateIdRow[]>(`
     SELECT v.versus_id::TEXT AS "versusId"
-    FROM indexer.versuses v
-    INNER JOIN indexer.versus_camps camp_a
+    FROM ${INDEXER_SCHEMA}.versuses v
+    INNER JOIN ${INDEXER_SCHEMA}.versus_camps camp_a
       ON camp_a.chain_id = v.chain_id
       AND camp_a.versus_id = v.versus_id
       AND camp_a.side = 0
-    INNER JOIN indexer.versus_camps camp_b
+    INNER JOIN ${INDEXER_SCHEMA}.versus_camps camp_b
       ON camp_b.chain_id = v.chain_id
       AND camp_b.versus_id = v.versus_id
       AND camp_b.side = 1

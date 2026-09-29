@@ -325,6 +325,13 @@ function TokenPanel({ token, side, marketShare, marketAvailable, onStatus }: { t
         </div>
       </div>
 
+      {marketAvailable && token.curveStatus !== 3 && token.graduationTargetEth != null && token.graduationTargetEth > 0 ? (
+        <p className={styles.graduationTarget}>
+          {token.graduationDisabled ? "Graduation disabled for this reopened curve." : token.curveStatus === 2 ? "Liquidity is moving to the pool. Trading will resume when graduation completes." : <>
+            <strong>{(token.curveRealEth ?? 0).toLocaleString("en-US", { maximumFractionDigits: 6 })} / {token.graduationTargetEth.toLocaleString("en-US", { maximumFractionDigits: 6 })} ETH</strong> toward this side’s graduation to Uniswap.
+          </>}
+        </p>
+      ) : null}
       <TokenTradePanel token={token} onStatus={onStatus} />
     </article>
   );

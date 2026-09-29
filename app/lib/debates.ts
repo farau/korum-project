@@ -36,6 +36,7 @@ export type DebateToken = {
   graduationDisabled?: boolean;
   graduationProgress?: number;
   curveRealEth?: number;
+  graduationTargetEth?: number;
   curveTokenReserve?: number;
   cumulativeVolumeEth?: number;
   liquidity?: number;

@@ -1,4 +1,5 @@
 import process from "node:process";
+import { readFile } from "node:fs/promises";
 import postgres from "postgres";
 
 const databaseUrl = process.env.DATABASE_PUBLIC_URL || process.env.DATABASE_URL;
@@ -28,8 +29,10 @@ const sql = tunnelHost
   : postgres(databaseUrl, options);
 
 const connection = await sql.reserve();
-const chainId = 46630;
-const versusId = "1";
+const chainId = process.env.NEXT_PUBLIC_KORUM_NETWORK === "mainnet" ? 4663 : 46630;
+const deployment = JSON.parse(await readFile(new URL(`../contracts/deployments/${chainId}.json`, import.meta.url)));
+const schema = deployment.readModelSchema;
+const versusId = "999999999999";
 const registryAddress = "0x1111111111111111111111111111111111111111";
 const factoryAddress = "0x2222222222222222222222222222222222222222";
 const userWallet = "0x3333333333333333333333333333333333333333";
@@ -53,7 +56,7 @@ try {
   await connection.unsafe("BEGIN");
 
   await connection`
-    INSERT INTO indexer.referral_bindings (
+    INSERT INTO ${connection(schema)}.referral_bindings (
       chain_id, registry_address, user_wallet, referrer_wallet, bound_at,
       transaction_hash, block_hash, block_number, log_index
     ) VALUES (
@@ -75,13 +78,13 @@ try {
     { side: 1, token: tokenB, name: "Camp B", symbol: "CMPB", uri: "ipfs://camp-b", logIndex: 2 },
   ]) {
     await connection`
-      INSERT INTO indexer.versus_camps (
+      INSERT INTO ${connection(schema)}.versus_camps (
         chain_id, versus_id, side, token_address, name, symbol, uri,
-        virtual_eth, graduation_eth, total_supply, block_timestamp,
+        virtual_eth, graduation_eth, total_supply, economics_id, quote_asset, block_timestamp,
         transaction_hash, block_hash, block_number, log_index
       ) VALUES (
         ${chainId}, ${versusId}, ${camp.side}, ${camp.token}, ${camp.name}, ${camp.symbol}, ${camp.uri},
-        ${"1000000000000000000"}, ${"5000000000000000000"}, ${totalSupply}, ${eventTime},
+        ${"1000000000000000000"}, ${"5000000000000000000"}, ${totalSupply}, ${1}, ${"0x0000000000000000000000000000000000000000"}, ${eventTime},
         ${transactionHash}, ${blockHash}, ${101}, ${camp.logIndex}
       )
       ON CONFLICT (chain_id, versus_id, side) DO UPDATE SET
@@ -102,7 +105,7 @@ try {
   }
 
   await connection`
-    INSERT INTO indexer.versuses (
+    INSERT INTO ${connection(schema)}.versuses (
       chain_id, versus_id, factory_address, creator_wallet, config_id,
       creator_fee_recipient, token_a_address, token_b_address, created_at,
       title, description, category, socials_json,
@@ -122,7 +125,7 @@ try {
   `;
 
   await connection`
-    INSERT INTO indexer.camp_trades (
+    INSERT INTO ${connection(schema)}.camp_trades (
       event_id, chain_id, token_address, trader_address, referrer_address,
       venue, kind, is_buy, eth_gross, token_amount, fee_total,
       fee_creator, fee_referrer, fee_platform, tier_fee_bps,
@@ -140,7 +143,7 @@ try {
   `;
 
   await connection`
-    INSERT INTO indexer.camp_curve_lifecycle (
+    INSERT INTO ${connection(schema)}.camp_curve_lifecycle (
       event_id, chain_id, token_address, event_type, curve_status,
       graduation_disabled, happened_at, transaction_hash, block_hash,
       block_number, log_index
@@ -152,7 +155,7 @@ try {
   `;
 
   await connection`
-    INSERT INTO indexer.camp_graduations (
+    INSERT INTO ${connection(schema)}.camp_graduations (
       chain_id, token_address, pool_id, sqrt_price_x96, eth_deposited,
       tokens_deposited, position_token_id, eth_residual, token_residual,
       graduated_at, transaction_hash, block_hash, block_number, log_index
@@ -168,8 +171,8 @@ try {
       v.title,
       COUNT(c.side)::INTEGER AS camp_count,
       ARRAY_AGG(c.side ORDER BY c.side) AS sides
-    FROM indexer.versuses v
-    JOIN indexer.versus_camps c
+    FROM ${connection(schema)}.versuses v
+    JOIN ${connection(schema)}.versus_camps c
       ON c.chain_id = v.chain_id AND c.versus_id = v.versus_id
     WHERE v.chain_id = ${chainId} AND v.versus_id = ${versusId}
     GROUP BY v.title
@@ -177,7 +180,7 @@ try {
 
   const [binding] = await connection`
     SELECT referrer_wallet
-    FROM indexer.referral_bindings
+    FROM ${connection(schema)}.referral_bindings
     WHERE chain_id = ${chainId} AND user_wallet = ${userWallet}
   `;
 
@@ -188,7 +191,7 @@ try {
       circulating_supply::TEXT AS circulating_supply,
       adjusted_fdv_supply::TEXT AS adjusted_fdv_supply,
       real_eth_after::TEXT AS real_eth_after
-    FROM indexer.camp_market_state
+    FROM ${connection(schema)}.camp_market_state
     WHERE chain_id = ${chainId} AND token_address = ${tokenA}
   `;
 

@@ -13000,3 +13000,8 @@ html[data-theme="light"] .profile-page .profile-locked-benefits article {
     text-align: center;
   }
 }
+
+@media (max-width: 480px) {
+  .create-cost-row { flex-wrap: wrap; gap: 6px 12px; }
+  .create-cost-row strong { margin-left: auto; }
+}

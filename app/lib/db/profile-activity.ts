@@ -1,5 +1,7 @@
 import "server-only";
 
+import { INDEXER_SCHEMA } from "../../config/deployment";
+
 import { createHash } from "node:crypto";
 import { formatEther, formatUnits, getAddress } from "viem";
 import { KORUM_CHAIN_ID } from "../../config/korum-network";
@@ -65,8 +67,8 @@ async function loadProfileActivity(wallet: string, page: number, pageSize: numbe
       trade.transaction_hash AS "transactionHash",
       trade.block_number AS "blockNumber",
       trade.log_index AS "logIndex"
-    FROM indexer.camp_trades trade
-    JOIN indexer.versus_camps camp
+    FROM ${INDEXER_SCHEMA}.camp_trades trade
+    JOIN ${INDEXER_SCHEMA}.versus_camps camp
       ON camp.chain_id = trade.chain_id
       AND camp.token_address = trade.token_address
     WHERE trade.chain_id = $1

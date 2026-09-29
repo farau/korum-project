@@ -3,32 +3,44 @@
   "network": "robinhood-testnet",
   "contracts": {
     "KorumCore": {
-      "address": "0x08E1f34E0Fb10a0339ecBa8Cba2021Ea2Bb1171E",
-      "deploymentBlock": 116108373
+      "address": "0x771735Be66bA0E4dcE80E1F120fAe539810e7691",
+      "deploymentBlock": 123181245
     },
     "KorumFactory": {
-      "address": "0x18d70D9cA430747b81E6afb667aBDC923b16B417",
-      "deploymentBlock": 116108344
+      "address": "0x4Be4652a39299A82f1B459534984931aFf52dA12",
+      "deploymentBlock": 123181169
     },
     "KorumHook": {
-      "address": "0x63bAb3Ba5BdFc46D65fcaf3Beacf8Ee94438e0cc",
-      "deploymentBlock": 116108400
+      "address": "0xc0c5DB0dFE3E115489f9733AFe1c7a11119AE0cC",
+      "deploymentBlock": 123181266
     },
     "KorumRouter": {
-      "address": "0xA933fD4D16FfcC6E7FE98dBE11121EC1A099a7ce",
-      "deploymentBlock": 116108264
+      "address": "0xA7285049333f7506eF4362e5120e810B0B9bDBd4",
+      "deploymentBlock": 123181112
     },
     "FeeEscrow": {
-      "address": "0xfb96ABE72B3D52E407f0A25c4D4CeDaD24985EA9",
-      "deploymentBlock": 116108319
+      "address": "0xA06B36101E7514CfB536E3df19e27E15a0418338",
+      "deploymentBlock": 123181151
     },
     "ReferralRegistry": {
-      "address": "0xe72f5f1D4c6793C67F962e2E8C36EE1F0750a24C",
-      "deploymentBlock": 116108291
+      "address": "0x4CAB1f34bF69337DAfDBDbB2184519bb804fA5f6",
+      "deploymentBlock": 123181130
     },
     "LiquidityLocker": {
-      "address": "0x764271Ed2B50FB82B1F552813b7d8F04698fF4CD",
-      "deploymentBlock": 116108243
+      "address": "0xF634AF51eb0C94FAA1A0A36060389D6832051a8D",
+      "deploymentBlock": 123181096
+    },
+    "KorumPairRegistry": {
+      "address": "0x3661944bfEb9034a82F598c7b6aa0626D45b8811",
+      "deploymentBlock": 123181223
+    },
+    "KorumSeeder": {
+      "address": "0xDdC5e687E7CFB489b1e7b26E19285ABF75775048",
+      "deploymentBlock": 123181181
+    },
+    "KorumLens": {
+      "address": "0x8243ec11678DEbBDcb974b88d64Ce5c5937c69C8",
+      "deploymentBlock": 123181199
     }
   },
   "dependencies": {
@@ -37,5 +49,12 @@
     "StateView": "0xf3334192d15450cdd385c8b70e03f9a6bd9e673b",
     "Quoter": "0x8dc178efb8111bb0973dd9d722ebeff267c98f94",
     "Permit2": "0x000000000022D473030F116dDEE9F6B43aC78BA3"
+  },
+  "version": 2,
+  "readModelSchema": "indexer_v2",
+  "watchlistTable": "user_watchlist_v2",
+  "launch": {
+    "configId": 1,
+    "quoteAsset": "0x0000000000000000000000000000000000000000"
   }
 }

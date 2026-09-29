@@ -1,4 +1,7 @@
 import "server-only";
+import { sellFeeBps } from "../contracts/economics";
+
+import { INDEXER_SCHEMA } from "../../config/deployment";
 
 import { createHash } from "node:crypto";
 import { formatEther, getAddress } from "viem";
@@ -25,6 +28,7 @@ type ProfilePositionRow = {
   tokenAddress: `0x${string}`;
   configId: number | string;
   virtualEth: string;
+  graduationEth: string;
   realEthAfter: string | null;
   tokenReserveAfter: string | null;
   cumulativeVolumeAfter: string | null;
@@ -43,6 +47,7 @@ async function calculateEstimatedPnl(rows: ProfilePositionRow[]) {
   const parsedRows = rows.map((row) => ({
     ...row,
     virtualEth: signedBigInt(row.virtualEth),
+    graduationEth: signedBigInt(row.graduationEth),
     realEthAfter: signedBigInt(row.realEthAfter ?? ""),
     tokenReserveAfter: signedBigInt(row.tokenReserveAfter ?? ""),
     cumulativeVolumeAfter: signedBigInt(row.cumulativeVolumeAfter ?? ""),
@@ -54,7 +59,7 @@ async function calculateEstimatedPnl(rows: ProfilePositionRow[]) {
   const openRows = parsedRows.filter((row) => row.netTokenAmount! > BigInt(0));
   if (openRows.length > 25 || openRows.some((row) => (
     row.curveStatus !== 1
-    || row.virtualEth === null
+    || row.virtualEth === null || row.graduationEth === null
     || row.realEthAfter === null
     || row.tokenReserveAfter === null
     || row.cumulativeVolumeAfter === null
@@ -73,15 +78,11 @@ async function calculateEstimatedPnl(rows: ProfilePositionRow[]) {
     let liquidationValueWei = BigInt(0);
     if (row.netTokenAmount! > BigInt(0)) {
       const config = configs.get(String(row.configId));
-      if (!config || row.virtualEth === null || row.realEthAfter === null || row.tokenReserveAfter === null || row.cumulativeVolumeAfter === null) return null;
+      if (!config || row.virtualEth === null || row.graduationEth === null || row.realEthAfter === null || row.tokenReserveAfter === null || row.cumulativeVolumeAfter === null) return null;
 
       const gross = (row.virtualEth + row.realEthAfter) * row.netTokenAmount!
         / (row.tokenReserveAfter + row.netTokenAmount!);
-      const feeBps = row.cumulativeVolumeAfter < config.tier1Eth
-        ? config.fee1Bps
-        : row.cumulativeVolumeAfter < config.tier2Eth
-          ? config.fee2Bps
-          : config.fee3Bps;
+      const feeBps = sellFeeBps(config, row.graduationEth!, row.cumulativeVolumeAfter);
       liquidationValueWei = gross - gross * BigInt(feeBps) / BigInt(10_000);
     }
     pnlByVersus.set(
@@ -106,20 +107,20 @@ async function loadUserProfileStats(wallet: string): Promise<UserProfileStats> {
       SELECT
         (
           SELECT COUNT(*)::INTEGER
-          FROM indexer.referral_bindings binding
+          FROM ${INDEXER_SCHEMA}.referral_bindings binding
           WHERE binding.chain_id = $1
             AND binding.referrer_wallet = $2
         ) AS "referralCount",
         (
           SELECT COUNT(*)::INTEGER
-          FROM indexer.versuses versus
+          FROM ${INDEXER_SCHEMA}.versuses versus
           WHERE versus.chain_id = $1
             AND versus.creator_wallet = $2
         ) AS "versusCreated",
         (
           SELECT COUNT(DISTINCT camp.versus_id)::INTEGER
-          FROM indexer.camp_trades trade
-          JOIN indexer.versus_camps camp
+          FROM ${INDEXER_SCHEMA}.camp_trades trade
+          JOIN ${INDEXER_SCHEMA}.versus_camps camp
             ON camp.chain_id = trade.chain_id
             AND camp.token_address = trade.token_address
           WHERE trade.chain_id = $1
@@ -127,23 +128,23 @@ async function loadUserProfileStats(wallet: string): Promise<UserProfileStats> {
         ) AS "versusJoined",
         (
           SELECT COALESCE(totals.trade_count, 0)::INTEGER
-          FROM indexer.trader_totals totals
+          FROM ${INDEXER_SCHEMA}.trader_totals totals
           WHERE totals.chain_id = $1
             AND totals.trader_address = $2
         ) AS "tradeCount",
         (
           SELECT COALESCE(totals.total_volume_wei, 0)::TEXT
-          FROM indexer.trader_totals totals
+          FROM ${INDEXER_SCHEMA}.trader_totals totals
           WHERE totals.chain_id = $1
             AND totals.trader_address = $2
         ) AS "tradedVolumeWei",
         (
           SELECT COALESCE(SUM(COALESCE(market.cumulative_volume_after, 0)), 0)::TEXT
-          FROM indexer.versuses versus
-          JOIN indexer.versus_camps camp
+          FROM ${INDEXER_SCHEMA}.versuses versus
+          JOIN ${INDEXER_SCHEMA}.versus_camps camp
             ON camp.chain_id = versus.chain_id
             AND camp.versus_id = versus.versus_id
-          LEFT JOIN indexer.camp_market_state market
+          LEFT JOIN ${INDEXER_SCHEMA}.camp_market_state market
             ON market.chain_id = camp.chain_id
             AND market.token_address = camp.token_address
           WHERE versus.chain_id = $1
@@ -151,8 +152,8 @@ async function loadUserProfileStats(wallet: string): Promise<UserProfileStats> {
         ) AS "creatorVolumeWei",
         (
           SELECT COALESCE(SUM(COALESCE(totals.total_volume_wei, 0)), 0)::TEXT
-          FROM indexer.referral_bindings binding
-          LEFT JOIN indexer.trader_totals totals
+          FROM ${INDEXER_SCHEMA}.referral_bindings binding
+          LEFT JOIN ${INDEXER_SCHEMA}.trader_totals totals
             ON totals.chain_id = binding.chain_id
             AND totals.trader_address = binding.user_wallet
           WHERE binding.chain_id = $1
@@ -165,20 +166,21 @@ async function loadUserProfileStats(wallet: string): Promise<UserProfileStats> {
         position.token_address AS "tokenAddress",
         versus.config_id AS "configId",
         market.virtual_eth::TEXT AS "virtualEth",
+        market.graduation_eth::TEXT AS "graduationEth",
         market.real_eth_after::TEXT AS "realEthAfter",
         market.token_reserve_after::TEXT AS "tokenReserveAfter",
         market.cumulative_volume_after::TEXT AS "cumulativeVolumeAfter",
         position.net_token_amount::TEXT AS "netTokenAmount",
         position.net_cash_flow_wei::TEXT AS "netCashFlowWei",
         market.curve_status AS "curveStatus"
-      FROM indexer.trader_positions position
-      JOIN indexer.versus_camps camp
+      FROM ${INDEXER_SCHEMA}.trader_positions position
+      JOIN ${INDEXER_SCHEMA}.versus_camps camp
         ON camp.chain_id = position.chain_id
         AND camp.token_address = position.token_address
-      JOIN indexer.versuses versus
+      JOIN ${INDEXER_SCHEMA}.versuses versus
         ON versus.chain_id = camp.chain_id
         AND versus.versus_id = camp.versus_id
-      LEFT JOIN indexer.camp_market_state market
+      LEFT JOIN ${INDEXER_SCHEMA}.camp_market_state market
         ON market.chain_id = position.chain_id
         AND market.token_address = position.token_address
       WHERE position.chain_id = $1
