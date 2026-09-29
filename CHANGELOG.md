@@ -2,9 +2,11 @@
 
 All notable changes to Korum are documented in this file.
 
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). The project currently uses the version declared in `package.json` and has not published a tagged release.
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). The project version is declared in `package.json`.
 
 ## [Unreleased]
+
+## [0.2.2] - 2026-09-29
 
 ### Added
 
@@ -238,7 +240,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 - Initial project generated with Create Next App.
 
-[Unreleased]: https://github.com/farau/korum-project/compare/v0.2.1...HEAD
+[Unreleased]: https://github.com/farau/korum-project/compare/v0.2.2...HEAD
+[0.2.2]: https://github.com/farau/korum-project/compare/v0.2.1...v0.2.2
 [0.2.1]: https://github.com/farau/korum-project/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/farau/korum-project/compare/0.1.0...v0.2.0
 [0.1.0]: https://github.com/farau/korum-project/commit/131047a
