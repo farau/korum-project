@@ -57,6 +57,13 @@ function DisconnectIcon() {
 }
 
 export default function Header() {
+  const { address, connected, authenticated } = useWallet();
+  const notificationWallet = connected && authenticated && address ? address.toLowerCase() : null;
+  // A new owner gets fresh state immediately, before effects or requests settle.
+  return <HeaderContent key={notificationWallet ?? "anonymous"} notificationWallet={notificationWallet} />;
+}
+
+function HeaderContent({ notificationWallet }: { notificationWallet: string | null }) {
   const pathname = usePathname();
   const [menuOpen, setMenuOpen] = useState(false);
   const [notificationOpen, setNotificationOpen] = useState(false);
@@ -69,14 +76,17 @@ export default function Header() {
   const { address, connected, authenticating, connect, disconnect, hydrated: walletHydrated } = useWallet();
 
   useEffect(() => {
+    if (!walletHydrated) return;
     let cancelled = false;
+    const controller = new AbortController();
 
     async function loadReferralNotification() {
-      const storedNotifications = readStoredNotifications();
+      const storedNotifications = readStoredNotifications(notificationWallet);
       try {
         const response = await fetch("/api/notifications", {
           cache: "no-store",
           credentials: "same-origin",
+          signal: controller.signal,
         });
         const result = await response.json() as { notification?: Omit<AppNotification, "read"> | null };
         if (cancelled) return;
@@ -85,11 +95,11 @@ export default function Header() {
           return;
         }
 
-        const notification: AppNotification = { ...result.notification, read: false };
+        const notification: AppNotification = { ...result.notification, walletAddress: notificationWallet, read: false };
         setNotifications((current) => {
           const existing = current.length ? current : storedNotifications;
           const next = [notification, ...existing.filter((item) => item.id !== notification.id)].slice(0, 10);
-          storeNotifications(next);
+          storeNotifications(notificationWallet, next);
           return next;
         });
         setNotificationOpen(true);
@@ -108,16 +118,16 @@ export default function Header() {
     }
 
     void loadReferralNotification();
-    return () => { cancelled = true; };
-  }, []);
+    return () => { cancelled = true; controller.abort(); };
+  }, [notificationWallet, walletHydrated]);
 
   useEffect(() => {
     function showClientNotification(event: Event) {
       const notification = (event as CustomEvent<unknown>).detail;
-      if (!isAppNotification(notification)) return;
+      if (!isAppNotification(notification) || notification.walletAddress !== notificationWallet) return;
       setNotifications((current) => {
         const next = [notification, ...current.filter((item) => item.id !== notification.id)].slice(0, 10);
-        storeNotifications(next);
+        storeNotifications(notificationWallet, next);
         return next;
       });
       setNotificationOpen(true);
@@ -125,7 +135,7 @@ export default function Header() {
 
     window.addEventListener(NOTIFICATION_EVENT, showClientNotification);
     return () => window.removeEventListener(NOTIFICATION_EVENT, showClientNotification);
-  }, []);
+  }, [notificationWallet]);
 
   useEffect(() => {
     if (!notificationOpen) return;
@@ -175,14 +185,14 @@ export default function Header() {
 
     setNotifications((current) => {
       const next = current.map((notification) => ({ ...notification, read: true }));
-      storeNotifications(next);
+      storeNotifications(notificationWallet, next);
       return next;
     });
   }
 
   function clearNotifications() {
     setNotifications([]);
-    storeNotifications([]);
+    storeNotifications(notificationWallet, []);
     setNotificationOpen(false);
   }
 

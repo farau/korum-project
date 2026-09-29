@@ -258,7 +258,7 @@ The challenge cookie is also `HttpOnly`, short-lived, and limited to `/api/auth`
 
 `/profile` reads the session on the server and does not send profile data to unauthenticated clients. `/api/profile` applies the same protection to profile reads, indexed wallet statistics, and username/bio updates. Every future wallet-specific Railway query must repeat this server-side authorization check; hiding content in React is not a security boundary.
 
-The current profile mirrors the Korum reference layout while keeping its controls reactive. Its Information, Activity, Referrals, Badges, Watchlist, and Global simulator tabs are client-side React views. The server derives referral count from `indexer.referral_bindings`, created Versus from `indexer.versuses`, joined Versus from indexed trades, and trade count, gross volume, net positions, and cash flow from the trigger-maintained `indexer.trader_totals` and `indexer.trader_positions` aggregates. Every read is scoped to the configured chain and authenticated wallet. These wallet-scoped statistics are cached for 20 seconds in the private server-side Redis service under a hashed wallet key; the authenticated Profile response remains `private, no-store` and is never stored by a shared HTTP cache. Activity is loaded lazily in pages of 10 raw trades through `/api/profile/activity`, with a separate 20-second private Redis entry for each wallet and page. Gross volume is displayed in USD with the shared ETH/USD quote, falling back to ETH when no quote is available. Estimated PNL is sales received net of fees plus the full-position liquidation value of each remaining trade-derived position minus purchases paid. For an active curve, the server reconstructs `KorumCore.quoteSell` locally from indexed reserves and reads only the public launch configuration on-chain; it therefore includes bonding-curve price impact and current sell fees without disclosing position sizes to an RPC provider. It excludes gas and cannot account for ERC-20 transfers outside Korum until `Transfer` events are indexed. Graduated positions remain unavailable until the Uniswap v4 Quoter integration is added. Badge progression is derived from the seven threshold pairs shown in Profile: Creator uses created Versus plus generated curve volume, Trader uses trade count plus gross volume, and Referrer uses confirmed referrals plus their wallets' gross volume. Both conditions are required within a path, and the highest tier reached across the three paths becomes the public leaderboard badge. The tier itself is not persisted because thresholds and the ETH/USD conversion can change; authoritative counters and volumes remain in Railway. Total wallet valuation continues to display an explicit pending state rather than a fabricated value. Profile-image uploads and X account linking are visibly disabled and cannot be activated by pointer or keyboard.
+The current profile mirrors the Korum reference layout while keeping its controls reactive. Its Information, Activity, Referrals, Badges, Watchlist, and Global simulator tabs are client-side React views. The server derives referral count from `indexer.referral_bindings`, created Versus from `indexer.versuses`, joined Versus from indexed trades, and trade count, gross volume, net positions, and cash flow from the trigger-maintained `indexer.trader_totals` and `indexer.trader_positions` aggregates. Every read is scoped to the configured chain and authenticated wallet. These wallet-scoped statistics are cached for 20 seconds in the private server-side Redis service under a hashed wallet key; the authenticated Profile response remains `private, no-store` and is never stored by a shared HTTP cache. Activity is loaded lazily in pages of 10 raw trades through `/api/profile/activity`, with a separate 20-second private Redis entry for each wallet and page. Gross volume is displayed in USD with the shared ETH/USD quote, falling back to ETH when no quote is available. Estimated PNL is sales received net of fees plus the full-position liquidation value of each remaining trade-derived position minus purchases paid. For an active curve, the server reconstructs `KorumCore.quoteSell` locally from indexed reserves and reads only the public launch configuration on-chain; it therefore includes bonding-curve price impact and current sell fees without disclosing position sizes to an RPC provider. It excludes gas and cannot account for ERC-20 transfers outside Korum until `Transfer` events are indexed. Graduated positions remain unavailable until the Uniswap v4 Quoter integration is added. Badge progression is derived from the seven threshold pairs shown in Profile: Creator uses created Versus plus generated curve volume, Trader uses trade count plus gross volume, and Referrer uses confirmed referrals plus their wallets' gross volume. Both conditions are required within a path, and the highest tier reached across the three paths becomes the public leaderboard badge. The tier itself is not persisted because thresholds and the ETH/USD conversion can change; authoritative counters and volumes remain in Railway. Total wallet valuation continues to display an explicit pending state rather than a fabricated value. Profile-image uploads are available in Account information; X account linking remains disabled.
 
 ## User Database
 
@@ -269,7 +269,7 @@ The user schema is defined by the numbered migrations in `db/migrations`. The `u
 - A generated and unique six-character Base62 referral code bound to the normalized EVM wallet.
 - An optional editable display name between 2 and 32 characters.
 - A 160-character profile bio.
-- Future avatar object metadata and verified X account metadata.
+- Avatar version metadata and verified X account metadata.
 - Last-login chain and timestamps, plus creation and update timestamps.
 
 Wallet addresses and referral codes are immutable through the Profile API. On first verified sign-in, the server generates exactly six cryptographically random Base62 characters and retries if PostgreSQL reports the unique code constraint. Subsequent sign-ins preserve the code already bound to that wallet. `POST /api/auth/verify` performs an atomic `INSERT ... ON CONFLICT DO UPDATE`, so concurrent sign-ins for the same wallet resolve to one user record. `GET` and `PATCH /api/profile` derive identity only from the signed session. Profile updates use a strict field allowlist and allow one validated `displayName` or `bio` change per request.
@@ -277,6 +277,33 @@ Wallet addresses and referral codes are immutable through the Profile API. On fi
 The referrer is deliberately not stored on `users`. `ReferralRegistry.referrerOf(user)` remains the on-chain source of truth, while Goldsky projects successful `ReferrerBound` events into PostgreSQL for fast reverse lookups, rankings, and historical reads.
 
 Referral links can add a case-sensitive six-character code through `?ref=ABC123` on any application page. Next.js removes the code from the visible URL, validates it against `users`, and stores only the code in a 30-day `HttpOnly`, `SameSite=Lax` cookie. Authenticated transaction screens resolve that code back to its wallet server-side through `/api/referrals/pending`. Invalid codes and self-referrals are ignored. After an eligible transaction, the client clears the cookie only when `ReferrerBound` is present in the receipt or `ReferralRegistry.referrerOf(user)` is non-zero. See the [architecture decision](./docs/referral-and-indexer-architecture.md#cookie-lifecycle) for the complete lifecycle.
+
+### Referrer identity and reciprocal referrals
+
+Profile displays the confirmed `ReferralRegistry.referrerOf(wallet)` address and the referrer's display name when available. A pending referral cookie is not a confirmed referrer. RPC failures show an unavailable state instead of claiming there is no referrer.
+
+Before resolving a pending referral, the server reads the current user's on-chain referrer and rejects self-referrals and already-bound users. Reciprocal referrals are allowed: A can refer B and B can refer A, provided each user has no referrer when their binding is created. Creation and trade submission resolve the referral again, checking that the API session wallet matches the submitting wallet. A failed verification submits no new referrer and preserves the pending cookie for retry.
+
+The application follows the deployed registry's binding rules: no zero-address referrer, no self-referral and no replacement of an existing referrer. No contract change is needed to allow reciprocal referrals.
+
+Run `node --experimental-strip-types scripts/check-referral-eligibility.mjs` for the reciprocal-referral and session-mismatch checks.
+
+### Profile avatars
+
+Migration `0010_create_user_avatars.sql` stores one compressed WebP per user in a separate `user_avatars` table (`BYTEA`, maximum 100 KiB enforced by PostgreSQL). This keeps binary payloads out of ordinary profile queries and avoids bucket credentials and orphaned objects for these small, bounded assets. If avatar traffic or user count grows substantially, migrate the binary storage to object storage while preserving the public image route.
+
+`PUT /api/profile/avatar` accepts raw JPEG, PNG or WebP bytes, with a 5 MiB streaming request limit. Sharp validates the decoded format, rejects animated images and images over 25 megapixels, applies EXIF orientation, crops to 256 × 256, strips metadata and encodes WebP at quality 80 before any database write. See [Sharp's input limits](https://sharp.pixelplumbing.com/api-constructor/) and [output options](https://sharp.pixelplumbing.com/api-output/). `DELETE` removes the image. Both require a signed wallet session, check request origin and share a limit of 10 attempts per 10 minutes per user through the existing Redis limiter (in-process fallback without Redis). Image bytes and user metadata change in one transaction.
+
+`GET /api/avatars/:wallet` serves public profile images with `Cache-Control: no-store`, or 404 for the initials fallback. Profile and avatar components reset their local state on wallet changes, and profile identity must match both the connected wallet and the signed server session. The shared avatar component refreshes mounted avatars immediately after upload/removal, including the header. No additional environment variables are needed; apply the migration before releasing the application changes.
+
+Checks (Node 22.6+ for the TypeScript image test):
+
+```bash
+node --experimental-strip-types scripts/check-avatar-images.mjs
+node --env-file=.env.local scripts/check-avatar-flow.mjs
+```
+
+The flow check requires the local app and a migrated development/staging database. It signs in two temporary wallets, verifies their profiles and images stay isolated, tests upload/read/replace/delete/rate limits and deletes the test users afterward.
 
 ## Goldsky Read Model
 
@@ -307,27 +334,12 @@ railway run --service Postgres env KORUM_DB_TUNNEL_HOST=127.0.0.1 KORUM_DB_TUNNE
 
 In a deployed Railway application service, set `DATABASE_URL` to the private `${{Postgres.DATABASE_URL}}` reference.
 
-## Profile Image Strategy
-
-The recommended first implementation is a private Railway Bucket with S3-compatible signed uploads. PostgreSQL should store only an immutable object key and validated metadata, never image bytes or a temporary presigned URL.
-
-A production avatar flow should:
-
-1. Require a valid wallet session before issuing a short-lived upload authorization.
-2. Generate a random user-scoped temporary key instead of trusting the original filename.
-3. Limit accepted formats, encoded size, decoded dimensions, and pixel count.
-4. Verify the actual file signature, strip metadata, resize, and re-encode to a canonical WebP or AVIF asset.
-5. Move the validated asset to an immutable key and update the user row only after storage succeeds.
-6. Delete replaced and abandoned objects asynchronously.
-
-Cloudflare Images or Cloudinary are stronger alternatives when automatic transformations, global image delivery, moderation, or responsive variants matter more than keeping storage inside Railway. X account linking should use an OAuth flow and persist only provider IDs and verified metadata after callback validation.
-
 ## Browser Persistence
 
 | Key | Value |
 | --- | --- |
 | `korum-theme` | `dark` or `light` |
-| `korum-notifications-v1` | Bounded notification presentation history |
+| `korum-notifications-v2:<wallet-or-anonymous>` | Bounded notification history isolated by normalized wallet address, with a separate anonymous scope |
 
 The watchlist is not browser persistence: its source of truth is `public.user_watchlist` in Railway and its cross-tab refresh signal uses `BroadcastChannel` without storing membership locally. Reads of genuine browser preferences are deferred until client hydration to avoid server/client markup mismatches.
 

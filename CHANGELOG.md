@@ -6,6 +6,25 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+
+- Profile avatar upload, replacement, removal, and preview, with shared images in the header, Profile, leaderboard podium, and Versus creator panel.
+- Bounded PostgreSQL avatar storage through migration `0010_create_user_avatars.sql`: JPEG/PNG/WebP uploads up to 5 MiB, server-side compression to 256 × 256 WebP up to 100 KiB, metadata stripping, decoded-image validation, and authenticated rate-limited updates.
+- Confirmed on-chain referrer display in Profile, including the referrer's username when available and a copyable wallet address.
+- Regression checks for image validation, two-wallet avatar isolation, notification ownership, and referral eligibility.
+
+### Changed
+
+- Kept Profile avatar actions stacked on the right with responsive sizing, and shortened the displayed account address while preserving full-address copying.
+- Reduced Concept audience-pill borders and made the Three steps card titles bold.
+- Revalidated pending referrals before creation and trading, rejecting self-referrals and replacement of existing referrers while allowing reciprocal referrals.
+
+### Fixed
+
+- Isolated notification history by wallet, discarded legacy ownerless history, and filtered late notifications from previously connected accounts.
+- Reset Profile and avatar state when the wallet changes, required matching profile/session identities, and disabled avatar HTTP caching to prevent stale images.
+- Scoped pending-referral state and responses to the active wallet so account changes cannot reuse another account's pending referral.
+
 ## [0.2.1] - 2026-09-20
 
 ### Changed

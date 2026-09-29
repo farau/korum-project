@@ -1,3 +1,8 @@
+export type ProfileReferrer = {
+  referrer: { address: `0x${string}`; displayName: string | null } | null;
+  unavailable: boolean;
+};
+
 export type UserProfile = {
   id: string;
   evmWallet: `0x${string}`;

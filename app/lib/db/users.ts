@@ -1,6 +1,6 @@
 import "server-only";
 
-import { randomInt } from "node:crypto";
+import { randomInt, randomUUID } from "node:crypto";
 import { getAddress } from "viem";
 import type { UserProfile } from "../profile";
 import { getDatabase } from "./client";
@@ -155,4 +155,25 @@ export async function updateUserDisplayName(userId: string, address: `0x${string
   `, [userId, evmWallet, displayName]);
 
   return rows[0] ? toUserProfile(rows[0]) : null;
+}
+
+export async function updateUserAvatar(userId: string, address: `0x${string}`, image: Buffer | null) {
+  const database = getDatabase();
+  return database.begin(async (transaction) => {
+    // Serialize replacements and removals; metadata and bytes always commit together.
+    const owners = await transaction`SELECT id FROM users WHERE id = ${userId} AND evm_wallet = ${normalizeWallet(address)} FOR UPDATE`;
+    if (!owners.length) return null;
+    if (image) {
+      await transaction`INSERT INTO user_avatars (user_id, image) VALUES (${userId}, ${image})
+        ON CONFLICT (user_id) DO UPDATE SET image = EXCLUDED.image`;
+    } else {
+      await transaction`DELETE FROM user_avatars WHERE user_id = ${userId}`;
+    }
+    const rows = await transaction.unsafe<UserRow[]>(`
+      UPDATE users SET avatar_object_key = $2::TEXT, avatar_mime_type = $3,
+        avatar_updated_at = CASE WHEN $2::TEXT IS NULL THEN NULL ELSE NOW() END, updated_at = NOW()
+      WHERE id = $1 RETURNING ${userColumns}
+    `, [userId, image ? randomUUID() : null, image ? "image/webp" : null]);
+    return toUserProfile(rows[0]);
+  });
 }

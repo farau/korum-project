@@ -17,6 +17,7 @@ import type { Debate, DebateToken } from "../lib/debates";
 import { formatMarketValue, formatTokenAmount, formatTokenPrice } from "../lib/markets/format";
 import MarketCandlestickChart, { type MarketChartCandle } from "./MarketCandlestickChart";
 import TokenTradePanel from "./TokenTradePanel";
+import ProfileAvatar from "./ProfileAvatar";
 import styles from "./VsDetailClient.module.css";
 
 type VsDetailClientProps = {
@@ -425,7 +426,7 @@ function InfoPanel({ tab, debate, tokenFilter, onStatus }: { tab: InfoTab; debat
   }
 
   if (tab === "creator") {
-    return <div className={styles.creatorPanel}><span className={styles.creatorAvatar}>{debate.creatorAddress?.slice(2, 4).toUpperCase() || "KR"}</span><div><span>Created by</span><strong>{debate.creatorName || shortAddress(debate.creatorAddress)}</strong><small>{debate.creatorAddress}</small></div>{debate.creatorAddress ? <button type="button" onClick={() => copyText(debate.creatorAddress!).then(() => onStatus("Creator wallet copied.")).catch(() => onStatus("Unable to access the clipboard."))}><CopyIcon /> Copy wallet</button> : null}</div>;
+    return <div className={styles.creatorPanel}><span className={styles.creatorAvatar}><ProfileAvatar address={debate.creatorAddress || ""} className="profile-avatar-round" /></span><div><span>Created by</span><strong>{debate.creatorName || shortAddress(debate.creatorAddress)}</strong><small>{debate.creatorAddress}</small></div>{debate.creatorAddress ? <button type="button" onClick={() => copyText(debate.creatorAddress!).then(() => onStatus("Creator wallet copied.")).catch(() => onStatus("Unable to access the clipboard."))}><CopyIcon /> Copy wallet</button> : null}</div>;
   }
 
   if (tab === "activity") return <MarketActivity debate={debate} tokenFilter={tokenFilter} />;

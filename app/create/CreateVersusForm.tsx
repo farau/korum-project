@@ -1,5 +1,7 @@
 "use client";
 
+import { usePendingReferral } from "../hooks/usePendingReferral";
+import { fetchPendingReferral } from "../lib/referrals/client";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent } from "react";
@@ -135,10 +137,6 @@ type VersusParams = {
   salt: Hex;
 };
 
-type PendingReferralResponse = {
-  referral: { code: string; referrerWallet: Address } | null;
-};
-
 function createSalt(): Hex {
   const bytes = new Uint8Array(32);
   crypto.getRandomValues(bytes);
@@ -241,7 +239,7 @@ export default function CreateVersusForm({ initialPendingReferral }: { initialPe
   const [xHandle, setXHandle] = useState("");
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
-  const [pendingReferral, setPendingReferral] = useState<PendingReferral | null>(initialPendingReferral);
+  const { referral: pendingReferral, clear: clearPendingReferral } = usePendingReferral(initialPendingReferral);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [fileError, setFileError] = useState<string | null>(null);
   const [transactionHash, setTransactionHash] = useState<Hash | undefined>();
@@ -250,25 +248,6 @@ export default function CreateVersusForm({ initialPendingReferral }: { initialPe
   const submittingRef = useRef(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  useEffect(() => {
-    if (!authenticated) return;
-    let cancelled = false;
-
-    fetch("/api/referrals/pending", { credentials: "same-origin", cache: "no-store" })
-      .then((response) => response.ok ? response.json() as Promise<PendingReferralResponse> : null)
-      .then((result) => {
-        if (cancelled || !result) return;
-        setPendingReferral(result.referral ? {
-          referralCode: result.referral.code,
-          evmWallet: result.referral.referrerWallet,
-        } : null);
-      })
-      .catch(() => {
-        // Referral lookup must not prevent the creator from using the form.
-      });
-
-    return () => { cancelled = true; };
-  }, [authenticated]);
 
   useEffect(() => {
     if (!previewOpen) return;
@@ -469,12 +448,12 @@ export default function CreateVersusForm({ initialPendingReferral }: { initialPe
           credentials: "same-origin",
           headers: { "Content-Type": "application/json" },
         });
-        setPendingReferral(null);
+        clearPendingReferral();
       }
     };
 
     void finish();
-  }, [address, pendingReferral, publicClient, receipt, router]);
+  }, [address, pendingReferral, publicClient, receipt, router, clearPendingReferral]);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -518,7 +497,7 @@ export default function CreateVersusForm({ initialPendingReferral }: { initialPe
       resetWrite();
       setTransactionHash(undefined);
       const params = buildParams(address, createSalt());
-      const referrer = pendingReferral?.evmWallet ?? zeroAddress;
+      const referrer = (await fetchPendingReferral(address))?.evmWallet ?? zeroAddress;
       const latestCost = await publicClient.readContract({
         address: KORUM_FACTORY_ADDRESS,
         abi: KORUM_FACTORY_ABI,

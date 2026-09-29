@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import ProfileAvatar from "./ProfileAvatar";
 import React, { useEffect, useRef, useState } from "react";
 import { BADGE_TIERS, type BadgeTierName } from "../lib/badges";
 import { formatMarketValue } from "../lib/markets/format";
@@ -135,7 +136,7 @@ export default function LeaderboardClient({ initialData }: { initialData: Trader
             {podiumEntries.map(({ row, place }) => (
               <article className={`lb-podium-card rank${place}`} key={row.wallet}>
                 <div className="lb-podium-avatar-wrap">
-                  <span className="lb-podium-avatar">{row.name.charAt(0).toUpperCase()}</span>
+                  <span className="lb-podium-avatar"><ProfileAvatar address={row.wallet} className="profile-avatar-round" /></span>
                 </div>
                 <strong className="lb-podium-name" title={row.name}>
                   {row.name.startsWith("0x") ? shortenAddress(row.name) : row.name}

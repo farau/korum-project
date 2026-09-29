@@ -3,6 +3,7 @@ import { getWalletSession, isSameOriginRequest } from "../../lib/auth/session";
 import type { CacheDiagnostic } from "../../lib/cache/redis";
 import { getUserProfileStats } from "../../lib/db/profile-stats";
 import { getUserForSession, updateUserBio, updateUserDisplayName } from "../../lib/db/users";
+import { getProfileReferrer } from "../../lib/referrals/profile";
 
 export async function GET() {
   const session = await getWalletSession();
@@ -12,15 +13,16 @@ export async function GET() {
 
   try {
     const cache: CacheDiagnostic = { status: "BYPASS" };
-    const [user, stats] = await Promise.all([
+    const [user, stats, referral] = await Promise.all([
       getUserForSession(session.userId, session.address),
       getUserProfileStats(session.address, cache),
+      getProfileReferrer(session.address),
     ]);
     if (!user) {
       return NextResponse.json({ error: "Wallet profile not found." }, { status: 404 });
     }
 
-    const response = NextResponse.json({ user, stats });
+    const response = NextResponse.json({ user, stats, referral });
     response.headers.set("Cache-Control", "private, no-store");
     response.headers.set("X-Korum-Cache", cache.status);
     response.headers.set(

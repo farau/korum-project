@@ -1,5 +1,7 @@
 "use client";
 
+import { usePendingReferral } from "../hooks/usePendingReferral";
+import { fetchPendingReferral } from "../lib/referrals/client";
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -65,10 +67,6 @@ type Quote = {
   fee?: bigint;
   mode: TradeMode;
   venueStatus: number;
-};
-
-type PendingReferralResponse = {
-  referral: { code: string; referrerWallet: Address } | null;
 };
 
 const ZERO = BigInt(0);
@@ -146,7 +144,8 @@ export default function TokenTradePanel({
   const [transactionStep, setTransactionStep] = useState<TransactionStep>("idle");
   const [transactionError, setTransactionError] = useState<string | null>(null);
   const [transactionHash, setTransactionHash] = useState<Hash | null>(null);
-  const [pendingReferrer, setPendingReferrer] = useState<Address>(zeroAddress);
+  const { referral: pendingReferral, clear: clearPendingReferral } = usePendingReferral();
+  const pendingReferrer = pendingReferral?.evmWallet ?? zeroAddress;
 
   const tokenAddress = useMemo<Address | undefined>(() => {
     if (!token.address || !isAddress(token.address)) return undefined;
@@ -222,21 +221,6 @@ export default function TokenTradePanel({
   });
   const allowance = allowanceData as bigint | undefined;
 
-  useEffect(() => {
-    if (!authenticated) return;
-    let cancelled = false;
-
-    fetch("/api/referrals/pending", { credentials: "same-origin", cache: "no-store" })
-      .then((response) => response.ok ? response.json() as Promise<PendingReferralResponse> : null)
-      .then((result) => {
-        if (!cancelled) setPendingReferrer(result?.referral?.referrerWallet ?? zeroAddress);
-      })
-      .catch(() => {
-        // A referral lookup failure must never block a trade.
-      });
-
-    return () => { cancelled = true; };
-  }, [authenticated]);
 
   useEffect(() => {
     if (!publicClient || !tokenAddress || !amountRaw || !curve || (curve.status === 3 && !config)) return;
@@ -361,7 +345,7 @@ export default function TokenTradePanel({
         credentials: "same-origin",
         headers: { "Content-Type": "application/json" },
       });
-      setPendingReferrer(zeroAddress);
+      clearPendingReferral();
     } catch {
       // The trade succeeded; retaining the cookie is safer than clearing it without verification.
     }
@@ -405,6 +389,7 @@ export default function TokenTradePanel({
 
       const target = curve.status === 3 ? KORUM_ROUTER_ADDRESS : KORUM_CORE_ADDRESS;
       await approveIfRequired(target, amountRaw);
+      const verifiedReferrer = (await fetchPendingReferral(address))?.evmWallet ?? zeroAddress;
 
       let freshAmountOut: bigint;
       let value: bigint | undefined;
@@ -425,7 +410,7 @@ export default function TokenTradePanel({
           freshAmountOut = result[0];
           value = amountRaw;
           functionName = "buy";
-          args = [tokenAddress, address, minimumOutput(freshAmountOut), pendingReferrer];
+          args = [tokenAddress, address, minimumOutput(freshAmountOut), verifiedReferrer];
         } else {
           const result = await publicClient.readContract({
             address: KORUM_CORE_ADDRESS,
@@ -435,7 +420,7 @@ export default function TokenTradePanel({
           }) as readonly [bigint, bigint];
           freshAmountOut = result[0];
           functionName = "sell";
-          args = [tokenAddress, address, amountRaw, minimumOutput(freshAmountOut), pendingReferrer];
+          args = [tokenAddress, address, amountRaw, minimumOutput(freshAmountOut), verifiedReferrer];
         }
       } else {
         if (!config) throw new Error("The pool configuration is still loading.");
@@ -454,12 +439,12 @@ export default function TokenTradePanel({
           address: contractAddress,
           abi,
           functionName,
-          args: [poolKey, mode === "buy", amountRaw, ZERO, address, pendingReferrer],
+          args: [poolKey, mode === "buy", amountRaw, ZERO, address, verifiedReferrer],
           value: mode === "buy" ? amountRaw : undefined,
         });
         freshAmountOut = preview.result as bigint;
         value = mode === "buy" ? amountRaw : undefined;
-        args = [poolKey, mode === "buy", amountRaw, minimumOutput(freshAmountOut), address, pendingReferrer];
+        args = [poolKey, mode === "buy", amountRaw, minimumOutput(freshAmountOut), address, verifiedReferrer];
       }
 
       await publicClient.simulateContract({

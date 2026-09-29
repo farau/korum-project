@@ -6,8 +6,9 @@ import { KORUM_CHAIN } from "../config/korum-network";
 import { useWatchlist } from "../hooks/useWatchlist";
 import { BADGE_TIERS, calculateBadgeProgress, type BadgeTier } from "../lib/badges";
 import { formatMarketValue, formatTokenAmount } from "../lib/markets/format";
-import type { UserProfile, UserProfileActivityPage, UserProfileStats } from "../lib/profile";
+import type { UserProfile, UserProfileActivityPage, UserProfileStats, ProfileReferrer } from "../lib/profile";
 import ProfileAvatar from "./ProfileAvatar";
+import AvatarUpload from "./AvatarUpload";
 import { shortenAddress, useWallet } from "./WalletProvider";
 
 type ProfileTab = "information" | "activity" | "referrals" | "badges" | "watchlist" | "simulator";
@@ -17,6 +18,7 @@ type ProfileClientProps = {
   stats: UserProfileStats | null;
   sessionAddress: string | null;
   sessionChainId: number | null;
+  referral: ProfileReferrer;
 };
 
 const PROFILE_TABS: Array<{ id: ProfileTab; label: string }> = [
@@ -123,7 +125,7 @@ function formatTradeDate(timestamp: number) {
   }).format(new Date(timestamp * 1_000))} UTC`;
 }
 
-function InformationPanel({ profile, stats, onProfileChange }: { profile: UserProfile; stats: UserProfileStats; onProfileChange: (profile: UserProfile) => void }) {
+function InformationPanel({ profile, stats, referral, onProfileChange }: { profile: UserProfile; stats: UserProfileStats; referral: ProfileReferrer; onProfileChange: (profile: UserProfile) => void }) {
   const [editingDisplayName, setEditingDisplayName] = useState(false);
   const [displayName, setDisplayName] = useState(profile.displayName ?? "");
   const [savingDisplayName, setSavingDisplayName] = useState(false);
@@ -186,10 +188,7 @@ function InformationPanel({ profile, stats, onProfileChange }: { profile: UserPr
             <span><small>Username</small>{editingDisplayName ? <input aria-label="Username" autoComplete="nickname" maxLength={32} value={displayName} onChange={(event) => setDisplayName(event.target.value)} /> : <strong>{profile.displayName || "Choose a username"}</strong>}</span>
             {editingDisplayName ? <span className="profile-bio-actions"><button type="button" disabled={savingDisplayName} onClick={saveDisplayName}>{savingDisplayName ? "Saving..." : "Save"}</button><button type="button" disabled={savingDisplayName} onClick={() => { setDisplayName(profile.displayName ?? ""); setDisplayNameError(null); setEditingDisplayName(false); }}>Cancel</button></span> : <button type="button" className="profile-copy-button" onClick={() => setEditingDisplayName(true)} aria-label="Edit username" title="Edit username"><Icon name="edit" /></button>}
           </div>
-          <div className="profile-field profile-field-disabled" aria-disabled="true">
-            <span><small>Profile picture</small><strong>{profile.avatar ? "Image stored" : "No image"}</strong></span>
-            <button type="button" className="profile-pill-button" disabled title="Image uploads are not available yet"><Icon name="image" /> Upload</button>
-          </div>
+          <AvatarUpload profile={profile} onChange={onProfileChange} />
           <div className="profile-field">
             <span><small>Member since</small><strong>{formatUtcDate(profile.createdAt)}</strong></span>
           </div>
@@ -202,8 +201,12 @@ function InformationPanel({ profile, stats, onProfileChange }: { profile: UserPr
             <button type="button" className="profile-pill-button" disabled title="X account linking is not available yet">Link</button>
           </div>
           <div className="profile-field">
-            <span><small>Account address</small><strong className="profile-address-value">{profile.evmWallet}</strong></span>
+            <span><small>Account address</small><strong className="profile-address-value" title={profile.evmWallet}>{profile.evmWallet.slice(0, 4)}…{profile.evmWallet.slice(-4)}</strong></span>
             <CopyButton value={profile.evmWallet} label="Copy wallet address" />
+          </div>
+          <div className="profile-field">
+            <span><small>Referrer</small><strong title={referral.referrer?.address}>{referral.referrer ? referral.referrer.displayName || shortenAddress(referral.referrer.address) : referral.unavailable ? "Temporarily unavailable" : "No referrer"}</strong>{referral.referrer ? <small>{shortenAddress(referral.referrer.address)} · Confirmed on-chain</small> : null}</span>
+            {referral.referrer ? <CopyButton value={referral.referrer.address} label="Copy referrer address" /> : null}
           </div>
         </div>
         {displayNameError ? <p className="profile-field-error" role="alert">{displayNameError}</p> : null}
@@ -510,19 +513,28 @@ function LockedProfile({ connected, authenticating, authError, connect, loading 
   );
 }
 
-export default function ProfileClient({ profile, stats, sessionAddress, sessionChainId }: ProfileClientProps) {
+export default function ProfileClient(props: ProfileClientProps) {
+  const { address, connected, authenticated } = useWallet();
+  const owner = connected && authenticated ? address?.toLowerCase() : null;
+  return <WalletProfile key={`${owner ?? "anonymous"}:${props.profile?.id ?? "none"}`} {...props} />;
+}
+
+function WalletProfile({ profile, stats, sessionAddress, sessionChainId, referral }: ProfileClientProps) {
   const { address, connected, authenticated, authenticating, connect, hydrated, authError } = useWallet();
   const [activeTab, setActiveTab] = useState<ProfileTab>("information");
   const [currentProfile, setCurrentProfile] = useState(profile);
 
   if (!hydrated) return <LockedProfile connected={false} authenticating={false} authError={null} connect={() => undefined} loading />;
 
-  const hasMatchingServerSession = Boolean(authenticated && address && sessionAddress && address.toLowerCase() === sessionAddress.toLowerCase());
+  const hasMatchingServerSession = Boolean(authenticated && address && sessionAddress
+    && address.toLowerCase() === sessionAddress.toLowerCase()
+    && profile?.evmWallet.toLowerCase() === address.toLowerCase()
+    && currentProfile?.evmWallet.toLowerCase() === address.toLowerCase());
   if (!connected || !address || !hasMatchingServerSession) return <LockedProfile connected={connected} authenticating={authenticating} authError={authError} connect={connect} />;
   if (!currentProfile || !stats) return <LockedProfile connected authenticating={authenticating} authError="The wallet profile could not be initialized. Sign in again to retry." connect={connect} />;
 
   const panels: Record<ProfileTab, React.ReactNode> = {
-    information: <InformationPanel profile={currentProfile} stats={stats} onProfileChange={setCurrentProfile} />,
+    information: <InformationPanel profile={currentProfile} stats={stats} referral={referral} onProfileChange={setCurrentProfile} />,
     activity: <ActivityPanel stats={stats} />,
     referrals: <ReferralsPanel code={currentProfile.referralCode} />,
     badges: <BadgesPanel stats={stats} />,

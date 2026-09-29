@@ -42,14 +42,14 @@ function notifyOtherTabs() {
 }
 
 export function useWatchlist() {
-  const { authenticated, connect, hydrated } = useWallet();
+  const { address, authenticated, connect, hydrated } = useWallet();
   const [ids, setIds] = useState<number[]>([]);
   const [debates, setDebates] = useState<Debate[]>([]);
   const [ready, setReady] = useState(false);
 
   const load = useCallback(async () => {
     if (!hydrated) return;
-    if (!authenticated) {
+    if (!authenticated || !address) {
       setIds([]);
       setDebates([]);
       setReady(true);
@@ -71,7 +71,7 @@ export function useWatchlist() {
     } finally {
       setReady(true);
     }
-  }, [authenticated, hydrated]);
+  }, [address, authenticated, hydrated]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => void load(), 0);
@@ -99,7 +99,7 @@ export function useWatchlist() {
   }, [load]);
 
   async function mutate(id: number, label: string | undefined, added: boolean) {
-    if (!authenticated) {
+    if (!authenticated || !address) {
       connect();
       return false;
     }
@@ -121,7 +121,7 @@ export function useWatchlist() {
       if (!response.ok) throw new Error(`Unable to update watchlist (${response.status}).`);
 
       const versus = label || `Versus #${id}`;
-      pushAppNotification({
+      pushAppNotification(address, {
         type: "watchlist",
         title: added ? "Added to watchlist" : "Removed from watchlist",
         message: added ? `${versus} is now in your watchlist.` : `${versus} was removed from your watchlist.`,

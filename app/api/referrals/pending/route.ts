@@ -20,6 +20,7 @@ export async function GET(request: NextRequest) {
     const cookieValue = request.cookies.get(PENDING_REFERRAL_COOKIE_NAME)?.value;
     const referral = await resolvePendingReferral(cookieValue, session.address);
     const response = NextResponse.json({
+      walletAddress: session.address,
       referral: referral
         ? { code: referral.referralCode, referrerWallet: referral.evmWallet }
         : null,
