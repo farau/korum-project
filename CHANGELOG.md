@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.2.3] - 2026-10-01
+
 ### Added
 
 - Editable Versus social links for either current camp fee recipient, authorized by an off-chain wallet signature and stored separately from Goldsky projections (`0014_create_versus_socials_overrides.sql`); smart-account signatures are accepted at sign-in.
