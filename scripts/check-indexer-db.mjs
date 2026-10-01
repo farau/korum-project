@@ -32,6 +32,9 @@ const connection = await sql.reserve();
 const chainId = process.env.NEXT_PUBLIC_KORUM_NETWORK === "mainnet" ? 4663 : 46630;
 const deployment = JSON.parse(await readFile(new URL(`../contracts/deployments/${chainId}.json`, import.meta.url)));
 const schema = deployment.readModelSchema;
+const coreAddress = deployment.contracts.KorumCore.address?.toLowerCase();
+const hookAddress = deployment.contracts.KorumHook.address?.toLowerCase();
+if (!coreAddress || !hookAddress) throw new Error("KorumCore and KorumHook deployments are required.");
 const versusId = "999999999999";
 const registryAddress = "0x1111111111111111111111111111111111111111";
 const factoryAddress = "0x2222222222222222222222222222222222222222";
@@ -42,6 +45,7 @@ const feeRecipient = "0x6666666666666666666666666666666666666666";
 const tokenA = "0x7777777777777777777777777777777777777777";
 const tokenB = "0x8888888888888888888888888888888888888888";
 const transactionHash = `0x${"a".repeat(64)}`;
+const poolTransactionHash = `0x${"f".repeat(64)}`;
 const blockHash = `0x${"b".repeat(64)}`;
 const graduationTransactionHash = `0x${"c".repeat(64)}`;
 const graduationBlockHash = `0x${"d".repeat(64)}`;
@@ -124,21 +128,92 @@ try {
       ingested_at = NOW()
   `;
 
+  const recipientAfterFirstTransfer = "0x9999999999999999999999999999999999999999";
+  const recipientAfterSecondTransfer = "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+  const firstTransferHash = `0x${"1".repeat(64)}`;
+  const secondTransferHash = `0x${"2".repeat(64)}`;
+  const initialRecipients = await connection`
+    SELECT side, current_recipient, original_creator_wallet
+    FROM ${connection(schema)}.camp_fee_recipients
+    WHERE chain_id = ${chainId} AND versus_id = ${versusId}
+    ORDER BY side
+  `;
+  if (initialRecipients.length !== 2 || initialRecipients.some((row) => row.current_recipient !== feeRecipient || row.original_creator_wallet !== creatorWallet)) {
+    throw new Error("Both camps must start with the launch fee recipient while preserving the launch creator.");
+  }
+
+  // Arrival order can differ from chain order. The view must select the
+  // highest block/log update for the transferred camp, without changing B.
+  for (const event of [
+    { id: "smoke-fee-transfer-latest", recipient: recipientAfterSecondTransfer, hash: secondTransferHash, block: 105 },
+    { id: "smoke-fee-transfer-earlier", recipient: recipientAfterFirstTransfer, hash: firstTransferHash, block: 104 },
+  ]) {
+    await connection`
+      INSERT INTO ${connection(schema)}.creator_fee_recipient_events (
+        event_id, chain_id, token_address, event_type, previous_recipient,
+        new_recipient, occurred_at, transaction_hash, block_hash, block_number, log_index
+      ) VALUES (
+        ${event.id}, ${chainId}, ${tokenA}, ${"updated"}, ${feeRecipient},
+        ${event.recipient}, ${eventTime}, ${event.hash}, ${blockHash}, ${event.block}, ${0}
+      )
+    `;
+  }
+  const rotatedRecipients = await connection`
+    SELECT side, current_recipient, original_creator_wallet
+    FROM ${connection(schema)}.camp_fee_recipients
+    WHERE chain_id = ${chainId} AND versus_id = ${versusId}
+    ORDER BY side
+  `;
+  if (rotatedRecipients[0]?.current_recipient !== recipientAfterSecondTransfer || rotatedRecipients[1]?.current_recipient !== feeRecipient || rotatedRecipients.some((row) => row.original_creator_wallet !== creatorWallet)) {
+    throw new Error("Recipient rotation must affect only its camp and retain the original creator.");
+  }
+  await connection`
+    DELETE FROM ${connection(schema)}.creator_fee_recipient_events
+    WHERE chain_id = ${chainId} AND transaction_hash = ${secondTransferHash}
+  `;
+  const [afterReorg] = await connection`
+    SELECT current_recipient FROM ${connection(schema)}.camp_fee_recipients
+    WHERE chain_id = ${chainId} AND versus_id = ${versusId} AND side = ${0}
+  `;
+  if (afterReorg?.current_recipient !== recipientAfterFirstTransfer) {
+    throw new Error("Removing a reverted transfer must restore the preceding recipient.");
+  }
+
   await connection`
     INSERT INTO ${connection(schema)}.camp_trades (
-      event_id, chain_id, token_address, trader_address, referrer_address,
+      event_id, chain_id, emitter_address, token_address, trader_address, referrer_address,
       venue, kind, is_buy, eth_gross, token_amount, fee_total,
       fee_creator, fee_referrer, fee_platform, tier_fee_bps,
       tier_creator_share_bps, snipe_tax_bps, sqrt_price_x96_after,
       real_eth_after, token_reserve_after, cumulative_volume_after,
       traded_at, transaction_hash, block_hash, block_number, log_index
     ) VALUES (
-      ${"smoke-trade-a"}, ${chainId}, ${tokenA}, ${userWallet}, ${referrerWallet},
+      ${"smoke-trade-a"}, ${chainId}, ${coreAddress}, ${tokenA}, ${userWallet}, ${referrerWallet},
       ${0}, ${0}, ${true}, ${"100000000000000000"}, ${"1000000000000000000000"}, ${"30"},
       ${"10"}, ${"10"}, ${"10"}, ${100},
       ${5000}, ${0}, ${sqrtPriceX96},
       ${"5000000000000000000"}, ${"285714286000000000000000000"}, ${"100000000000000000"},
       ${eventTime}, ${transactionHash}, ${blockHash}, ${101}, ${4}
+    )
+  `;
+
+  // Insert the pool trade before its graduation to verify that the graduation
+  // projection backfills pool_id regardless of sink arrival order.
+  await connection`
+    INSERT INTO ${connection(schema)}.camp_trades (
+      event_id, chain_id, emitter_address, token_address, trader_address, referrer_address,
+      venue, kind, is_buy, eth_gross, token_amount, fee_total,
+      fee_creator, fee_referrer, fee_platform, tier_fee_bps,
+      tier_creator_share_bps, snipe_tax_bps, sqrt_price_x96_after,
+      real_eth_after, token_reserve_after, cumulative_volume_after,
+      traded_at, transaction_hash, block_hash, block_number, log_index
+    ) VALUES (
+      ${"smoke-pool-trade-a"}, ${chainId}, ${hookAddress}, ${tokenA}, ${userWallet}, ${referrerWallet},
+      ${1}, ${0}, ${true}, ${"200000000000000000"}, ${"2000000000000000000000"}, ${"30"},
+      ${"10"}, ${"10"}, ${"10"}, ${100},
+      ${5000}, ${0}, ${sqrtPriceX96},
+      ${"5000000000000000000"}, ${"285714286000000000000000000"}, ${"300000000000000000"},
+      ${eventTime}, ${poolTransactionHash}, ${blockHash}, ${103}, ${0}
     )
   `;
 
@@ -195,6 +270,12 @@ try {
     WHERE chain_id = ${chainId} AND token_address = ${tokenA}
   `;
 
+  const [poolTrade] = await connection`
+    SELECT emitter_address, pool_id
+    FROM ${connection(schema)}.camp_trades
+    WHERE chain_id = ${chainId} AND event_id = ${"smoke-pool-trade-a"}
+  `;
+
   if (projection?.title !== "Camp A vs Camp B" || projection.camp_count !== 2) {
     throw new Error("Versus projection did not join its two camps.");
   }
@@ -210,8 +291,11 @@ try {
   ) {
     throw new Error("Graduated market state does not exclude the exact locked token residual.");
   }
+  if (poolTrade?.emitter_address !== hookAddress || poolTrade.pool_id !== poolId) {
+    throw new Error("Pool trade provenance was not synchronized from its graduation.");
+  }
 
-  process.stdout.write("Indexer schema check passed: referral, versus, trade, and graduated supply projections are valid.\n");
+  process.stdout.write("Indexer schema check passed: referral, versus, trade provenance, and graduated supply projections are valid.\n");
 } finally {
   await connection.unsafe("ROLLBACK").catch(() => undefined);
   connection.release();

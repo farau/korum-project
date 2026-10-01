@@ -2,7 +2,7 @@
 
 import { usePendingReferral } from "../hooks/usePendingReferral";
 import { fetchPendingReferral } from "../lib/referrals/client";
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   BaseError,
@@ -75,7 +75,12 @@ type Quote = {
 
 const ZERO = BigInt(0);
 const HUNDRED = BigInt(100);
-const SLIPPAGE_BPS = BigInt(100);
+const DEFAULT_SLIPPAGE_BPS = 100;
+const MIN_SLIPPAGE_BPS = 10;
+const MAX_SLIPPAGE_BPS = 2_000;
+const SLIPPAGE_PRESETS = [50, 100, 200, 500];
+const SLIPPAGE_STORAGE_KEY = "korum:slippage:bps";
+const SLIPPAGE_CHANGE_EVENT = "korum:slippage-change";
 const BPS_DENOMINATOR = BigInt(10_000);
 const SELL_PERCENTAGES = [BigInt(25), BigInt(50), BigInt(75), HUNDRED];
 
@@ -101,7 +106,19 @@ function compactBalance(value: bigint | undefined, decimals: number) {
   }).format(numeric);
 }
 
-function transactionErrorMessage(error: unknown) {
+function slippageLabel(bps: number) {
+  return `${bps / 100}%`;
+}
+
+function parseSlippageBps(value: string) {
+  if (!/^\d+(?:\.\d{1,2})?$/.test(value)) return null;
+  const preciseBps = Number(value) * 100;
+  const bps = Math.round(preciseBps);
+  if (Math.abs(preciseBps - bps) > 1e-8 || bps < MIN_SLIPPAGE_BPS || bps > MAX_SLIPPAGE_BPS) return null;
+  return bps;
+}
+
+function transactionErrorMessage(error: unknown, slippageBps: number) {
   const message = error instanceof BaseError
     ? error.shortMessage
     : error instanceof Error
@@ -109,14 +126,14 @@ function transactionErrorMessage(error: unknown) {
       : "The transaction could not be completed.";
 
   if (/rejected|denied|cancelled/i.test(message)) return "The wallet request was cancelled.";
-  if (/InsufficientOutput/i.test(message)) return "Price moved beyond the 1% slippage limit. Refresh the quote and try again.";
+  if (/InsufficientOutput/i.test(message)) return `Price moved beyond the ${slippageLabel(slippageBps)} slippage limit. Refresh the quote and try again.`;
   if (/CurveNotTrading/i.test(message)) return "This token changed trading venue. Refresh the page and try again.";
   if (/insufficient funds/i.test(message)) return "Your wallet does not have enough ETH for this trade and network fees.";
   return message;
 }
 
-function minimumOutput(amountOut: bigint) {
-  return amountOut * (BPS_DENOMINATOR - SLIPPAGE_BPS) / BPS_DENOMINATOR;
+function minimumOutput(amountOut: bigint, slippageBps: number) {
+  return amountOut * (BPS_DENOMINATOR - BigInt(slippageBps)) / BPS_DENOMINATOR;
 }
 
 export default function TokenTradePanel({
@@ -124,12 +141,14 @@ export default function TokenTradePanel({
   onStatus,
   initialMode = "buy",
   initialAmount,
+  initialSellPercentage,
   compact = false,
 }: {
   token: DebateToken;
   onStatus: (message: string) => void;
   initialMode?: TradeMode;
   initialAmount?: string;
+  initialSellPercentage?: number;
   compact?: boolean;
 }) {
   const queryClient = useQueryClient();
@@ -142,6 +161,7 @@ export default function TokenTradePanel({
 
   const [mode, setMode] = useState<TradeMode>(initialMode);
   const [amount, setAmount] = useState(initialAmount ?? (initialMode === "buy" ? "0.01" : ""));
+  const initialSellPercentageApplied = useRef(false);
   const [quote, setQuote] = useState<Quote | null>(null);
   const [quoteError, setQuoteError] = useState<string | null>(null);
   const [isQuoting, setIsQuoting] = useState(false);
@@ -155,6 +175,58 @@ export default function TokenTradePanel({
     if (!token.address || !isAddress(token.address)) return undefined;
     return getAddress(token.address);
   }, [token.address]);
+  const [savedSlippage, setSavedSlippage] = useState<{ loaded: boolean; bps: number }>({ loaded: false, bps: DEFAULT_SLIPPAGE_BPS });
+  const [slippageInput, setSlippageInput] = useState("1");
+  const slippageEventSource = useRef({});
+  const slippageBps = savedSlippage.bps;
+  const slippageValid = savedSlippage.loaded && parseSlippageBps(slippageInput) !== null;
+
+  useEffect(() => {
+    const loadSetting = () => {
+      let savedBps = DEFAULT_SLIPPAGE_BPS;
+      try {
+        const stored = window.localStorage.getItem(SLIPPAGE_STORAGE_KEY);
+        const parsed = stored === null ? null : Number(stored);
+        if (parsed !== null && Number.isInteger(parsed) && parsed >= MIN_SLIPPAGE_BPS && parsed <= MAX_SLIPPAGE_BPS) savedBps = parsed;
+      } catch {
+        // The setting still works for this session if browser storage is unavailable.
+      }
+      setSavedSlippage({ loaded: true, bps: savedBps });
+      setSlippageInput(String(savedBps / 100));
+    };
+    const loadTimer = window.setTimeout(loadSetting, 0);
+    const syncSlippage = (event: Event) => {
+      const { bps, source } = (event as CustomEvent<{ bps: number; source?: object }>).detail;
+      if (source === slippageEventSource.current) return;
+      if (!Number.isInteger(bps) || bps < MIN_SLIPPAGE_BPS || bps > MAX_SLIPPAGE_BPS) return;
+      setSavedSlippage({ loaded: true, bps });
+      setSlippageInput(String(bps / 100));
+    };
+    const syncStorage = (event: StorageEvent) => {
+      if (event.key !== SLIPPAGE_STORAGE_KEY) return;
+      const bps = Number(event.newValue);
+      syncSlippage(new CustomEvent(SLIPPAGE_CHANGE_EVENT, { detail: { bps: event.newValue === null ? DEFAULT_SLIPPAGE_BPS : bps } }));
+    };
+    window.addEventListener(SLIPPAGE_CHANGE_EVENT, syncSlippage);
+    window.addEventListener("storage", syncStorage);
+    return () => {
+      window.clearTimeout(loadTimer);
+      window.removeEventListener(SLIPPAGE_CHANGE_EVENT, syncSlippage);
+      window.removeEventListener("storage", syncStorage);
+    };
+  }, []);
+
+  function saveSlippage(bps: number, normalizeInput = true) {
+    setSavedSlippage({ loaded: true, bps });
+    if (normalizeInput) setSlippageInput(String(bps / 100));
+    setTransactionError(null);
+    try {
+      window.localStorage.setItem(SLIPPAGE_STORAGE_KEY, String(bps));
+    } catch {
+      // Keep the selected tolerance active until the panel is closed.
+    }
+    window.dispatchEvent(new CustomEvent(SLIPPAGE_CHANGE_EVENT, { detail: { bps, source: slippageEventSource.current } }));
+  }
   const symbol = symbolLabel(token.symbol);
 
   const { data: decimalsData } = useReadContract({
@@ -219,6 +291,11 @@ export default function TokenTradePanel({
     query: { enabled: Boolean(address && tokenAddress), refetchInterval: 15_000 },
   });
   const tokenBalance = tokenBalanceData as bigint | undefined;
+  useEffect(() => {
+    if (initialMode !== "sell" || initialSellPercentage === undefined || initialSellPercentageApplied.current || tokenBalance === undefined) return;
+    initialSellPercentageApplied.current = true;
+    setAmount(formatUnits(tokenBalance * BigInt(initialSellPercentage) / HUNDRED, decimals));
+  }, [initialMode, initialSellPercentage, tokenBalance, decimals]);
   const spender = curve?.status === 3 ? KORUM_ROUTER_ADDRESS : KORUM_CORE_ADDRESS;
   const { data: allowanceData, isLoading: isLoadingAllowance, refetch: refetchAllowance } = useReadContract({
     address: tokenAddress ?? zeroAddress,
@@ -302,7 +379,7 @@ export default function TokenTradePanel({
         } catch (error) {
           if (!cancelled) {
             setQuote(null);
-            setQuoteError(transactionErrorMessage(error));
+            setQuoteError(transactionErrorMessage(error, slippageBps));
           }
         } finally {
           if (!cancelled) setIsQuoting(false);
@@ -316,7 +393,7 @@ export default function TokenTradePanel({
       cancelled = true;
       window.clearTimeout(timer);
     };
-  }, [address, allowance, amountRaw, config, curve, mode, pendingReferrer, publicClient, symbol, tokenAddress]);
+  }, [address, allowance, amountRaw, config, curve, mode, pendingReferrer, publicClient, slippageBps, symbol, tokenAddress]);
 
   const currentQuote = curve?.quoteAsset === zeroAddress && quote?.amountIn === amountRaw
     && quote.mode === mode
@@ -386,7 +463,7 @@ export default function TokenTradePanel({
       connect();
       return;
     }
-    if (!tokenAddress || !amountRaw || !publicClient || !curve || !venueAvailable) return;
+    if (!tokenAddress || !amountRaw || !publicClient || !curve || !venueAvailable || !slippageValid) return;
     if (insufficientBalance) {
       setTransactionError(`Insufficient ${mode === "buy" ? "ETH" : symbol} balance.`);
       return;
@@ -419,7 +496,7 @@ export default function TokenTradePanel({
           freshAmountOut = result[0];
           value = amountRaw;
           functionName = "buy";
-          args = [tokenAddress, address, amountRaw, minimumOutput(freshAmountOut), verifiedReferrer];
+          args = [tokenAddress, address, amountRaw, minimumOutput(freshAmountOut, slippageBps), verifiedReferrer];
         } else {
           const result = await publicClient.readContract({
             address: KORUM_LENS_ADDRESS,
@@ -429,7 +506,7 @@ export default function TokenTradePanel({
           }) as readonly [bigint, bigint];
           freshAmountOut = result[0];
           functionName = "sell";
-          args = [tokenAddress, address, amountRaw, minimumOutput(freshAmountOut), verifiedReferrer];
+          args = [tokenAddress, address, amountRaw, minimumOutput(freshAmountOut, slippageBps), verifiedReferrer];
         }
       } else {
         if (!config) throw new Error("The pool configuration is still loading.");
@@ -453,7 +530,7 @@ export default function TokenTradePanel({
         });
         freshAmountOut = preview.result as bigint;
         value = mode === "buy" ? amountRaw : undefined;
-        args = [poolKey, mode === "buy", amountRaw, minimumOutput(freshAmountOut), address, verifiedReferrer];
+        args = [poolKey, mode === "buy", amountRaw, minimumOutput(freshAmountOut, slippageBps), address, verifiedReferrer];
       }
 
       await publicClient.simulateContract({
@@ -493,7 +570,7 @@ export default function TokenTradePanel({
       await clearConsumedReferral();
     } catch (error) {
       setTransactionStep("idle");
-      setTransactionError(transactionErrorMessage(error));
+      setTransactionError(transactionErrorMessage(error, slippageBps));
     }
   }
 
@@ -510,6 +587,7 @@ export default function TokenTradePanel({
 
   function setSellPercentage(percentage: bigint) {
     if (tokenBalance === undefined) return;
+    initialSellPercentageApplied.current = true;
     setAmount(formatUnits(tokenBalance * percentage / HUNDRED, decimals));
     setQuote(null);
     setQuoteError(null);
@@ -580,6 +658,7 @@ export default function TokenTradePanel({
   }
 
   const submitDisabled = transactionBusy
+    || !slippageValid
     || isLoadingCurve
     || !tokenAddress
     || ((!isConnected || !authenticated)
@@ -615,6 +694,7 @@ export default function TokenTradePanel({
             inputMode="decimal"
             value={amount}
             onChange={(event) => {
+              initialSellPercentageApplied.current = true;
               setAmount(event.target.value);
               setQuote(null);
               setQuoteError(null);
@@ -625,7 +705,7 @@ export default function TokenTradePanel({
           />
           <b>{inputUnit}</b>
         </span>
-        <small>{curve?.status === 3 ? "Pool quote simulated on-chain" : "Live quote · 1% maximum slippage"}</small>
+        <small>{curve?.status === 3 ? "Pool quote simulated on-chain" : "Live quote"} · {slippageLabel(slippageBps)} maximum slippage</small>
       </label>
 
       {mode === "buy" ? (
@@ -642,13 +722,33 @@ export default function TokenTradePanel({
         </div>
       )}
 
+      <div className={styles.slippageSetting}>
+        <span>MAX SLIPPAGE · ALL TOKENS</span>
+        <div className={styles.slippageControls}>
+          {SLIPPAGE_PRESETS.map((bps) => (
+            <button type="button" className={slippageValid && slippageBps === bps ? styles.slippageSelected : ""} aria-pressed={slippageValid && slippageBps === bps} onClick={() => saveSlippage(bps)} key={bps}>{slippageLabel(bps)}</button>
+          ))}
+          <label className={styles.slippageCustom}>
+            <span className={styles.srOnly}>Custom maximum slippage percentage</span>
+            <input type="number" min="0.1" max="20" step="0.01" inputMode="decimal" value={slippageInput} aria-invalid={!slippageValid} onChange={(event) => {
+              const nextValue = event.target.value;
+              setSlippageInput(nextValue);
+              const bps = parseSlippageBps(nextValue);
+              if (bps !== null) saveSlippage(bps, false);
+            }} />
+            <span>%</span>
+          </label>
+        </div>
+        {!slippageValid ? <small className={styles.slippageWarning}>Enter a slippage between 0.1% and 20%.</small> : slippageBps > 500 ? <small className={styles.slippageWarning}>Higher slippage may give you a significantly worse price.</small> : null}
+      </div>
+
       <div className={styles.receiveRow}>
         <span>{mode === "buy" ? "TOKEN RECEIVED" : "ETH RECEIVED"}</span>
         <strong>{isQuoting ? "Quoting…" : `${displayedOutput} ${outputUnit}`}</strong>
       </div>
       {currentQuote ? (
         <div className={styles.quoteDetails}>
-          <span>Minimum received <b>{trimUnits(minimumOutput(currentQuote.amountOut), mode === "buy" ? decimals : 18)} {outputUnit}</b></span>
+          <span>Minimum received <b>{trimUnits(minimumOutput(currentQuote.amountOut, slippageBps), mode === "buy" ? decimals : 18)} {outputUnit}</b></span>
           {currentQuote.fee !== undefined ? <span>Protocol fee <b>{trimUnits(currentQuote.fee, 18)} ETH</b></span> : null}
           {refund > ZERO ? <span>Automatic refund <b>{trimUnits(refund, 18)} ETH</b></span> : null}
         </div>

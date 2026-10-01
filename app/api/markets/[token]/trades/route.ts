@@ -1,4 +1,4 @@
-import { getTokenTrades, TOKEN_TRADES_CACHE_SECONDS } from "../../../../lib/db/markets";
+import { getTokenTrades } from "../../../../lib/db/markets";
 import type { CacheDiagnostic } from "../../../../lib/cache/redis";
 
 export async function GET(
@@ -14,7 +14,7 @@ export async function GET(
     return result
       ? Response.json(result, {
           headers: {
-            "Cache-Control": `public, max-age=2, s-maxage=${TOKEN_TRADES_CACHE_SECONDS}, stale-while-revalidate=${TOKEN_TRADES_CACHE_SECONDS * 3}`,
+            "Cache-Control": "no-store",
             "X-Korum-Cache": cache.status,
             "X-Korum-Cache-Layer": cache.status === "HIT" ? "redis" : cache.status === "DEDUPED" ? "memory" : "postgres",
           },

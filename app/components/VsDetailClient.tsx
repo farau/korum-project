@@ -1,9 +1,11 @@
 "use client";
 
+import { useMarketLive } from "../hooks/useMarketLive";
+
 import Link from "next/link";
 import Image from "next/image";
-import { useQuery } from "@tanstack/react-query";
-import React, { useMemo, useState } from "react";
+import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 
 import { useWatchlist } from "../hooks/useWatchlist";
 import { useWallet } from "./WalletProvider";
@@ -14,10 +16,13 @@ import {
   useIndexedDebate,
 } from "../hooks/useIndexedMarkets";
 import type { Debate, DebateToken } from "../lib/debates";
-import { formatMarketValue, formatTokenAmount, formatTokenPrice } from "../lib/markets/format";
+import { normalizeSocialLinks, socialLinksFromJson } from "../lib/versus-socials";
+import { formatMarketValue, formatTokenAmount } from "../lib/markets/format";
 import MarketCandlestickChart, { type MarketChartCandle } from "./MarketCandlestickChart";
 import TokenTradePanel from "./TokenTradePanel";
 import ProfileAvatar from "./ProfileAvatar";
+import CreatorFeeTransfer from "./CreatorFeeTransfer";
+import PendingCreatorFeeNotice from "./PendingCreatorFeeNotice";
 import styles from "./VsDetailClient.module.css";
 
 type VsDetailClientProps = {
@@ -34,6 +39,13 @@ type ChartResponse = {
   intervalSeconds: number;
   windowStart: number;
   windowEnd: number;
+  hasMore: boolean;
+  lastTradeTimestamp: number | null;
+  priorPrice: number | null;
+  priorMarketCap: number | null;
+  priorPriceUp: boolean | null;
+  priorMarketCapUp: boolean | null;
+  priorTimestamp: number | null;
 };
 type ChartCandle = MarketChartCandle & {
   t: number;
@@ -46,6 +58,7 @@ type ChartCandle = MarketChartCandle & {
   tradeCount?: number;
   synthetic?: boolean;
 };
+type LiveCampMarket = { address: string; marketCapEth: number; lastTradeTimestamp: number };
 type MarketTrade = {
   id: string;
   venue: "curve" | "pool";
@@ -73,17 +86,20 @@ type VersusPositionsResponse = {
 };
 
 const BONDING_CURVE_RANGES: Array<{ value: ChartRange; label: string }> = [
-  { value: "1m", label: "1M" },
-  { value: "5m", label: "5M" },
-  { value: "15m", label: "15M" },
-  { value: "1h", label: "1H" },
+  { value: "1m", label: "1m" },
+  { value: "5m", label: "5m" },
+  { value: "15m", label: "15m" },
+  { value: "1h", label: "1h" },
+  { value: "4h", label: "4h" },
+  { value: "1d", label: "1d" },
 ];
 const POOL_RANGES: Array<{ value: ChartRange; label: string }> = [
-  { value: "5m", label: "5M" },
-  { value: "1h", label: "1H" },
-  { value: "4h", label: "4H" },
-  { value: "1d", label: "1D" },
-  { value: "all", label: "ALL" },
+  { value: "1m", label: "1m" },
+  { value: "5m", label: "5m" },
+  { value: "15m", label: "15m" },
+  { value: "1h", label: "1h" },
+  { value: "4h", label: "4h" },
+  { value: "1d", label: "1d" },
 ];
 const CHART_REFRESH_MS: Record<ChartRange, number> = {
   "1m": 2_000,
@@ -131,6 +147,12 @@ function ChartIcon() {
   return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m3 17 5-5 4 3 6-8 3 3" /><path d="M3 3v18h18" /></svg>;
 }
 
+function StatIcon({ kind }: { kind: "market" | "people" | "volume" }) {
+  if (kind === "people") return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true"><circle cx="9" cy="8" r="3" /><path d="M3 20v-2a6 6 0 0 1 12 0v2M17 5a3 3 0 0 1 0 6m1 4a5 5 0 0 1 3 5" /></svg>;
+  if (kind === "volume") return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M3 3v18h18M6 16l5-5 3 3 5-7" /><path d="M16 7h3v3" /></svg>;
+  return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true"><path d="M3 21h18M6 18v-6m4 6V7m4 11V4m4 14v-9" /></svg>;
+}
+
 function shortAddress(address?: string) {
   if (!address) return "Not available";
   return address.length > 13 ? `${address.slice(0, 6)}…${address.slice(-4)}` : address;
@@ -166,25 +188,6 @@ function marketPreferenceLabel(
   return `${percentage}% PREFERS ${leader.name.toUpperCase()}`;
 }
 
-function formatDate(value?: string) {
-  if (!value) return "Unknown";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "Unknown";
-  return `${new Intl.DateTimeFormat("en-US", { dateStyle: "medium", timeStyle: "short", timeZone: "UTC" }).format(date)} UTC`;
-}
-
-function getXUrl(socialsJson?: string) {
-  if (!socialsJson) return null;
-  try {
-    const value: unknown = JSON.parse(socialsJson);
-    if (!value || typeof value !== "object" || !("x" in value)) return null;
-    const x = (value as { x?: unknown }).x;
-    return typeof x === "string" && /^https:\/\/(?:www\.)?(?:x|twitter)\.com\//i.test(x) ? x : null;
-  } catch {
-    return null;
-  }
-}
-
 function hasTokenMarketData(token?: DebateToken) {
   const values = [token?.marketCap, token?.volume24h, token?.trades24h, token?.priceEth];
   const histories = token?.priceHistory ?? [];
@@ -202,77 +205,71 @@ async function copyText(value: string) {
 function TokenAvatar({ token, side }: { token: DebateToken; side: "a" | "b" }) {
   const [failed, setFailed] = useState(false);
   const source = token.image || token.imageRef;
-  return <span className={`${styles.tokenAvatar} ${side === "a" ? styles.tokenAvatarA : styles.tokenAvatarB}`}>{source && !failed ? <Image src={source} alt="" fill sizes="38px" unoptimized onError={() => setFailed(true)} /> : null}<span>{token.name.slice(0, 1).toUpperCase()}</span></span>;
+  return <span className={`${styles.tokenAvatar} ${side === "a" ? styles.tokenAvatarA : styles.tokenAvatarB}`}>{source && !failed ? <Image src={source} alt="" fill sizes="72px" unoptimized onError={() => setFailed(true)} /> : null}<span>{token.name.slice(0, 1).toUpperCase()}</span></span>;
 }
 
-function TokenPanel({ token, side, marketShare, marketAvailable, onStatus }: { token: DebateToken; side: "a" | "b"; marketShare: number; marketAvailable: boolean; onStatus: (message: string) => void }) {
+function TokenPanel({ token, side, marketShare, marketAvailable, onMarketUpdate, onStatus }: { token: DebateToken; side: "a" | "b"; marketShare: number; marketAvailable: boolean; onMarketUpdate: (side: "a" | "b", market: LiveCampMarket) => void; onStatus: (message: string) => void }) {
   const symbol = symbolLabel(token.symbol);
+  const isLeading = marketAvailable && marketShare > 50;
   const currency = token.marketCurrency ?? "USD";
-  const [range, setRange] = useState<ChartRange>("1d");
+  const [range, setRange] = useState<ChartRange>("1m");
   const [chartMetric, setChartMetric] = useState<ChartMetric>("price");
   const [chartCurrency, setChartCurrency] = useState<"USD" | "ETH">(() => currency === "USD" && !token.quoteUsd ? "ETH" : currency);
   const chartRanges = token.curveStatus === 3 ? POOL_RANGES : BONDING_CURVE_RANGES;
   const isRangeAvailable = chartRanges.some((period) => period.value === range);
   const activeRange = isRangeAvailable ? range : chartRanges[0].value;
-  const displayedPrice = currency === "USD" ? token.priceUsd : token.priceEth;
-  const curveLabel = token.curveStatus === 3
-    ? "Pool live"
-    : token.curveStatus === 2
-      ? "Graduating"
-      : token.graduationDisabled
-        ? "Curve reopened"
-        : "Bonding curve";
 
   const validTokenAddress = token.address && /^0x[0-9a-fA-F]{40}$/.test(token.address)
     ? token.address.toLowerCase()
     : null;
-  const chartQuery = useQuery({
+  const live = useMarketLive(validTokenAddress);
+  const chartQuery = useInfiniteQuery({
     queryKey: [TOKEN_CHART_QUERY_KEY, validTokenAddress, activeRange],
-    queryFn: async () => {
-      const response = await fetch(`/api/markets/${validTokenAddress}/chart?range=${activeRange}`);
+    initialPageParam: undefined as number | undefined,
+    getNextPageParam: (lastPage: ChartResponse) => {
+      if (!lastPage.hasMore) return undefined;
+      if (lastPage.points.length === 0 && lastPage.lastTradeTimestamp !== null) {
+        return Math.floor(lastPage.lastTradeTimestamp / lastPage.intervalSeconds) * lastPage.intervalSeconds + lastPage.intervalSeconds;
+      }
+      return lastPage.windowStart;
+    },
+    queryFn: async ({ signal, pageParam }) => {
+      const before = pageParam === undefined ? "" : `&before=${pageParam}`;
+      const response = await fetch(`/api/markets/${validTokenAddress}/chart?range=${activeRange}&limit=300${before}`, { signal, cache: "no-store" });
       if (!response.ok) throw new Error("Market chart request failed.");
       return response.json() as Promise<ChartResponse>;
     },
     enabled: Boolean(validTokenAddress && marketAvailable),
-    refetchInterval: CHART_REFRESH_MS[activeRange],
+    refetchInterval: live ? Math.max(5_000, CHART_REFRESH_MS[activeRange]) : CHART_REFRESH_MS[activeRange],
     refetchIntervalInBackground: false,
     refetchOnWindowFocus: true,
     retry: 1,
   });
-  const chartQuoteUsd = chartQuery.data?.quoteUsd ?? token.quoteUsd ?? null;
+  const latestPage = chartQuery.data?.pages[0];
+  const latestMarketCapEth = latestPage?.points.at(-1)?.closeMarketCap ?? latestPage?.priorMarketCap;
+  const lastTradeTimestamp = latestPage?.lastTradeTimestamp;
+  useEffect(() => {
+    if (!validTokenAddress || latestMarketCapEth == null || !Number.isFinite(latestMarketCapEth) || latestMarketCapEth < 0 || lastTradeTimestamp == null) return;
+    onMarketUpdate(side, { address: validTokenAddress, marketCapEth: latestMarketCapEth, lastTradeTimestamp });
+  }, [lastTradeTimestamp, latestMarketCapEth, onMarketUpdate, side, validTokenAddress]);
+  const chartQuoteUsd = latestPage?.quoteUsd ?? token.quoteUsd ?? null;
+  const { fetchNextPage, hasNextPage, isFetchingNextPage } = chartQuery;
+  const pageCount = chartQuery.data?.pages.length;
+  useEffect(() => {
+    if (latestPage?.points.length === 0 && pageCount === 1 && hasNextPage && !isFetchingNextPage) {
+      void fetchNextPage({ cancelRefetch: false });
+    }
+  }, [fetchNextPage, hasNextPage, isFetchingNextPage, latestPage, pageCount]);
   const candles = useMemo<ChartCandle[]>(() => {
     if (!chartQuery.data) {
-      const history = token.priceHistory ?? [];
-      const currentPrice = currency === "USD" ? token.priceUsd : token.priceEth;
-      const marketCapRatio = token.marketCap && currentPrice ? token.marketCap / currentPrice : 0;
-      const multiplier = chartCurrency === currency
-        ? 1
-        : chartQuoteUsd
-          ? chartCurrency === "USD" ? chartQuoteUsd : 1 / chartQuoteUsd
-          : 1;
-      const historyStart = Math.floor((token.launchTimestamp ?? token.createdAtTimestamp ?? 0) / 1_000);
-      return history.map((price, index) => {
-        const close = price * multiplier;
-        const open = (history[index - 1] ?? price) * multiplier;
-        const marketOpen = open * marketCapRatio;
-        const marketClose = close * marketCapRatio;
-        return {
-          t: historyStart + index * 60,
-          open,
-          high: Math.max(open, close),
-          low: Math.min(open, close),
-          close,
-          price: close,
-          openMarketCap: marketOpen,
-          highMarketCap: Math.max(marketOpen, marketClose),
-          lowMarketCap: Math.min(marketOpen, marketClose),
-          closeMarketCap: marketClose,
-          marketCap: marketClose,
-        };
-      });
+      return [];
     }
     const multiplier = chartCurrency === "USD" && chartQuoteUsd ? chartQuoteUsd : 1;
-    return chartQuery.data.points.map((point) => ({
+    const points = new Map<number, ChartCandle>();
+    for (const page of [...chartQuery.data.pages].reverse()) {
+      for (const point of page.points) points.set(point.t, point);
+    }
+    return [...points.values()].sort((a, b) => a.t - b.t).map((point) => ({
       ...point,
       open: point.open * multiplier,
       high: point.high * multiplier,
@@ -285,7 +282,19 @@ function TokenPanel({ token, side, marketShare, marketAvailable, onStatus }: { t
       closeMarketCap: point.closeMarketCap * multiplier,
       marketCap: point.marketCap * multiplier,
     }));
-  }, [chartCurrency, chartQuery.data, chartQuoteUsd, currency, token.createdAtTimestamp, token.launchTimestamp, token.marketCap, token.priceEth, token.priceHistory, token.priceUsd]);
+  }, [chartCurrency, chartQuery.data, chartQuoteUsd]);
+  const chartWindows = useMemo(() => {
+    const multiplier = chartCurrency === "USD" && chartQuoteUsd ? chartQuoteUsd : 1;
+    return chartQuery.data?.pages.map(page => ({
+      start: page.windowStart,
+      end: page.windowEnd,
+      priorPrice: page.priorPrice === null ? null : page.priorPrice * multiplier,
+      priorMarketCap: page.priorMarketCap === null ? null : page.priorMarketCap * multiplier,
+      priorPriceUp: page.priorPriceUp,
+      priorMarketCapUp: page.priorMarketCapUp,
+      priorTimestamp: page.priorTimestamp,
+    })) ?? [];
+  }, [chartCurrency, chartQuery.data, chartQuoteUsd]);
 
   const handleCopy = async () => {
     if (!token.address) return;
@@ -298,31 +307,29 @@ function TokenPanel({ token, side, marketShare, marketAvailable, onStatus }: { t
   };
 
   return (
-    <article className={styles.tokenPanel}>
+    <article className={`${styles.tokenPanel} ${marketAvailable && marketShare !== 50 ? isLeading ? styles.tokenPanelLeading : styles.tokenPanelTrailing : styles.tokenPanelNeutral}`}>
       <div className={styles.tokenHead}>
         <TokenAvatar token={token} side={side} />
-        <div className={styles.tokenIdentity}><strong>{symbol}</strong><span>{token.name}</span></div>
-        {marketAvailable && marketShare >= 50 ? <span className={styles.leadingBadge}>LEADING</span> : null}
+        <div className={styles.tokenIdentity}><strong>{symbol}</strong><span>{token.name}</span><span className={styles.sideSignal} aria-hidden="true" /></div>
+        {isLeading ? <span className={styles.leadingBadge}>LEADING</span> : null}
         <button className={styles.addressButton} type="button" onClick={handleCopy} disabled={!token.address} title="Copy contract address"><span>{shortAddress(token.address)}</span><CopyIcon /></button>
       </div>
 
-      <div className={`${styles.chartCard} ${marketAvailable && marketShare >= 50 ? styles.leadingCard : ""}`}>
+      <div className={`${styles.chartCard} ${isLeading ? styles.leadingCard : ""}`}>
         <div className={styles.chartToolbar}>
-          <span className={styles.segmented}><button className={chartMetric === "price" ? styles.selectedControl : ""} type="button" onClick={() => setChartMetric("price")}>Price</button><button className={chartMetric === "marketCap" ? styles.selectedControl : ""} type="button" onClick={() => setChartMetric("marketCap")}>MC</button></span>
-          <span className={styles.segmented}><button className={chartCurrency === "USD" ? styles.selectedControl : ""} type="button" disabled={!chartQuoteUsd} onClick={() => setChartCurrency("USD")}>USD</button><button className={chartCurrency === "ETH" ? styles.selectedControl : ""} type="button" onClick={() => setChartCurrency("ETH")}>ETH</button></span>
-          <span className={styles.timeframe}>{activeRange.toUpperCase()}</span>
-          <span className={styles.indexerState}><span /> Goldsky indexed</span>
+          <div className={styles.periodRow} aria-label="Candle intervals">{chartRanges.map((period) => <button className={period.value === activeRange ? styles.selectedControl : ""} type="button" key={period.value} disabled={!marketAvailable} onClick={() => setRange(period.value)}>{period.label}</button>)}</div>
+          <div className={styles.chartToolbarOptions}>
+            <span className={styles.segmented}><button className={chartMetric === "price" ? styles.selectedControl : ""} type="button" onClick={() => setChartMetric("price")}>Price</button><button className={chartMetric === "marketCap" ? styles.selectedControl : ""} type="button" onClick={() => setChartMetric("marketCap")}>MC</button></span>
+            <span className={styles.segmented}><button className={chartCurrency === "USD" ? styles.selectedControl : ""} type="button" disabled={!chartQuoteUsd} onClick={() => setChartCurrency("USD")}>USD</button><button className={chartCurrency === "ETH" ? styles.selectedControl : ""} type="button" onClick={() => setChartCurrency("ETH")}>ETH</button></span>
+          </div>
         </div>
-        <MarketCandlestickChart candles={candles} available={marketAvailable && (!chartQuery.isLoading || candles.length > 0)} metric={chartMetric} currency={chartCurrency} range={activeRange} intervalSeconds={chartQuery.data?.intervalSeconds} windowStart={chartQuery.data?.windowStart} windowEnd={chartQuery.data?.windowEnd} />
-        <div className={styles.periodRow} aria-label="Chart periods">{chartRanges.map((period) => <button className={period.value === activeRange ? styles.selectedControl : ""} type="button" key={period.value} disabled={!marketAvailable} onClick={() => setRange(period.value)}>{period.label}</button>)}</div>
-        <div className={styles.marketStats}>
-          <div><span>Current price</span><strong>{marketAvailable ? formatTokenPrice(displayedPrice, currency) : "—"}</strong></div>
-          <div><span>Market cap</span><strong>{marketAvailable ? formatMarketValue(token.marketCap, currency) : "—"}</strong></div>
-          <div><span>Adjusted FDV</span><strong>{marketAvailable ? formatMarketValue(token.fdv, currency) : "—"}</strong></div>
-          <div><span>{curveLabel}</span><strong>{token.graduationProgress == null || !marketAvailable ? "—" : `${formatCount(token.graduationProgress)}%`}</strong></div>
-          <div><span>24h volume</span><strong>{marketAvailable ? formatMarketValue(token.volume24h, currency) : "—"}</strong></div>
-          <div><span>24h trades</span><strong>{formatCount(token.trades24h, marketAvailable)}</strong></div>
-        </div>
+        <div className={styles.chartInstrument}><span className={styles.instrumentMark} aria-hidden="true">✳</span><strong>{symbol}</strong><span>· {activeRange} · KORUM</span>{marketAvailable ? <span className={styles.instrumentLive}><i /> LIVE</span> : null}</div>
+        <MarketCandlestickChart candles={candles} available={marketAvailable} loading={chartQuery.isPending && marketAvailable} error={chartQuery.isError && !chartQuery.data} metric={chartMetric} currency={chartCurrency} range={activeRange} intervalSeconds={latestPage?.intervalSeconds} windows={chartWindows} lastTradeTimestamp={latestPage?.lastTradeTimestamp} hasMore={chartQuery.hasNextPage} loadingOlder={chartQuery.isFetchingNextPage} onLoadOlder={() => void chartQuery.fetchNextPage({ cancelRefetch: false })} />
+      </div>
+      <div className={styles.marketStats}>
+        <div><StatIcon kind="market" /><span>Market cap<strong>{marketAvailable ? formatMarketValue(token.marketCap, currency) : "—"}</strong></span></div>
+        <div><StatIcon kind="people" /><span>{token.traderCount != null ? "Traders" : "Holders"}<strong>{formatCount(token.traderCount ?? token.holders, marketAvailable)}</strong></span></div>
+        <div><StatIcon kind="volume" /><span>Vol 24h<strong>{marketAvailable ? formatMarketValue(token.volume24h, currency) : "—"}</strong></span></div>
       </div>
 
       {marketAvailable && token.curveStatus !== 3 && token.graduationTargetEth != null && token.graduationTargetEth > 0 ? (
@@ -351,9 +358,9 @@ function MarketActivity({ debate, tokenFilter }: { debate: Debate; tokenFilter: 
   const activityQueryKey = candidates.map((token) => token.address.toLowerCase()).sort().join(":");
   const activityQuery = useQuery({
     queryKey: [TOKEN_TRADES_QUERY_KEY, activityQueryKey, 30],
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       const results = await Promise.all(candidates.map(async (token) => {
-        const response = await fetch(`/api/markets/${token.address}/trades?limit=30`);
+        const response = await fetch(`/api/markets/${token.address}/trades?limit=30`, { signal, cache: "no-store" });
         if (!response.ok) throw new Error("Market trades request failed.");
         const payload = await response.json() as { trades: Array<Omit<MarketTrade, "tokenSymbol">> };
         return payload.trades.map((trade) => ({ ...trade, tokenSymbol: symbolLabel(token.symbol) }));
@@ -368,8 +375,8 @@ function MarketActivity({ debate, tokenFilter }: { debate: Debate; tokenFilter: 
   });
   const trades = candidates.length === 0 ? [] : activityQuery.data ?? null;
 
-  if (trades === null) return <EmptyIndexedPanel title="Loading indexed activity">Reading recent curve and pool trades from Railway.</EmptyIndexedPanel>;
-  if (trades.length === 0) return <EmptyIndexedPanel title="No indexed activity yet">Trades will appear here as soon as Goldsky indexes the first on-chain event.</EmptyIndexedPanel>;
+  if (trades === null) return <EmptyIndexedPanel title="Loading activity">Loading recent trades.</EmptyIndexedPanel>;
+  if (trades.length === 0) return <EmptyIndexedPanel title="No activity yet">Trades will appear here once trading begins.</EmptyIndexedPanel>;
 
   return <div className={styles.activityList}>{trades.map((trade) => {
     const quoteEth = Number(trade.quoteAmount);
@@ -395,8 +402,8 @@ function MyPositions({ versusId, quoteUsd }: { versusId: number; quoteUsd?: numb
   const { authenticated } = useWallet();
   const positionsQuery = useQuery({
     queryKey: ["versus-positions", versusId],
-    queryFn: async () => {
-      const response = await fetch(`/api/debates/${versusId}/positions`, { credentials: "same-origin" });
+    queryFn: async ({ signal }) => {
+      const response = await fetch(`/api/versus/${versusId}/positions`, { credentials: "same-origin", signal });
       if (response.status === 401) return null;
       if (!response.ok) throw new Error("Positions request failed.");
       return response.json() as Promise<VersusPositionsResponse>;
@@ -410,8 +417,8 @@ function MyPositions({ versusId, quoteUsd }: { versusId: number; quoteUsd?: numb
   });
 
   if (!authenticated) return <EmptyIndexedPanel title="Wallet sign-in required">Connect and sign with your wallet to view the tokens you own in this Versus.</EmptyIndexedPanel>;
-  if (positionsQuery.isLoading) return <EmptyIndexedPanel title="Loading your positions">Reading your indexed token balances from Railway.</EmptyIndexedPanel>;
-  if (positionsQuery.isError) return <EmptyIndexedPanel title="Positions temporarily unavailable">The indexed position data could not be loaded. Please try again shortly.</EmptyIndexedPanel>;
+  if (positionsQuery.isLoading) return <EmptyIndexedPanel title="Loading your positions">Checking your token balances.</EmptyIndexedPanel>;
+  if (positionsQuery.isError) return <EmptyIndexedPanel title="Positions temporarily unavailable">Your positions could not be loaded. Please try again shortly.</EmptyIndexedPanel>;
   const result = positionsQuery.data;
   if (!result || result.positions.length === 0) return <EmptyIndexedPanel title="No open positions">You do not currently own either token in this Versus.</EmptyIndexedPanel>;
   const currency: "USD" | "ETH" = quoteUsd ? "USD" : "ETH";
@@ -433,18 +440,28 @@ function InfoPanel({ tab, debate, tokenFilter, onStatus }: { tab: InfoTab; debat
   }
 
   if (tab === "creator") {
-    return <div className={styles.creatorPanel}><span className={styles.creatorAvatar}><ProfileAvatar address={debate.creatorAddress || ""} className="profile-avatar-round" /></span><div><span>Created by</span><strong>{debate.creatorName || shortAddress(debate.creatorAddress)}</strong><small>{debate.creatorAddress}</small></div>{debate.creatorAddress ? <button type="button" onClick={() => copyText(debate.creatorAddress!).then(() => onStatus("Creator wallet copied.")).catch(() => onStatus("Unable to access the clipboard."))}><CopyIcon /> Copy wallet</button> : null}</div>;
+    return <>
+      <div className={styles.creatorPanel}>
+        <span className={styles.creatorAvatar}><ProfileAvatar address={debate.creatorAddress || ""} className="profile-avatar-round" /></span>
+        <div><span>Launched by · historical</span><strong>{debate.creatorName || shortAddress(debate.creatorAddress)}</strong><small>{debate.creatorAddress}</small></div>
+        {debate.creatorAddress ? <button type="button" onClick={() => copyText(debate.creatorAddress!).then(() => onStatus("Launcher wallet copied.")).catch(() => onStatus("Unable to access the clipboard."))}><CopyIcon /> Copy wallet</button> : null}
+      </div>
+      <CreatorFeeTransfer versusId={debate.id} socialsJson={debate.socialsJson} camps={[
+        { name: debate.sideA, symbol: debate.tokenA?.symbol ?? debate.tokenASymbol ?? debate.sideA, address: debate.tokenA?.address, indexedRecipient: debate.feeRecipientA },
+        { name: debate.sideB, symbol: debate.tokenB?.symbol ?? debate.tokenBSymbol ?? debate.sideB, address: debate.tokenB?.address, indexedRecipient: debate.feeRecipientB },
+      ]} />
+    </>;
   }
 
   if (tab === "activity") return <MarketActivity debate={debate} tokenFilter={tokenFilter} />;
   if (tab === "positions") return <MyPositions versusId={debate.id} quoteUsd={debate.quoteUsd} />;
 
   const messages: Record<Exclude<InfoTab, "community" | "creator">, { title: string; body: string }> = {
-    activity: { title: "No indexed activity yet", body: "Trades will appear here after their on-chain events are indexed." },
-    holders: { title: "Holder distribution unavailable", body: "Goldsky currently indexes Versus creation metadata, but not token balances or holder snapshots." },
-    traders: { title: "Trader rankings unavailable", body: "Rankings require indexed swap activity and wallet-level aggregates." },
-    bubble: { title: "Ownership bubble map unavailable", body: "The map will be generated from indexed holder balances once that read model exists." },
-    positions: { title: "No indexed positions", body: "Wallet positions will be shown after token balances and market prices are available." },
+    activity: { title: "No activity yet", body: "Trades will appear here once trading begins." },
+    holders: { title: "Holder distribution unavailable", body: "Holder information is not available yet." },
+    traders: { title: "Trader rankings unavailable", body: "Trader rankings are not available yet." },
+    bubble: { title: "Ownership bubble map unavailable", body: "The ownership map is not available yet." },
+    positions: { title: "No positions", body: "Your positions will appear here when available." },
   };
   return <EmptyIndexedPanel title={messages[tab].title}>{messages[tab].body}</EmptyIndexedPanel>;
 }
@@ -457,21 +474,37 @@ export default function VsDetailClient({ indexedDebate, indexedReadFailed }: VsD
   const [tokenFilter, setTokenFilter] = useState<"both" | "a" | "b">("both");
   const [shareOpen, setShareOpen] = useState(false);
   const [statusMessage, setStatusMessage] = useState("");
+  const [liveCampMarkets, setLiveCampMarkets] = useState<{ a: LiveCampMarket | null; b: LiveCampMarket | null }>({ a: null, b: null });
+  const updateCampMarket = useCallback((side: "a" | "b", market: LiveCampMarket) => {
+    setLiveCampMarkets((current) => {
+      const previous = current[side];
+      if (previous?.address === market.address && (previous.lastTradeTimestamp > market.lastTradeTimestamp || (previous.lastTradeTimestamp === market.lastTradeTimestamp && previous.marketCapEth === market.marketCapEth))) return current;
+      return { ...current, [side]: market };
+    });
+  }, []);
   const debate = liveDebate.data ?? indexedDebate;
   const currentIndexedReadFailed = !debate && (indexedReadFailed || liveDebate.isError);
 
   if (!debate) {
-    return <div className={styles.notFound}><Link href="/explore">← Back to Explore</Link><h1>{currentIndexedReadFailed ? "Versus data is temporarily unavailable" : "Versus not found"}</h1><p>{currentIndexedReadFailed ? "The Railway indexer could not be reached. Please try again shortly." : "This Versus does not exist in the Railway indexer."}</p></div>;
+    return <div className={styles.notFound}><Link href="/explore">← Back to Explore</Link><h1>{currentIndexedReadFailed ? "Versus temporarily unavailable" : "Versus not found"}</h1><p>{currentIndexedReadFailed ? "The Versus could not be loaded. Please try again shortly." : "This Versus does not exist or is not available yet."}</p></div>;
   }
 
-  const tokenA: DebateToken = debate.tokenA ?? { name: debate.sideA, symbol: debate.tokenASymbol || debate.sideA, image: debate.imageA };
-  const tokenB: DebateToken = debate.tokenB ?? { name: debate.sideB, symbol: debate.tokenBSymbol || debate.sideB, image: debate.imageB };
+  const indexedTokenA: DebateToken = debate.tokenA ?? { name: debate.sideA, symbol: debate.tokenASymbol || debate.sideA, image: debate.imageA };
+  const indexedTokenB: DebateToken = debate.tokenB ?? { name: debate.sideB, symbol: debate.tokenBSymbol || debate.sideB, image: debate.imageB };
+  const liveCapA = liveCampMarkets.a?.address === indexedTokenA.address?.toLowerCase() ? liveCampMarkets.a?.marketCapEth ?? null : null;
+  const liveCapB = liveCampMarkets.b?.address === indexedTokenB.address?.toLowerCase() ? liveCampMarkets.b?.marketCapEth ?? null : null;
+  const tokenA = liveCapA === null ? indexedTokenA : { ...indexedTokenA, marketCapEth: liveCapA, marketCap: liveCapA * (debate.quoteUsd ?? 1) };
+  const tokenB = liveCapB === null ? indexedTokenB : { ...indexedTokenB, marketCapEth: liveCapB, marketCap: liveCapB * (debate.quoteUsd ?? 1) };
   const marketAvailable = hasMarketData(debate);
   const tokenAMarketAvailable = hasTokenMarketData(tokenA);
   const tokenBMarketAvailable = hasTokenMarketData(tokenB);
-  const sideAPercentage = marketAvailable ? Math.max(0, Math.min(100, debate.sideAPercentage ?? 50)) : 50;
+  const capA = tokenA.marketCapEth;
+  const capB = tokenB.marketCapEth;
+  const sideAPercentage = marketAvailable && capA != null && capB != null && capA + capB > 0
+    ? Math.round((capA / (capA + capB)) * 100)
+    : marketAvailable ? Math.max(0, Math.min(100, debate.sideAPercentage ?? 50)) : 50;
   const sideBPercentage = 100 - sideAPercentage;
-  const xUrl = getXUrl(debate.socialsJson);
+  const socialLinks = normalizeSocialLinks(socialLinksFromJson(debate.socialsJson ?? "{}"));
   const starred = has(debate.id);
 
   const share = async () => {
@@ -512,11 +545,16 @@ export default function VsDetailClient({ indexedDebate, indexedReadFailed }: VsD
         <div className={styles.wrap}>
           <Link href="/explore" className={styles.backLink}>← Back to Explore</Link>
           <div className={styles.titleRow}>
-            <div className={styles.titleBlock}><h1><span className={sideAPercentage >= 50 && marketAvailable ? styles.heroLeader : ""}>{debate.sideA}</span> <em>vs</em> <span className={sideBPercentage > 50 && marketAvailable ? styles.heroLeader : ""}>{debate.sideB}</span></h1></div>
-            {xUrl ? <a className={styles.xLink} href={xUrl} target="_blank" rel="noreferrer" aria-label="Open the Versus X account">𝕏</a> : null}
+            <div className={styles.titleBlock}><h1><span className={sideAPercentage > 50 && marketAvailable ? styles.heroLeader : ""}>{debate.sideA}</span> <em>vs</em> <span className={sideBPercentage > 50 && marketAvailable ? styles.heroLeader : ""}>{debate.sideB}</span></h1></div>
+            {socialLinks && Object.values(socialLinks).some(Boolean) ? <div className={styles.socialLinks} aria-label="Versus social links">
+              {socialLinks.x ? <a className={styles.xLink} href={socialLinks.x} target="_blank" rel="noreferrer" aria-label="Open the Versus X account">𝕏</a> : null}
+              {socialLinks.telegram ? <a className={styles.xLink} href={socialLinks.telegram} target="_blank" rel="noreferrer" aria-label="Open the Versus Telegram">TG</a> : null}
+              {socialLinks.discord ? <a className={styles.xLink} href={socialLinks.discord} target="_blank" rel="noreferrer" aria-label="Open the Versus Discord">D</a> : null}
+              {socialLinks.website ? <a className={styles.xLink} href={socialLinks.website} target="_blank" rel="noreferrer" aria-label="Open the Versus website">↗</a> : null}
+            </div> : null}
             <div className={styles.heroActions}>
               <button className={`${styles.roundButton} ${starred ? styles.starred : ""}`} type="button" aria-pressed={starred} aria-label={starred ? "Remove from watchlist" : "Add to watchlist"} onClick={() => toggle(debate.id, `${debate.sideA} vs ${debate.sideB}`)}><StarIcon /></button>
-              <button className={styles.actionButton} type="button" onClick={() => setStatusMessage("Market alerts will be available after trading events are indexed.")}><BellIcon /> New Alert</button>
+              <button className={styles.actionButton} type="button" onClick={() => setStatusMessage("Market alerts are not available yet.")}><BellIcon /> New Alert</button>
               <div className={styles.shareMenuWrap}>
                 <button className={styles.actionButton} type="button" aria-expanded={shareOpen} onClick={() => setShareOpen((open) => !open)}>Share <ShareIcon /></button>
                 {shareOpen ? <div className={styles.shareMenu}><button type="button" onClick={copyLink}><CopyIcon /> Copy link</button><button type="button" onClick={shareOnX}>𝕏 Share on X</button><button type="button" onClick={share}><ExternalIcon /> More options</button></div> : null}
@@ -529,22 +567,24 @@ export default function VsDetailClient({ indexedDebate, indexedReadFailed }: VsD
             <span>·</span>
             <span>Launched {formatAge(debate.createdMinutesAgo)}</span>
             <span>·</span>
-            <span className={styles.creatorMeta}>Created by <b>{debate.creatorName || shortAddress(debate.creatorAddress)}</b>{debate.creatorRankLabel ? <small>{debate.creatorRankLabel}</small> : null}{debate.creatorIsNew ? <small>New creator</small> : null}</span>
+          <span className={styles.creatorMeta}><span>Created by</span><b>{debate.creatorName || shortAddress(debate.creatorAddress)}</b>{debate.creatorRankLabel ? <small>{debate.creatorRankLabel}</small> : null}{debate.creatorIsNew ? <small>New creator</small> : null}</span>
           </div>
 
+          <PendingCreatorFeeNotice camps={[{ name: debate.sideA, token: debate.tokenA?.address }, { name: debate.sideB, token: debate.tokenB?.address }]} />
+
           <div className={styles.overview}>
-            <div className={styles.overviewLabels}><span className={sideAPercentage >= 50 && marketAvailable ? styles.leadingPill : ""}>{symbolLabel(tokenA.symbol)} · {sideAPercentage}%</span><span className={sideBPercentage > 50 && marketAvailable ? styles.leadingPill : ""}>{symbolLabel(tokenB.symbol)} · {sideBPercentage}%</span></div>
-            <div className={styles.meter} aria-label={`${sideAPercentage}% ${debate.sideA}, ${sideBPercentage}% ${debate.sideB}`}><span className={sideAPercentage >= 50 && marketAvailable ? styles.meterLeading : ""} style={{ width: `${sideAPercentage}%` }} /><span className={sideBPercentage > 50 && marketAvailable ? styles.meterLeading : ""} style={{ width: `${sideBPercentage}%` }} /></div>
+            <div className={styles.meter} aria-label={`${sideAPercentage}% ${debate.sideA}, ${sideBPercentage}% ${debate.sideB}`}><span className={sideAPercentage > 50 && marketAvailable ? styles.meterLeading : ""} style={{ width: `${sideAPercentage}%` }} /><span className={sideBPercentage > 50 && marketAvailable ? styles.meterLeading : ""} style={{ width: `${sideBPercentage}%` }} /></div>
+            <div className={styles.overviewLabels}><span className={sideAPercentage > 50 && marketAvailable ? styles.leadingPill : ""}>{debate.sideA} · {sideAPercentage}%</span><span className={sideBPercentage > 50 && marketAvailable ? styles.leadingPill : ""}>{debate.sideB} · {sideBPercentage}%</span></div>
           </div>
 
           <div className={styles.debateCopy}><h2>{marketPreferenceLabel(tokenA, tokenB, sideAPercentage, marketAvailable)}</h2></div>
-          {!marketAvailable ? <div className={styles.dataNotice}><span /> Market events are being backfilled by Goldsky. Creation metadata remains available from Railway.</div> : null}
+          {!marketAvailable ? <div className={styles.dataNotice}><span /> Market activity will appear as trades are recorded.</div> : null}
         </div>
       </section>
 
       <section className={styles.content}>
         <div className={styles.wrap}>
-          <div className={styles.panels}><TokenPanel token={tokenA} side="a" marketShare={sideAPercentage} marketAvailable={tokenAMarketAvailable} onStatus={setStatusMessage} /><TokenPanel token={tokenB} side="b" marketShare={sideBPercentage} marketAvailable={tokenBMarketAvailable} onStatus={setStatusMessage} /></div>
+          <div className={styles.panels}><TokenPanel token={tokenA} side="a" marketShare={sideAPercentage} marketAvailable={tokenAMarketAvailable} onMarketUpdate={updateCampMarket} onStatus={setStatusMessage} /><TokenPanel token={tokenB} side="b" marketShare={sideBPercentage} marketAvailable={tokenBMarketAvailable} onMarketUpdate={updateCampMarket} onStatus={setStatusMessage} /></div>
 
           <div className={styles.infoCard}>
             <div className={styles.infoTop}>
@@ -554,7 +594,6 @@ export default function VsDetailClient({ indexedDebate, indexedReadFailed }: VsD
             <div className={styles.infoBody} role="tabpanel"><InfoPanel tab={activeTab} debate={debate} tokenFilter={tokenFilter} onStatus={setStatusMessage} /></div>
           </div>
 
-          <div className={styles.provenance}><span><b>Network</b>{tokenA.chainName || "Robinhood Chain Testnet"}</span><span><b>Created</b>{formatDate(debate.createdAtUtc || debate.createdAt)}</span><span><b>Data source</b>Goldsky → Railway PostgreSQL</span></div>
         </div>
       </section>
 

@@ -1,0 +1,15 @@
+.card{display:grid;gap:15px;margin-top:18px;padding:18px;border:1px solid var(--line);border-radius:12px;background:var(--panel-2)}
+.eyebrow{color:var(--text-3);font-size:10px;font-weight:750;letter-spacing:.05em;text-transform:uppercase}
+.card h3{margin:4px 0 7px;color:var(--text);font:750 17px var(--display)}
+.card p,.card small{margin:0;color:var(--text-2);font-size:12px;line-height:1.5}
+.card form{display:grid;gap:15px}
+.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.grid label{display:grid;gap:6px;color:var(--text);font-size:12px;font-weight:700}
+.grid input{width:100%;min-height:39px;padding:8px 11px;border:1px solid var(--line);border-radius:8px;outline:none;color:var(--text);background:var(--panel);font:12px var(--mono)}
+.grid input:focus{border-color:var(--blue)}
+.footer{display:flex;align-items:center;justify-content:space-between;gap:16px}
+.footer button{flex:none;padding:9px 13px;border:1px solid var(--line);border-radius:8px;color:var(--text);background:var(--panel);font:700 11px var(--display);cursor:pointer}
+.footer button:hover:not(:disabled){border-color:var(--blue);color:var(--blue)}
+.footer button:disabled{cursor:default;opacity:.45}
+.status{color:var(--text)!important}
+@media(max-width:650px){.card{padding:14px}.grid{grid-template-columns:1fr}.footer{align-items:flex-start;flex-direction:column}.footer button{width:100%}}

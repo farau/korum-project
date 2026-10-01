@@ -16,8 +16,14 @@ function TokenImage({ src, name }: { src?: string; name: string }) {
   return <span className="table-thumb">{src && !failed ? <Image src={src} alt="" fill sizes="28px" unoptimized onError={() => setFailed(true)} /> : name.slice(0, 1)}</span>;
 }
 
-export default function VsTable({ debates, ageLabel }: { debates: Debate[]; ageLabel: (debate: Debate) => string }) {
-  const { has, toggle } = useWatchlist();
+type VsTableViewProps = {
+  debates: Debate[];
+  ageLabel: (debate: Debate) => string;
+  isWatched: (id: number) => boolean;
+  onWatchlistToggle: (id: number, label: string) => void;
+};
+
+export function VsTableView({ debates, ageLabel, isWatched, onWatchlistToggle }: VsTableViewProps) {
   return (
     <div className="vs-table-wrap" tabIndex={0} role="region" aria-label="Versus token market data">
         <table className="vs-table">
@@ -54,7 +60,7 @@ export default function VsTable({ debates, ageLabel }: { debates: Debate[]; ageL
                 <td className="num">{formatMarketValue(token?.volume24h, currency, 1)}</td>
                 <td className="num">{token?.traderCount?.toLocaleString("en-US") ?? "—"}</td>
                 <td className="num"><Change value={token?.change5m} /></td><td className="num"><Change value={token?.change1h} /></td><td className="num"><Change value={token?.change6h} /></td><td className="num"><Change value={change} /></td>
-                {index === 0 && <td rowSpan={2} className="col-star"><button type="button" className={`table-star ${has(debate.id) ? "active" : ""}`} aria-label={`${has(debate.id) ? "Remove from" : "Add to"} watchlist: ${debate.sideA} vs ${debate.sideB}`} aria-pressed={has(debate.id)} onClick={() => toggle(debate.id, `${debate.sideA} vs ${debate.sideB}`)}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="m12 2.5 3 6.5 7 .9-5.2 4.9 1.4 7-6.2-3.5-6.2 3.5 1.4-7L2 9.9l7-.9z" /></svg></button></td>}
+                {index === 0 && <td rowSpan={2} className="col-star"><button type="button" className={`table-star ${isWatched(debate.id) ? "active" : ""}`} aria-label={`${isWatched(debate.id) ? "Remove from" : "Add to"} watchlist: ${debate.sideA} vs ${debate.sideB}`} aria-pressed={isWatched(debate.id)} onClick={() => onWatchlistToggle(debate.id, `${debate.sideA} vs ${debate.sideB}`)}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="m12 2.5 3 6.5 7 .9-5.2 4.9 1.4 7-6.2-3.5-6.2 3.5 1.4-7L2 9.9l7-.9z" /></svg></button></td>}
               </tr>;
               })}
             </tbody>
@@ -62,4 +68,9 @@ export default function VsTable({ debates, ageLabel }: { debates: Debate[]; ageL
         </table>
     </div>
   );
+}
+
+export default function VsTable({ debates, ageLabel }: { debates: Debate[]; ageLabel: (debate: Debate) => string }) {
+  const { has, toggle } = useWatchlist();
+  return <VsTableView debates={debates} ageLabel={ageLabel} isWatched={has} onWatchlistToggle={toggle} />;
 }

@@ -276,7 +276,7 @@ export default function VsListClient({ indexedDebates, indexedReadFailed }: VsLi
           <div className="explore-empty-versus" role="status" aria-live="polite">
             <span className="explore-empty-versus-icon" aria-hidden="true">VS</span>
             <h2>Searching versus…</h2>
-            <p>Querying the complete Railway index.</p>
+            <p>Looking through all available Versus.</p>
           </div>
         ) : filtered.length === 0 ? (
           <div className="explore-empty-versus" role="status">
@@ -287,9 +287,9 @@ export default function VsListClient({ indexedDebates, indexedReadFailed }: VsLi
                 ? "No versus available yet"
                 : "No matching versus"}</h2>
             <p>{currentIndexedReadFailed
-              ? "Explore could not read the Railway indexer. Try again shortly."
+              ? "Versus are temporarily unavailable. Try again shortly."
               : indexedFeedEmpty
-                ? "Goldsky has not projected any complete versus yet."
+                ? "No Versus have been created yet."
                 : "Try a different search, category, or sorting option."}</p>
           </div>
         ) : (

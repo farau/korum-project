@@ -56,6 +56,8 @@ export type UserProfileTrade = {
   tokenSymbol: string;
   side: "buy" | "sell";
   venue: "curve" | "pool";
+  emitterAddress: string | null;
+  poolId: string | null;
   tokenAmount: string;
   grossAmountEth: string;
   netAmountEth: string;

@@ -1,0 +1,12 @@
+import assert from "node:assert/strict";
+import { parseTradeNotices } from "../app/lib/live/protocol.ts";
+const row = { event_id: "46630:123:0xabc:1", chain_id: 46630, token_address: `0x${"a".repeat(40)}`, transaction_hash: `0x${"b".repeat(64)}`, block_hash: `0x${"c".repeat(64)}`, operation: "i" };
+assert.deepEqual(parseTradeNotices(row, 46630), [row]);
+assert.equal(parseTradeNotices([row, { ...row, operation: "d" }], 46630)[0].operation, "d");
+assert.throws(() => parseTradeNotices({ ...row, chain_id: 1 }, 46630));
+assert.throws(() => parseTradeNotices({ ...row, operation: "unknown" }, 46630));
+assert.throws(() => parseTradeNotices({ ...row, event_id: "\nretry:0" }, 46630));
+assert.throws(() => parseTradeNotices({ ...row, token_address: "malformed" }, 46630));
+assert.throws(() => parseTradeNotices(Array(101).fill(row), 46630));
+assert.throws(() => parseTradeNotices([], 46630));
+console.log("Live webhook validation passed: chain, addresses, bounded batches, correction ordering and invalid input.");

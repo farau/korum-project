@@ -1,5 +1,5 @@
 import type { CacheDiagnostic } from "../../../lib/cache/redis";
-import { getIndexedDebateByIdWithDiagnostic, INDEXED_DEBATES_CACHE_SECONDS } from "../../../lib/db/debates";
+import { getIndexedDebateByIdWithDiagnostic } from "../../../lib/db/debates";
 
 export async function GET(
   _request: Request,
@@ -13,7 +13,7 @@ export async function GET(
     return debate
       ? Response.json(debate, {
           headers: {
-            "Cache-Control": `public, max-age=5, s-maxage=${INDEXED_DEBATES_CACHE_SECONDS}, stale-while-revalidate=${INDEXED_DEBATES_CACHE_SECONDS * 3}`,
+            "Cache-Control": "no-store",
             "X-Korum-Cache": cache.status,
             "X-Korum-Cache-Layer": cache.status === "HIT" ? "redis" : cache.status === "DEDUPED" ? "memory" : "postgres",
           },
@@ -21,6 +21,6 @@ export async function GET(
       : Response.json({ error: "Versus not found." }, { status: 404 });
   } catch (error) {
     console.error(`Unable to load indexed versus ${id}.`, error);
-    return Response.json({ error: "The Railway indexer is temporarily unavailable." }, { status: 503 });
+    return Response.json({ error: "This Versus is temporarily unavailable." }, { status: 503 });
   }
 }

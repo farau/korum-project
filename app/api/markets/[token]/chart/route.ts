@@ -1,4 +1,4 @@
-import { getTokenChart, isMarketRange, tokenChartCacheSeconds } from "../../../../lib/db/markets";
+import { getTokenChart, isMarketRange } from "../../../../lib/db/markets";
 import type { CacheDiagnostic } from "../../../../lib/cache/redis";
 
 export async function GET(
@@ -6,18 +6,26 @@ export async function GET(
   { params }: { params: Promise<{ token: string }> },
 ) {
   const { token } = await params;
-  const rangeValue = new URL(request.url).searchParams.get("range") ?? "1h";
+  const search = new URL(request.url).searchParams;
+  const rangeValue = search.get("range") ?? "1m";
   if (!isMarketRange(rangeValue)) {
     return Response.json({ error: "Unsupported chart range." }, { status: 400 });
+  }
+  const limitValue = search.get("limit");
+  const beforeValue = search.get("before");
+  const limit = limitValue === null ? 300 : Number(limitValue);
+  const before = beforeValue === null ? undefined : Number(beforeValue);
+  if (!Number.isInteger(limit) || limit < 1 || limit > 500 || (before !== undefined && (!Number.isSafeInteger(before) || before < 1))) {
+    return Response.json({ error: "Invalid chart pagination." }, { status: 400 });
   }
   const cache: CacheDiagnostic = { status: "BYPASS" };
 
   try {
-    const chart = await getTokenChart(token, rangeValue, cache);
+    const chart = await getTokenChart(token, rangeValue, limit, before, cache);
     return chart
       ? Response.json(chart, {
           headers: {
-            "Cache-Control": `public, max-age=2, s-maxage=${tokenChartCacheSeconds(rangeValue)}, stale-while-revalidate=${tokenChartCacheSeconds(rangeValue) * 3}`,
+            "Cache-Control": "no-store",
             "X-Korum-Cache": cache.status,
             "X-Korum-Cache-Layer": cache.status === "HIT" ? "redis" : cache.status === "DEDUPED" ? "memory" : "postgres",
           },

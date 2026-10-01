@@ -18,7 +18,7 @@ const DETAIL_REFRESH_MS = 15_000;
 const SEARCH_CACHE_MS = 45_000;
 
 async function jsonResponse<T>(url: string, signal?: AbortSignal) {
-  const response = await fetch(url, { signal });
+  const response = await fetch(url, { signal, cache: "no-store" });
   if (!response.ok) throw new Error(`Unable to refresh indexed market data (${response.status}).`);
   return response.json() as Promise<T>;
 }
@@ -26,7 +26,7 @@ async function jsonResponse<T>(url: string, signal?: AbortSignal) {
 export function useIndexedDebates(initialData?: Debate[], enabled = true, refreshInterval = DEBATES_REFRESH_MS) {
   return useQuery({
     queryKey: INDEXED_DEBATES_QUERY_KEY,
-    queryFn: () => jsonResponse<Debate[]>("/api/debates"),
+    queryFn: ({ signal }) => jsonResponse<Debate[]>("/api/versus", signal),
     initialData,
     enabled,
     staleTime: refreshInterval,
@@ -40,7 +40,7 @@ export function useIndexedDebates(initialData?: Debate[], enabled = true, refres
 export function useIndexedDebateSearch(query: string, enabled = true) {
   return useQuery({
     queryKey: [INDEXED_DEBATES_SEARCH_QUERY_KEY, query],
-    queryFn: ({ signal }) => jsonResponse<Debate[]>(`/api/debates/search?q=${encodeURIComponent(query)}`, signal),
+    queryFn: ({ signal }) => jsonResponse<Debate[]>(`/api/versus/search?q=${encodeURIComponent(query)}`, signal),
     enabled: enabled && query.length >= 2,
     staleTime: SEARCH_CACHE_MS,
     placeholderData: (previousData) => previousData,
@@ -52,7 +52,7 @@ export function useIndexedDebateSearch(query: string, enabled = true) {
 export function useIndexedDebate(versusId: string, initialData: Debate | null, enabled = true) {
   return useQuery({
     queryKey: [INDEXED_DEBATE_QUERY_KEY, versusId],
-    queryFn: () => jsonResponse<Debate>(`/api/debates/${encodeURIComponent(versusId)}`),
+    queryFn: ({ signal }) => jsonResponse<Debate>(`/api/versus/${encodeURIComponent(versusId)}`, signal),
     initialData: initialData ?? undefined,
     enabled: enabled && /^\d{1,78}$/.test(versusId),
     staleTime: 5_000,

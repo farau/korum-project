@@ -12,6 +12,24 @@ Apply migration `0011_create_v2_read_model.sql` before running this version. It 
 
 Read-only contract verification: `node --experimental-strip-types scripts/check-contracts-v2.mjs`.
 
+## Live market delivery
+
+Versus charts and the Explore ticker support authenticated Goldsky webhooks,
+Redis Pub/Sub and one shared SSE connection per browser tab. Notifications are
+published after PostgreSQL commits the corresponding event. Market snapshots
+use revisioned Redis caches; polling remains enabled as a recovery path.
+See [configuration, delivery semantics and rollout](docs/market-live.md).
+
+## Creator fee recipient transfers
+
+The Creator tab on each Versus reads the current recipient and any pending owner proposal from the contracts. The current recipient can transfer future fee rights for either camp to another wallet with `KorumFactory.transferCreatorFeeRecipient(token, newRecipient)`. Transferring both camps submits two separate wallet transactions. The original launch creator and fees already accrued to the previous recipient do not change.
+
+Profile's Managed Versus tab lists camps whose indexed fee recipient is the signed-in wallet. Apply `db/migrations/0013_creator_fee_recipient_history.sql` before deploying this frontend or the updated `goldsky/pipelines/korum-robinhood-testnet.yaml`, then deploy the pipeline to backfill Factory recipient changes. Until Goldsky catches up, the Profile list can lag behind the on-chain recipient shown on the Versus page. A pending owner change remains pending after a direct transfer.
+
+At creation, the publisher can enter a non-zero initial fee recipient for both camps; leaving the field empty uses the connected wallet. The form recommends a multisig or smart account because the current recipient can redirect future fees immediately. The protocol owner can propose a replacement for either camp, executable by anyone after three days and expiring three days later; the Versus page displays these proposals publicly and lets any connected wallet execute one during its window. A direct transfer does not cancel a pending owner proposal.
+
+Either camp's **current on-chain fee recipient** can edit the Versus X, Telegram, Discord and website links from the Creator tab using a wallet message signature. Sign-in accepts EOA and smart-account signatures; the server verifies the session, edit signature and current contract rights before saving. Apply `db/migrations/0014_create_versus_socials_overrides.sql` before deploying this frontend. These edits live in `public.versus_socials_overrides`, outside Goldsky's `indexer_v2.versuses` projection, so a pipeline replay cannot erase them. Goldsky indexes the creation event and subsequent recipient-change events; it does not ingest later off-chain social edits.
+
 ## Current Status
 
 - The interface and all canonical routes are in English.
@@ -24,7 +42,7 @@ Read-only contract verification: `node --experimental-strip-types scripts/check-
 - Goldsky indexes both curve and pool trades into Railway for strict-window Lightweight Charts, current prices, volumes, market caps, adjusted FDVs, and recent activity.
 - A private Railway Redis service caches public indexed reads, Alchemy quotes, and wallet-scoped Profile statistics across application replicas without becoming a source of truth.
 - Explore, Versus details, Analytics, charts, and visible activity refresh automatically through Redis-backed HTTP reads without polling blockchain RPCs for indexed metrics.
-- The Explore buy/sell ticker reads real indexed trades and spaces batched polling results through a client queue instead of displaying simultaneous bursts.
+- The Explore buy/sell ticker reads real indexed trades and spaces incoming results through a bounded client queue instead of displaying simultaneous bursts.
 - The official Robinhood RPC is the primary frontend transport, with a server-proxied private Alchemy fallback that does not expose its credential to browsers.
 
 ## Main Features
@@ -156,11 +174,13 @@ If port `3000` is already occupied, Next.js selects the next available port and 
 | `/analytics` | Protocol and market analytics |
 | `/create` | Contract-backed two-token VS creation flow |
 | `/watchlist` | Matchups saved for the authenticated wallet |
-| `/profile` | Wallet-gated account information, activity, referrals, badges, watchlist, and simulator |
+| `/profile` | Wallet-gated account information, holdings, managed Versus, activity, referrals, badges, watchlist, and simulator |
 | `/privacy` | Privacy Policy |
 | `/terms` | Terms of Use |
-| `/api/debates` | Cache-backed Railway projection for the live Versus list |
-| `/api/debates/[id]` | Cache-backed reactive snapshot for one indexed Versus |
+| `/api/versus` | Cache-backed Railway projection for the live Versus list |
+| `/api/versus/[id]` | Cache-backed reactive snapshot for one indexed Versus |
+| `/api/versus/search` | Search indexed Versus |
+| `/api/versus/[id]/positions` | Authenticated wallet positions for one Versus |
 | `/api/markets/[token]/chart` | Railway-backed price and circulating-supply market-cap OHLC candles; accepts `range=1h|1d|7d|30d|180d` |
 | `/api/markets/[token]/trades` | Recent normalized trades preserving `venue=curve|pool` |
 | `/api/markets/trades` | Global Redis-backed recent-trade feed used by the Explore ticker |
@@ -171,6 +191,8 @@ If port `3000` is already occupied, Next.js selects the next available port and 
 | `/api/auth/session` | Reads or deletes the current wallet session |
 | `/api/profile` | Authenticated wallet profile reads and username/bio updates |
 | `/api/profile/activity` | Authenticated, Redis-backed Profile trade pagination |
+| `/api/profile/holdings` | Authenticated on-chain balances and estimated USD values for known Korum holdings |
+| `/api/profile/managed-versus` | Authenticated indexed camps currently paying creator fees to the wallet |
 | `/api/leaderboard` | Public trader rankings; unfiltered pages use Redis while free-text searches query Railway directly |
 
 Legacy French routes and the former `/index` route are intentionally not maintained. Internal links use the canonical English routes.
@@ -266,7 +288,7 @@ The challenge cookie is also `HttpOnly`, short-lived, and limited to `/api/auth`
 
 `/profile` reads the session on the server and does not send profile data to unauthenticated clients. `/api/profile` applies the same protection to profile reads, indexed wallet statistics, and username/bio updates. Every future wallet-specific Railway query must repeat this server-side authorization check; hiding content in React is not a security boundary.
 
-The current profile mirrors the Korum reference layout while keeping its controls reactive. Its Information, Activity, Referrals, Badges, Watchlist, and Global simulator tabs are client-side React views. The server derives referral count from `indexer_v2.referral_bindings`, created Versus from `indexer_v2.versuses`, joined Versus from indexed trades, and trade count, gross volume, net positions, and cash flow from the trigger-maintained `indexer_v2.trader_totals` and `indexer_v2.trader_positions` aggregates. Every read is scoped to the configured chain and authenticated wallet. These wallet-scoped statistics are cached for 20 seconds in the private server-side Redis service under a hashed wallet key; the authenticated Profile response remains `private, no-store` and is never stored by a shared HTTP cache. Activity is loaded lazily in pages of 10 raw trades through `/api/profile/activity`, with a separate 20-second private Redis entry for each wallet and page. Gross volume is displayed in USD with the shared ETH/USD quote, falling back to ETH when no quote is available. Estimated PNL is sales received net of fees plus the full-position liquidation value of each remaining trade-derived position minus purchases paid. For an active curve, the server reconstructs `KorumLens.quoteSell` locally from indexed reserves and reads only the public launch configuration on-chain; it therefore includes bonding-curve price impact and current sell fees without disclosing position sizes to an RPC provider. It excludes gas and cannot account for ERC-20 transfers outside Korum until `Transfer` events are indexed. Graduated positions remain unavailable until the Uniswap v4 Quoter integration is added. Badge progression is derived from the seven threshold pairs shown in Profile: Creator uses created Versus plus generated curve volume, Trader uses trade count plus gross volume, and Referrer uses confirmed referrals plus their wallets' gross volume. Both conditions are required within a path, and the highest tier reached across the three paths becomes the public leaderboard badge. The tier itself is not persisted because thresholds and the ETH/USD conversion can change; authoritative counters and volumes remain in Railway. Total wallet valuation continues to display an explicit pending state rather than a fabricated value. Profile-image uploads are available in Account information; X account linking remains disabled.
+The current profile mirrors the Korum reference layout while keeping its controls reactive. Its Information, My Holdings, Activity, Referrals, Badges, Watchlist, and Global simulator tabs are client-side React views. The server derives referral count from `indexer_v2.referral_bindings`, created Versus from `indexer_v2.versuses`, joined Versus from indexed trades, and trade count, gross volume, net positions, and cash flow from the trigger-maintained `indexer_v2.trader_totals` and `indexer_v2.trader_positions` aggregates. Every read is scoped to the configured chain and authenticated wallet. These wallet-scoped statistics are cached for 20 seconds in the private server-side Redis service under a hashed wallet key; the authenticated Profile response remains `private, no-store` and is never stored by a shared HTTP cache. Activity is loaded lazily in pages of 10 raw trades through `/api/profile/activity`, with a separate 20-second private Redis entry for each wallet and page. Gross volume is displayed in USD with the shared ETH/USD quote, falling back to ETH when no quote is available. Estimated PNL is sales received net of fees plus the full-position liquidation value of each remaining trade-derived position minus purchases paid. For an active curve, the server reconstructs `KorumLens.quoteSell` locally from indexed reserves and reads only the public launch configuration on-chain; it therefore includes bonding-curve price impact and current sell fees without disclosing position sizes to an RPC provider. It excludes gas and cannot account for ERC-20 transfers outside Korum until `Transfer` events are indexed. My Holdings uses traded token addresses as candidates, verifies each current `balanceOf` on-chain, and combines priced curve positions with the native ETH balance using the shared ETH/USD quote. It does not discover tokens received without any trade in the wallet, and a total is withheld when a known position cannot be valued or the candidate limit is reached. My Holdings estimates graduated positions from the latest indexed pool spot price (or the graduation price before the first pool trade), without selling fees or price impact; executable liquidation valuation still requires pool quoting. Badge progression is derived from the seven threshold pairs shown in Profile: Creator uses created Versus plus generated curve volume, Trader uses trade count plus gross volume, and Referrer uses confirmed referrals plus their wallets' gross volume. Both conditions are required within a path, and the highest tier reached across the three paths becomes the public leaderboard badge. The tier itself is not persisted because thresholds and the ETH/USD conversion can change; authoritative counters and volumes remain in Railway. Profile-image uploads are available in Account information; X account linking remains disabled.
 
 ## User Database
 
@@ -390,7 +412,7 @@ The Webpack build command is useful as a fallback in restricted environments whe
 ## Known Limitations
 
 - Creator/referrer ranking models and analytics projections are not yet backed by dedicated indexed aggregates; the trader leaderboard is live.
-- Total portfolio value remains pending. Profile PNL is an explicitly qualified trade-derived estimate until token transfers and gas costs are indexed.
+- My Holdings discovers tokens from the wallet's indexed trades, so transferred-in tokens never traded by that wallet are omitted. Graduated tokens use the latest indexed pool spot price (or the graduation price before the first pool trade) times the on-chain balance; this market estimate does not include selling fees or price impact. Profile PNL remains a trade-derived estimate excluding transfers and gas.
 - Profile-image uploads and X account linking are intentionally disabled.
 - Advanced numeric filters and quick-amount configuration are visual placeholders.
 - Automated unit, integration, and end-to-end tests have not been added yet.

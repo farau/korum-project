@@ -3,11 +3,11 @@ import PageWrapper from "../components/PageWrapper";
 
 const sections = [
   ["1. Acceptance", "By using Korum, you agree to these Terms of Use and the rules governing interactions, wallets, VS markets, and related features."],
-  ["2. Service", "Korum lets users create, explore, and track matchups represented by two tokenized sides. Market activity is sourced from the configured blockchain indexer."],
+  ["2. Service", "Korum lets users create, explore, and track matchups represented by two tokenized sides. Market activity is displayed as trades are recorded."],
   ["3. Wallet", "Access to certain pages or actions may require a connected EVM wallet. A unique short code associated with the wallet address may be used as a public referral identifier."],
   ["4. Risks", "Tokenized markets can be volatile. Information displayed through the Service does not constitute financial, legal, or tax advice."],
   ["5. Conduct", "Users must avoid unlawful, misleading, hateful, or third-party-infringing content. Korum may hide or remove problematic content."],
-  ["6. Market data", "Prices, volumes, timestamps, fees, and rankings may be supplied by the API, the Railway indexer, or other technical services."],
+  ["6. Market data", "Prices, volumes, timestamps, fees, and rankings are informational and may update with a delay."],
   ["7. Availability", "The Service may evolve, be interrupted, or be modified, particularly during testing, migration, or maintenance."],
   ["8. Contact", "For questions about these Terms of Use, contact the team at contact@korum.com."],
 ];

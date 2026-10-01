@@ -1,6 +1,5 @@
 import {
   getRecentMarketTrades,
-  RECENT_MARKET_TRADES_CACHE_SECONDS,
 } from "../../../lib/db/markets";
 import type { CacheDiagnostic } from "../../../lib/cache/redis";
 
@@ -12,7 +11,7 @@ export async function GET(request: Request) {
     const result = await getRecentMarketTrades(Number.isFinite(requestedLimit) ? requestedLimit : 50, cache);
     return Response.json(result, {
       headers: {
-        "Cache-Control": `public, max-age=2, s-maxage=${RECENT_MARKET_TRADES_CACHE_SECONDS}, stale-while-revalidate=${RECENT_MARKET_TRADES_CACHE_SECONDS * 3}`,
+        "Cache-Control": "no-store",
         "X-Korum-Cache": cache.status,
         "X-Korum-Cache-Layer": cache.status === "HIT" ? "redis" : cache.status === "DEDUPED" ? "memory" : "postgres",
       },

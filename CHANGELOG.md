@@ -6,6 +6,39 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+
+- Editable Versus social links for either current camp fee recipient, authorized by an off-chain wallet signature and stored separately from Goldsky projections (`0014_create_versus_socials_overrides.sql`); smart-account signatures are accepted at sign-in.
+- Initial creator fee recipient address input at launch and a public per-camp notice of proposed protocol-owner changes with permissionless execution during the valid window.
+- Creator fee recipient management per camp in Versus, including current on-chain recipient, pending owner proposals, simulation, wallet-confirmed transfers, and a Profile Managed Versus tab backed by indexed recipient changes.
+- Migration `0013_creator_fee_recipient_history.sql` and a Factory event stream for recipient proposals, cancellations, and updates, while preserving the original launch creator.
+- Authenticated My Holdings tab with on-chain ETH and Korum token balances, per-token USD liquidation estimates, and a total only when every known position can be valued.
+- Approximate graduated-token holdings from the latest indexed pool spot price, clearly marked separately from bonding-curve liquidation values.
+- Persist the emitting contract and graduated Uniswap v4 pool ID on indexed trades, with order-independent PostgreSQL synchronization and API provenance fields.
+- Authenticated Goldsky trade webhook and shared Redis/SSE market notifications, with bounded payloads, PostgreSQL readiness checks, duplicate handling and snapshot recovery after reconnects.
+- Live-feed integration checks covering two application instances, webhook authorization, reorg notifications, indexing lag and revisioned caches.
+- Browser-persisted, global trade slippage controls with presets and a 0.1–20% custom range, applied to both bonding-curve and pool minimum-output checks.
+
+### Changed
+
+- Rename Versus API routes from `/api/debates` to `/api/versus`, including search, detail snapshots, and wallet positions.
+- Reuse Explore's two-row token table for saved Versus in the Profile watchlist, including market metrics, sparklines, and the active watchlist star.
+- Remove the technical network, creation-time, and data-source footer from Versus details, and replace user-facing infrastructure references with plain availability messages.
+- Show the current on-chain creator fee recipient and full copyable wallet address for each camp in the Versus Token Creator tab, separately from the historical launch wallet.
+- Refresh active Versus charts, market details and Explore trades on indexed trade notifications, retaining polling as a fallback and slowing routine polling while connected.
+- Version market caches on committed trade changes and bypass browser/CDN caching for live market snapshots to avoid stale responses.
+- Update the last chart candle incrementally when possible, preserve the visible time range during reconciliation, and drain ticker bursts without accumulating an artificial display delay.
+- Build chart candles from trades as they arrive, including the current minute; fill inactive intervals with subtle unchanged-price ticks that retain the last trade color, and place price details below the chart.
+- Mark the active candle with a subtle green or red pulse at its high or low, tracking chart pan and zoom while respecting reduced-motion preferences.
+- Rework Versus detail layout to match the supplied reference, with shared page margins, a restored Explore back link, italic “VS”, aligned creator metadata, and translucent camp arrows behind the token titles.
+- Show 25%, 50%, 75%, and 100% position shortcuts on Explore cards when selling, while keeping ETH shortcuts for purchases.
+
+### Fixed
+
+- Deploy the Factory fee-recipient event stream with corrected ABI decoding and historical backfill, so Managed Versus reflects transfers instead of retaining the recipient recorded at launch. The existing `0013` migration supplies the event table and current-recipient view; no additional recipient snapshot table is required.
+- Update Versus camp percentages, market caps, and Leading indicators from the same fresh market data as the charts after trades; show no leader at an exact tie.
+- Color negative leaderboard PNL red, including on the top-three podium.
+
 ## [0.2.2] - 2026-09-29
 
 ### Added

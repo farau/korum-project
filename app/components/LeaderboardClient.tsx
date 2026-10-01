@@ -55,7 +55,7 @@ function RankingRow({ row, isCurrentUser }: { row: TraderLeaderboardRow; isCurre
         <TierBadge badge={row.badge} />
         {isCurrentUser ? <span className="lb-you-tag">YOU</span> : null}
       </span>
-      <span className={row.pnlEth !== null && row.pnlEth < 0 ? "lb-vol sell" : "lb-vol buy"}>{formatLeaderboardAmount(row.pnlUsd, row.pnlEth, true)}</span>
+      <span className={(row.pnlUsd ?? row.pnlEth ?? 0) < 0 ? "lb-vol sell" : "lb-vol buy"}>{formatLeaderboardAmount(row.pnlUsd, row.pnlEth, true)}</span>
       <span className="lb-vol">{formatLeaderboardAmount(row.volumeUsd, row.volumeEth)}</span>
       <span className="lb-win">{row.tradeCount.toLocaleString("en-US")}</span>
     </div>
@@ -142,7 +142,7 @@ export default function LeaderboardClient({ initialData }: { initialData: Trader
                   {row.name.startsWith("0x") ? shortenAddress(row.name) : row.name}
                 </strong>
                 <TierBadge badge={row.badge} />
-                <span className="lb-podium-pnl">{formatLeaderboardAmount(row.pnlUsd, row.pnlEth, true)}</span>
+                <span className={`lb-podium-pnl${(row.pnlUsd ?? row.pnlEth ?? 0) < 0 ? " negative" : ""}`}>{formatLeaderboardAmount(row.pnlUsd, row.pnlEth, true)}</span>
               </article>
             ))}
           </div>
@@ -153,7 +153,7 @@ export default function LeaderboardClient({ initialData }: { initialData: Trader
         <div className="wrap">
           <span className="vs-hero-badge">Ranking</span>
           <h2 className="vs-hero-title">Who rules Korum</h2>
-          <p>All-time trader rankings built from Goldsky-indexed volume and executable bonding-curve PNL estimates.</p>
+          <p>All-time trader rankings based on trading volume and estimated bonding-curve PNL.</p>
           <label className="lb-search-wrap">
             <span className="icon" aria-hidden="true">⌕</span>
             <span className="sr-only">Search by username</span>
@@ -169,7 +169,7 @@ export default function LeaderboardClient({ initialData }: { initialData: Trader
 
       <section className="info-section leaderboard-section">
         <div className="wrap">
-          <div className="lb-controls-row"><span className="vs-hero-badge">All-time traders</span><span className="profile-data-pending">Railway aggregated · 5 min cache</span></div>
+          <div className="lb-controls-row"><span className="vs-hero-badge">All-time traders</span></div>
 
           <div className="lb-table-wrap" role="table" aria-label="Korum leaderboard">
             <div className="lb-row head" role="row">
@@ -186,7 +186,7 @@ export default function LeaderboardClient({ initialData }: { initialData: Trader
 
           {loading ? <p className="lb-nomatch" aria-live="polite">Updating leaderboard…</p> : null}
           {error ? <p className="lb-nomatch" role="alert">{error}</p> : null}
-          {!loading && !error && data.items.length === 0 ? <p className="lb-nomatch">No indexed trader matches your search.</p> : null}
+          {!loading && !error && data.items.length === 0 ? <p className="lb-nomatch">No trader matches your search.</p> : null}
           {data.totalPages > 1 ? (
             <nav className="explore-pagination" aria-label="Leaderboard pagination">
               <p className="explore-pagination-status">Page {data.page} of {data.totalPages} · {data.totalItems} traders</p>

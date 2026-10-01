@@ -1,5 +1,6 @@
 import "server-only";
 
+import { randomUUID } from "node:crypto";
 import Redis from "ioredis";
 
 import { DEPLOYMENT_CACHE_SCOPE } from "../../config/deployment";
@@ -25,7 +26,7 @@ declare global {
   var __korumLocalRateLimits: Map<string, LocalRateLimit> | undefined;
 }
 
-const CACHE_NAMESPACE = "korum:v1";
+const CACHE_NAMESPACE = process.env.KORUM_CACHE_NAMESPACE || "korum:v1";
 const REDIS_OPERATION_TIMEOUT_MS = 1_500;
 
 function redisClient() {
@@ -51,7 +52,7 @@ function redisClient() {
   return globalThis.__korumRedisClient;
 }
 
-async function connectedRedis() {
+export async function connectedRedis() {
   const client = redisClient();
   if (!client) return null;
 
@@ -94,6 +95,11 @@ export function redisCacheKey(...parts: Array<string | number>) {
   return `${CACHE_NAMESPACE}:${DEPLOYMENT_CACHE_SCOPE}:${suffix}`;
 }
 
+export async function invalidateIndexedDebateCaches() {
+  // The shared revision isolates in-flight cache fills from later metadata edits.
+  await runRedis(client => client.set(redisCacheKey("live", "revision"), randomUUID()));
+}
+
 async function readJson<T>(key: string) {
   const result = await runRedis((client) => client.get(key));
   if (!result.ok) return { hit: false as const, bypassed: true as const };
@@ -117,6 +123,16 @@ export async function rememberJson<T>(
   load: () => Promise<T>,
   diagnostic?: CacheDiagnostic,
 ) {
+  // Version market caches instead of deleting keys: in-flight old loads stay
+  // isolated even when a webhook arrives while PostgreSQL is being queried.
+  if (key.startsWith(redisCacheKey("market") + ":") || key.startsWith(redisCacheKey("debates") + ":")) {
+    const revision = await runRedis(client => client.get(redisCacheKey("live", "revision")));
+    if (revision.ok) key = `${key}:revision:${revision.value ?? "0"}`;
+    else {
+      if (diagnostic) diagnostic.status = "BYPASS";
+      return load();
+    }
+  }
   const cached = await readJson<T>(key);
   if (cached.hit) {
     if (diagnostic) diagnostic.status = "HIT";

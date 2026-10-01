@@ -25,6 +25,8 @@ type IndexedDebateRow = {
   category: string;
   socialsJson: string;
   creatorWallet: string;
+  feeRecipientA: string;
+  feeRecipientB: string;
   creatorDisplayName: string | null;
   creatorIsNew: boolean;
   creatorVersusCreated: number;
@@ -265,6 +267,8 @@ function toDebate(row: IndexedDebateRow, quoteUsd: number | null): Debate | null
     launchTimestamp: createdAtTimestamp,
     creatorName: row.creatorDisplayName?.trim() || creatorLabel(row.creatorWallet),
     creatorAddress: row.creatorWallet,
+    feeRecipientA: row.feeRecipientA,
+    feeRecipientB: row.feeRecipientB,
     creatorIsNew: row.creatorIsNew,
     creatorRankLabel: creatorBadge?.name,
     creatorRankClass: creatorBadge?.className,
@@ -406,8 +410,10 @@ async function readIndexedDebates({ limit = DEFAULT_LIMIT, versusId, watchlistUs
       v.title,
       v.description,
       v.category,
-      v.socials_json AS "socialsJson",
+      COALESCE(social_override.socials_json, v.socials_json) AS "socialsJson",
       v.creator_wallet AS "creatorWallet",
+      fee_a.current_recipient AS "feeRecipientA",
+      fee_b.current_recipient AS "feeRecipientB",
       NULLIF(BTRIM(creator.display_name), '') AS "creatorDisplayName",
       COALESCE(creator.created_at > NOW() - INTERVAL '7 days', FALSE) AS "creatorIsNew",
       COALESCE(creator_stats.versus_created, 0)::INTEGER AS "creatorVersusCreated",
@@ -455,6 +461,8 @@ async function readIndexedDebates({ limit = DEFAULT_LIMIT, versusId, watchlistUs
       stats_b.price_history AS "tokenBPriceHistory",
       stats_versus.trader_count AS "versusTraderCount"
     FROM ${INDEXER_SCHEMA}.versuses v
+    LEFT JOIN public.versus_socials_overrides social_override
+      ON social_override.chain_id = v.chain_id AND social_override.versus_id = v.versus_id
     LEFT JOIN users creator
       ON LOWER(creator.evm_wallet) = LOWER(v.creator_wallet)
     LEFT JOIN LATERAL (
@@ -477,6 +485,10 @@ async function readIndexedDebates({ limit = DEFAULT_LIMIT, versusId, watchlistUs
       ON camp_b.chain_id = v.chain_id
       AND camp_b.versus_id = v.versus_id
       AND camp_b.side = 1
+    INNER JOIN ${INDEXER_SCHEMA}.camp_fee_recipients fee_a
+      ON fee_a.chain_id = camp_a.chain_id AND fee_a.token_address = camp_a.token_address
+    INNER JOIN ${INDEXER_SCHEMA}.camp_fee_recipients fee_b
+      ON fee_b.chain_id = camp_b.chain_id AND fee_b.token_address = camp_b.token_address
     INNER JOIN ${INDEXER_SCHEMA}.camp_market_state market_a
       ON market_a.chain_id = camp_a.chain_id
       AND market_a.token_address = camp_a.token_address

@@ -5,13 +5,16 @@ import React, { useEffect, useMemo, useState } from "react";
 import { KORUM_CHAIN } from "../config/korum-network";
 import { useWatchlist } from "../hooks/useWatchlist";
 import { BADGE_TIERS, calculateBadgeProgress, type BadgeTier } from "../lib/badges";
+import type { Debate } from "../lib/debates";
 import { formatMarketValue, formatTokenAmount } from "../lib/markets/format";
 import type { UserProfile, UserProfileActivityPage, UserProfileStats, ProfileReferrer } from "../lib/profile";
+import type { ProfileHoldings } from "../lib/profile-holdings";
 import ProfileAvatar from "./ProfileAvatar";
 import AvatarUpload from "./AvatarUpload";
+import { VsTableView } from "./explore/VsTable";
 import { shortenAddress, useWallet } from "./WalletProvider";
 
-type ProfileTab = "information" | "activity" | "referrals" | "badges" | "watchlist" | "simulator";
+type ProfileTab = "information" | "holdings" | "managed" | "activity" | "referrals" | "badges" | "watchlist" | "simulator";
 
 type ProfileClientProps = {
   profile: UserProfile | null;
@@ -23,6 +26,8 @@ type ProfileClientProps = {
 
 const PROFILE_TABS: Array<{ id: ProfileTab; label: string }> = [
   { id: "information", label: "Information" },
+  { id: "holdings", label: "My Holdings" },
+  { id: "managed", label: "Managed Versus" },
   { id: "activity", label: "Activity" },
   { id: "referrals", label: "Referrals" },
   { id: "badges", label: "Badges" },
@@ -47,6 +52,12 @@ function formatUtcDate(value: string) {
 
 function compactMoney(value: number) {
   return `$${Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 1 }).format(value)}`;
+}
+
+function formatHoldingUsd(value: number | null | undefined) {
+  if (value === null || value === undefined || !Number.isFinite(value)) return "—";
+  if (value > 0 && value < 0.01) return "<$0.01";
+  return formatMarketValue(value, "USD", 2);
 }
 
 function Icon({ name }: { name: "copy" | "users" | "bolt" | "chart" | "wallet" | "trade" | "image" | "x" | "edit" | "external" }) {
@@ -89,11 +100,7 @@ function getReferralLink(code: string) {
   return referralUrl.toString();
 }
 
-function DataPending({ children = "Awaiting indexer" }: { children?: React.ReactNode }) {
-  return <span className="profile-data-pending">{children}</span>;
-}
-
-function IndexedData({ children = "Indexed on-chain" }: { children?: React.ReactNode }) {
+function IndexedData({ children = "Recorded activity" }: { children?: React.ReactNode }) {
   return <span className="profile-data-pending">{children}</span>;
 }
 
@@ -125,7 +132,7 @@ function formatTradeDate(timestamp: number) {
   }).format(new Date(timestamp * 1_000))} UTC`;
 }
 
-function InformationPanel({ profile, stats, referral, onProfileChange }: { profile: UserProfile; stats: UserProfileStats; referral: ProfileReferrer; onProfileChange: (profile: UserProfile) => void }) {
+function InformationPanel({ profile, stats, referral, holdings, holdingsLoading, onOpenHoldings, onProfileChange }: { profile: UserProfile; stats: UserProfileStats; referral: ProfileReferrer; holdings: ProfileHoldings | null; holdingsLoading: boolean; onOpenHoldings: () => void; onProfileChange: (profile: UserProfile) => void }) {
   const [editingDisplayName, setEditingDisplayName] = useState(false);
   const [displayName, setDisplayName] = useState(profile.displayName ?? "");
   const [savingDisplayName, setSavingDisplayName] = useState(false);
@@ -232,8 +239,9 @@ function InformationPanel({ profile, stats, referral, onProfileChange }: { profi
           <IndexedData>Mark-to-market · gas excluded</IndexedData>
         </article>
         <article className="profile-stat-block">
-          <div className="profile-stat-heading"><span className="profile-stat-icon"><Icon name="wallet" /></span><span>Wallet</span></div>
-          <strong className="profile-stat-value">—</strong><DataPending>Awaiting portfolio model</DataPending>
+          <div className="profile-stat-heading"><span className="profile-stat-icon"><Icon name="wallet" /></span><span>My Holdings</span></div>
+          <strong className="profile-stat-value">{formatHoldingUsd(holdings?.totalValueUsd)}</strong>
+          <button type="button" className="profile-holdings-shortcut" onClick={onOpenHoldings}>{holdingsLoading ? "Loading balances…" : holdings?.partial ? "Partial valuation · View holdings →" : holdings?.quoteAvailable === false ? "USD quote unavailable · View holdings →" : "View holdings →"}</button>
         </article>
         <article className="profile-stat-block">
           <div className="profile-stat-heading"><span className="profile-stat-icon"><Icon name="trade" /></span><span>Traded volume</span></div>
@@ -242,6 +250,83 @@ function InformationPanel({ profile, stats, referral, onProfileChange }: { profi
       </div>
     </div>
   );
+}
+
+function HoldingsPanel({ holdings, loading, error, retry }: { holdings: ProfileHoldings | null; loading: boolean; error: string | null; retry: () => void }) {
+  return (
+    <div className="profile-tab-panel" role="tabpanel" id="profile-panel-holdings">
+      <section className="profile-content-card profile-holdings-card">
+        <div className="profile-section-title">
+          <div><span className="profile-eyebrow">Your wallet on Robinhood Chain</span><h2>My Holdings</h2></div>
+          {holdings ? <button type="button" className="profile-holdings-refresh" onClick={retry} disabled={loading}>{loading ? "Refreshing…" : "↻ Refresh balances"}</button> : null}
+        </div>
+        {loading && !holdings ? (
+          <div className="profile-empty-state" aria-live="polite"><Icon name="wallet" /><strong>Loading wallet balances…</strong></div>
+        ) : error && !holdings ? (
+          <div className="profile-empty-state" role="alert"><Icon name="wallet" /><strong>Unable to load holdings</strong><p>{error}</p><button type="button" className="btn btn-glass" onClick={retry}>Retry</button></div>
+        ) : holdings ? (
+          <>
+            <div className="profile-holdings-summary">
+              <span>{holdings.partial ? "Priced assets" : "Estimated known holdings"}</span>
+              <strong>{formatHoldingUsd(holdings.partial ? holdings.pricedValueUsd : holdings.totalValueUsd)}</strong>
+              <small>{holdings.partial ? "Some Korum tokens cannot be priced yet; this is not a portfolio total." : "ETH plus tokens from your traded markets · pool values use spot prices"}</small>
+            </div>
+            {holdings.limited ? <p className="profile-holdings-note">Only the first 100 traded tokens were checked. The displayed value is incomplete.</p> : null}
+            {!holdings.quoteAvailable ? <p className="profile-holdings-note">ETH/USD is unavailable. Dollar values will appear when the quote returns.</p> : null}
+            <div className="profile-holdings-list">
+              <div className="profile-holding-row profile-holding-heading"><span>Asset</span><span>Amount</span><span>Estimated value</span></div>
+              <div className="profile-holding-row">
+                <div className="profile-holding-asset"><span className="profile-holding-symbol">Ξ</span><span><strong>ETH</strong><small>Native balance</small></span></div>
+                <strong>{formatTokenAmount(holdings.ethAmount, 6)} ETH</strong>
+                <strong>{formatHoldingUsd(holdings.ethValueUsd)}</strong>
+              </div>
+              {holdings.tokens.map((token) => (
+                <div className="profile-holding-row" key={token.tokenAddress}>
+                  <div className="profile-holding-asset"><span className="profile-holding-symbol">{token.tokenSymbol.slice(0, 1).toUpperCase()}</span><span><Link href={`/vs/${token.versusId}`}>{token.tokenSymbol}</Link><small>{token.tokenName} · VS #{token.versusId}</small></span></div>
+                  <strong>{formatTokenAmount(token.amount, 6)} {token.tokenSymbol}</strong>
+                  <span><strong>{formatHoldingUsd(token.valueUsd)}</strong>{token.status !== "priced" ? <small>{token.status === "pool_estimate" ? "Pool spot estimate" : token.status === "graduated" ? "Pool price unavailable" : "Quote unavailable"}</small> : null}</span>
+                </div>
+              ))}
+            </div>
+            {!holdings.tokens.length ? <p className="profile-holdings-note">No Korum tokens found among your traded markets.</p> : null}
+            <p className="profile-holdings-note">Token balances are shown for markets you have traded. Tokens received without any trade in this wallet may not appear yet. Curve values estimate selling the full balance after protocol fees. Graduated token values use the latest available pool price times the balance, without price impact or selling fees. Gas is excluded.</p>
+          </>
+        ) : null}
+      </section>
+    </div>
+  );
+}
+
+type ManagedCamp = { versusId: string; title: string; side: number; tokenAddress: string; tokenName: string; tokenSymbol: string };
+
+function ManagedVersusPanel() {
+  const [result, setResult] = useState<{ items: ManagedCamp[]; limited: boolean } | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [retry, setRetry] = useState(0);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    fetch("/api/profile/managed-versus", { credentials: "same-origin", cache: "no-store", signal: controller.signal })
+      .then(async (response) => {
+        if (!response.ok) throw new Error(`Managed Versus request failed (${response.status}).`);
+        return response.json() as Promise<{ items: ManagedCamp[]; limited: boolean }>;
+      })
+      .then((data) => { if (!controller.signal.aborted) { setResult(data); setError(null); } })
+      .catch((cause) => { if (!controller.signal.aborted) setError(cause instanceof Error ? cause.message : "Unable to load managed Versus."); });
+    return () => controller.abort();
+  }, [retry]);
+
+  return <div className="profile-tab-panel" role="tabpanel" id="profile-panel-managed">
+    <section className="profile-content-card">
+      <div className="profile-section-title"><div><span className="profile-eyebrow">Current fee rights</span><h2>Managed Versus</h2></div>{result ? <span className="profile-count-pill">{result.items.length} {result.items.length === 1 ? "camp" : "camps"}</span> : null}</div>
+      <p className="profile-holdings-note">These camps currently send their future creator fees to your wallet. The original launch creator remains unchanged.</p>
+      {!result && !error ? <div className="profile-empty-state"><Icon name="wallet" /><strong>Loading managed camps…</strong></div> : null}
+      {error ? <div className="profile-empty-state" role="alert"><Icon name="wallet" /><strong>Unable to load managed Versus</strong><p>{error}</p><button type="button" className="btn btn-glass" onClick={() => { setError(null); setRetry((value) => value + 1); }}>Retry</button></div> : null}
+      {result && !error && result.items.length === 0 ? <div className="profile-empty-state"><Icon name="wallet" /><strong>No managed camps yet</strong><p>When your wallet receives a camp’s creator fees, it will appear here.</p></div> : null}
+      {result && !error && result.items.length > 0 ? <div className="profile-table-scroll"><table className="profile-data-table"><thead><tr><th>Versus</th><th>Camp</th><th>Rights</th><th>Action</th></tr></thead><tbody>{result.items.map((item) => <tr key={item.tokenAddress}><td><Link href={`/vs/${item.versusId}`}>{item.title}</Link></td><td>{item.tokenName} · {item.tokenSymbol}</td><td>Future creator fees</td><td><Link href={`/vs/${item.versusId}`}>Manage →</Link></td></tr>)}</tbody></table></div> : null}
+      {result?.limited ? <p className="profile-holdings-note">Showing the 100 most recent managed camps.</p> : null}
+    </section>
+  </div>;
 }
 
 function ActivityPanel({ stats }: { stats: UserProfileStats }) {
@@ -304,10 +389,10 @@ function ActivityPanel({ stats }: { stats: UserProfileStats }) {
         ) : error ? (
           <div className="profile-empty-state" role="alert"><Icon name="trade" /><strong>Unable to load activity</strong><p>{error}</p><button type="button" className="btn btn-glass" onClick={retryActivity}>Retry</button></div>
         ) : trades.length === 0 ? (
-          <div className="profile-empty-state"><Icon name="trade" /><strong>No activity yet</strong><p>Your indexed purchases and sales will appear here.</p></div>
+          <div className="profile-empty-state"><Icon name="trade" /><strong>No activity yet</strong><p>Your purchases and sales will appear here.</p></div>
         ) : (
           <>
-            <p className="profile-activity-caption">Showing {pageStart + 1}–{Math.min(pageStart + trades.length, stats.tradeCount)} of {stats.tradeCount} indexed trades</p>
+            <p className="profile-activity-caption">Showing {pageStart + 1}–{Math.min(pageStart + trades.length, stats.tradeCount)} of {stats.tradeCount} trades</p>
             <div className="profile-activity-list">
               {trades.map((trade) => {
                 const displayedEth = trade.side === "buy" ? trade.grossAmountEth : trade.netAmountEth;
@@ -346,9 +431,9 @@ function ReferralsPanel({ code }: { code: string }) {
       <div className="profile-referral-flow" aria-label="Referral reward flow">
         <article><span>01</span><strong>Share your code</strong><p>Your unique referral code stays bound to your connected EVM wallet.</p></article>
         <span className="profile-flow-arrow">→</span>
-        <article><span>02</span><strong>Friends trade</strong><p>Indexed referral volume accumulates automatically.</p></article>
+        <article><span>02</span><strong>Friends trade</strong><p>Their trading volume counts toward your referral activity.</p></article>
         <span className="profile-flow-arrow">→</span>
-        <article><span>03</span><strong>Earn rewards</strong><p>Rewards become visible when the indexer is connected.</p></article>
+        <article><span>03</span><strong>Earn rewards</strong><p>Your rewards will appear here when available.</p></article>
       </div>
       <section className="profile-content-card profile-referral-address">
         <div><span className="profile-eyebrow">Your referral code</span><strong>{code}</strong></div>
@@ -358,14 +443,14 @@ function ReferralsPanel({ code }: { code: string }) {
         <section className="profile-content-card">
           <div className="profile-section-title"><div><span className="profile-eyebrow">Performance</span><h2>Referral overview</h2></div></div>
           <div className="profile-metric-row"><span><small>Referrals</small><strong>0</strong></span><span><small>Active</small><strong>0</strong></span><span><small>Rewards</small><strong>$0.00</strong></span></div>
-          <div className="profile-empty-state compact"><Icon name="users" /><p>Referral history will be provided by Railway.</p></div>
+          <div className="profile-empty-state compact"><Icon name="users" /><p>Referral history will appear here when available.</p></div>
         </section>
         <section className="profile-content-card profile-simulator-card">
           <span className="profile-eyebrow">Reward simulator</span><h2>Estimate referral rewards</h2>
           <label htmlFor="referral-volume">Monthly referred volume <strong>{compactMoney(referredVolume)}</strong></label>
           <input id="referral-volume" type="range" min="0" max="250000" step="5000" value={referredVolume} onChange={(event) => setReferredVolume(Number(event.target.value))} />
           <div className="profile-simulator-result"><span>Illustrative reward</span><strong>{compactMoney(estimatedReward)}</strong></div>
-          <small>Illustrative only. Final reward rules will come from the protocol and indexer.</small>
+          <small>Illustrative only. Final reward rules will be announced later.</small>
         </section>
       </div>
     </div>
@@ -402,23 +487,38 @@ function BadgesPanel({ stats }: { stats: UserProfileStats }) {
     <div className="profile-tab-panel" role="tabpanel" id="profile-panel-badges">
       <p className="profile-panel-intro">Three paths and seven tiers make account history easy to recognize across versus, chat and leaderboard views. Your public badge is the highest tier reached on any path.</p>
       <section className="profile-tier-overview"><h2>{progress.overall ? `Current badge: ${progress.overall.name}` : "No badge earned yet"}</h2><p>Each tier requires both conditions in its path and includes the benefits of the previous one.</p><div>{BADGE_TIERS.map((tier, index) => <span className={`profile-tier tier-${index}`} key={tier.name}>{tier.name}</span>)}</div></section>
-      <BadgeTable title="Path 1, Creator badge" description="Based on versus created and their indexed all-time curve volume." columns={["Versus", "Generated volume", "Status"]} rows={creatorRows} earnedTier={progress.creator} />
-      <BadgeTable title="Path 2, Trader badge" description="Based on total traded volume and indexed on-chain transactions." columns={["Volume", "Trades", "Status"]} rows={traderRows} earnedTier={progress.trader} />
-      <BadgeTable title="Path 3, Referrer badge" description="Based on confirmed referrals and the indexed volume traded by referred wallets." columns={["Referrals", "Referred volume", "Status"]} rows={referralRows} earnedTier={progress.referrer} />
+      <BadgeTable title="Path 1, Creator badge" description="Based on Versus created and their all-time trading volume." columns={["Versus", "Generated volume", "Status"]} rows={creatorRows} earnedTier={progress.creator} />
+      <BadgeTable title="Path 2, Trader badge" description="Based on your total trading volume and transactions." columns={["Volume", "Trades", "Status"]} rows={traderRows} earnedTier={progress.trader} />
+      <BadgeTable title="Path 3, Referrer badge" description="Based on confirmed referrals and their trading volume." columns={["Referrals", "Referred volume", "Status"]} rows={referralRows} earnedTier={progress.referrer} />
     </div>
   );
 }
 
+function watchlistAgeLabel(debate: Debate, now: number | null) {
+  const created = Date.parse(debate.launchedAtUtc || debate.createdAtUtc || debate.launchedAt || debate.createdAt || "");
+  const minutes = Number.isFinite(created) && now !== null
+    ? Math.max(0, Math.floor((now - created) / 60_000))
+    : Math.max(0, debate.createdMinutesAgo);
+  const hours = Math.floor(minutes / 60);
+  return hours < 24 ? `${hours}h ago` : `${Math.floor(hours / 24)}d ago`;
+}
+
 function WatchlistPanel() {
   const { ids, debates, ready, remove } = useWatchlist();
+  const [now, setNow] = useState<number | null>(null);
   const watched = useMemo(() => debates.filter((debate) => ids.includes(debate.id)), [debates, ids]);
+
+  useEffect(() => {
+    const update = () => setNow(Date.now());
+    const kickoff = window.setTimeout(update, 0);
+    const interval = window.setInterval(update, 60_000);
+    return () => { window.clearTimeout(kickoff); window.clearInterval(interval); };
+  }, []);
 
   return (
     <div className="profile-tab-panel" role="tabpanel" id="profile-panel-watchlist">
       <div className="profile-section-title"><div><span className="profile-eyebrow">Saved markets</span><h2>Watchlist</h2></div><span className="profile-count-pill">{watched.length}</span></div>
-      {!ready ? <div className="profile-empty-state"><Icon name="bolt" /><strong>Loading your watchlist...</strong></div> : watched.length ? <div className="profile-table-scroll"><table className="profile-data-table profile-watchlist-table"><thead><tr><th>Versus</th><th>Category</th><th>24h volume</th><th>Participants</th><th><span className="sr-only">Actions</span></th></tr></thead><tbody>
-        {watched.map((debate) => <tr key={debate.id}><td><Link href={`/vs/${debate.id}`}>{debate.sideA} <span>vs</span> {debate.sideB}</Link></td><td>{debate.category}</td><td>{compactMoney(debate.volume24h)}</td><td>{Intl.NumberFormat("en-US").format(debate.participantCount)}</td><td><button type="button" onClick={() => remove(debate.id, `${debate.sideA} vs ${debate.sideB}`)}>Remove</button></td></tr>)}
-      </tbody></table></div> : <div className="profile-empty-state"><Icon name="bolt" /><strong>Your watchlist is empty</strong><p>Save a versus from Explore to find it here.</p><Link className="btn" href="/explore">Explore versus</Link></div>}
+      {!ready ? <div className="profile-empty-state"><Icon name="bolt" /><strong>Loading your watchlist...</strong></div> : watched.length ? <VsTableView debates={watched} ageLabel={(debate) => watchlistAgeLabel(debate, now)} isWatched={(id) => ids.includes(id)} onWatchlistToggle={remove} /> : <div className="profile-empty-state"><Icon name="bolt" /><strong>Your watchlist is empty</strong><p>Save a versus from Explore to find it here.</p><Link className="btn" href="/explore">Explore versus</Link></div>}
     </div>
   );
 }
@@ -503,7 +603,7 @@ function LockedProfile({ connected, authenticating, authError, connect, loading 
           </div>
 
           <div className="profile-locked-benefits">
-            <article><span className="profile-benefit-icon"><Icon name="trade" /></span><div><strong>Track your activity</strong><p>Review indexed trades and estimated performance.</p></div></article>
+            <article><span className="profile-benefit-icon"><Icon name="trade" /></span><div><strong>Track your activity</strong><p>Review trades and estimated performance.</p></div></article>
             <article><span className="profile-benefit-icon"><Icon name="users" /></span><div><strong>Grow your reputation</strong><p>Follow badges, referrals, and creator progress.</p></div></article>
             <article><span className="profile-benefit-icon"><Icon name="bolt" /></span><div><strong>Keep your Versus close</strong><p>Find every market saved to your watchlist.</p></div></article>
           </div>
@@ -523,6 +623,30 @@ function WalletProfile({ profile, stats, sessionAddress, sessionChainId, referra
   const { address, connected, authenticated, authenticating, connect, hydrated, authError } = useWallet();
   const [activeTab, setActiveTab] = useState<ProfileTab>("information");
   const [currentProfile, setCurrentProfile] = useState(profile);
+  const [holdings, setHoldings] = useState<ProfileHoldings | null>(null);
+  const [holdingsLoading, setHoldingsLoading] = useState(true);
+  const [holdingsError, setHoldingsError] = useState<string | null>(null);
+  const [holdingsRetry, setHoldingsRetry] = useState(0);
+
+  useEffect(() => {
+    if (!authenticated || !address || !sessionAddress || address.toLowerCase() !== sessionAddress.toLowerCase()) return;
+    const controller = new AbortController();
+    async function load() {
+      try {
+        const response = await fetch("/api/profile/holdings", { credentials: "same-origin", cache: "no-store", signal: controller.signal });
+        if (!response.ok) throw new Error(`Holdings service returned ${response.status}.`);
+        const result = await response.json() as ProfileHoldings;
+        if (!controller.signal.aborted) { setHoldings(result); setHoldingsError(null); setHoldingsLoading(false); }
+      } catch (error) {
+        if (!controller.signal.aborted) { setHoldingsError(error instanceof Error ? error.message : "Unable to refresh holdings."); setHoldingsLoading(false); }
+      }
+    }
+    void load();
+    const timer = activeTab === "holdings"
+      ? window.setInterval(() => { if (!document.hidden) void load(); }, 120_000)
+      : null;
+    return () => { controller.abort(); if (timer !== null) window.clearInterval(timer); };
+  }, [authenticated, address, sessionAddress, holdingsRetry, activeTab]);
 
   if (!hydrated) return <LockedProfile connected={false} authenticating={false} authError={null} connect={() => undefined} loading />;
 
@@ -534,7 +658,9 @@ function WalletProfile({ profile, stats, sessionAddress, sessionChainId, referra
   if (!currentProfile || !stats) return <LockedProfile connected authenticating={authenticating} authError="The wallet profile could not be initialized. Sign in again to retry." connect={connect} />;
 
   const panels: Record<ProfileTab, React.ReactNode> = {
-    information: <InformationPanel profile={currentProfile} stats={stats} referral={referral} onProfileChange={setCurrentProfile} />,
+    information: <InformationPanel profile={currentProfile} stats={stats} referral={referral} holdings={holdings} holdingsLoading={holdingsLoading} onOpenHoldings={() => setActiveTab("holdings")} onProfileChange={setCurrentProfile} />,
+    holdings: <HoldingsPanel holdings={holdings} loading={holdingsLoading} error={holdingsError} retry={() => { setHoldingsLoading(true); setHoldingsRetry((count) => count + 1); }} />,
+    managed: <ManagedVersusPanel />,
     activity: <ActivityPanel stats={stats} />,
     referrals: <ReferralsPanel code={currentProfile.referralCode} />,
     badges: <BadgesPanel stats={stats} />,

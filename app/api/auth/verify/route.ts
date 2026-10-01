@@ -1,6 +1,7 @@
 import { verifyMessage } from "viem";
 import { NextResponse, type NextRequest } from "next/server";
 import { upsertUserAfterWalletVerification } from "../../../lib/db/users";
+import { getKorumServerPublicClient } from "../../../lib/contracts/server-client";
 import {
   CHALLENGE_COOKIE_NAME,
   SESSION_COOKIE_NAME,
@@ -28,7 +29,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "The sign-in challenge is invalid or expired." }, { status: 401 });
     }
 
-    const valid = await verifyMessage({
+    const validEoaSignature = await verifyMessage({
+      address: challenge.address,
+      message: body.message,
+      signature: body.signature as `0x${string}`,
+    }).catch(() => false);
+    const valid = validEoaSignature || await getKorumServerPublicClient().verifyMessage({
       address: challenge.address,
       message: body.message,
       signature: body.signature as `0x${string}`,

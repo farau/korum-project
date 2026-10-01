@@ -15,6 +15,8 @@ type ProfileTradeRow = {
   tokenName: string;
   tokenSymbol: string;
   venue: number;
+  emitterAddress: string | null;
+  poolId: string | null;
   isBuy: boolean;
   tokenAmount: string;
   ethGross: string;
@@ -40,6 +42,8 @@ function toProfileTrade(trade: ProfileTradeRow): UserProfileTrade {
     tokenSymbol: trade.tokenSymbol,
     side: trade.isBuy ? "buy" : "sell",
     venue: trade.venue === 0 ? "curve" : "pool",
+    emitterAddress: trade.emitterAddress,
+    poolId: trade.poolId,
     tokenAmount: formatUnits(BigInt(trade.tokenAmount), 18),
     grossAmountEth: formatEther(gross),
     netAmountEth: formatEther(net),
@@ -59,6 +63,8 @@ async function loadProfileActivity(wallet: string, page: number, pageSize: numbe
       camp.name AS "tokenName",
       camp.symbol AS "tokenSymbol",
       trade.venue,
+      trade.emitter_address AS "emitterAddress",
+      COALESCE(trade.pool_id, graduation.pool_id) AS "poolId",
       trade.is_buy AS "isBuy",
       trade.token_amount::TEXT AS "tokenAmount",
       trade.eth_gross::TEXT AS "ethGross",
@@ -71,6 +77,10 @@ async function loadProfileActivity(wallet: string, page: number, pageSize: numbe
     JOIN ${INDEXER_SCHEMA}.versus_camps camp
       ON camp.chain_id = trade.chain_id
       AND camp.token_address = trade.token_address
+    LEFT JOIN ${INDEXER_SCHEMA}.camp_graduations graduation
+      ON graduation.chain_id = trade.chain_id
+      AND graduation.token_address = trade.token_address
+      AND trade.venue = 1
     WHERE trade.chain_id = $1
       AND trade.trader_address = $2
     ORDER BY trade.block_number DESC, trade.log_index DESC
@@ -95,7 +105,7 @@ export function getUserProfileActivity(
   const walletKey = createHash("sha256").update(wallet).digest("hex");
 
   return rememberJson(
-    redisCacheKey("private", "profile-activity-v1", walletKey, safePage, PROFILE_ACTIVITY_PAGE_SIZE),
+    redisCacheKey("private", "profile-activity-v2", walletKey, safePage, PROFILE_ACTIVITY_PAGE_SIZE),
     PROFILE_ACTIVITY_CACHE_SECONDS,
     () => loadProfileActivity(wallet, safePage, PROFILE_ACTIVITY_PAGE_SIZE),
     diagnostic,

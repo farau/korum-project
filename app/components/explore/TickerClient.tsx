@@ -3,6 +3,7 @@
 import { useQuery } from "@tanstack/react-query";
 import React, { useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { useMarketLive } from "../../hooks/useMarketLive";
 
 import { RECENT_MARKET_TRADES_QUERY_KEY } from "../../hooks/useIndexedMarkets";
 import { formatMarketValue } from "../../lib/markets/format";
@@ -35,7 +36,7 @@ type IndexedFeedResponse = {
 
 const LIVE_FEED_LIMIT = 50;
 const LIVE_FEED_REFRESH_MS = 5_000;
-const REVEAL_INTERVAL_MS = 1_100;
+const REVEAL_INTERVAL_MS = 150;
 
 function symbolLabel(symbol: string) {
   return symbol.startsWith("$") ? symbol : `$${symbol}`;
@@ -63,18 +64,19 @@ function buildIndexedTx(trade: IndexedFeedTrade, quoteUsd: number | null, fresh:
 }
 
 export default function TickerClient() {
+  const live = useMarketLive();
   const [items, setItems] = useState<TickerTx[]>([]);
   const seenLiveIds = useRef(new Set<string>());
   const pendingLiveItems = useRef<TickerTx[]>([]);
   const liveInitialized = useRef(false);
   const liveFeed = useQuery({
     queryKey: [RECENT_MARKET_TRADES_QUERY_KEY, LIVE_FEED_LIMIT],
-    queryFn: async () => {
-      const response = await fetch(`/api/markets/trades?limit=${LIVE_FEED_LIMIT}`);
+    queryFn: async ({ signal }) => {
+      const response = await fetch(`/api/markets/trades?limit=${LIVE_FEED_LIMIT}`, { signal, cache: "no-store" });
       if (!response.ok) throw new Error("Unable to refresh recent market activity.");
       return response.json() as Promise<IndexedFeedResponse>;
     },
-    refetchInterval: LIVE_FEED_REFRESH_MS,
+    refetchInterval: live ? 30_000 : LIVE_FEED_REFRESH_MS,
     refetchIntervalInBackground: false,
     refetchOnWindowFocus: true,
     retry: 1,
@@ -91,19 +93,26 @@ export default function TickerClient() {
       return () => window.clearTimeout(timer);
     }
 
+    const latest = new Map(mapped.map(item => [item.id, item]));
+    pendingLiveItems.current = pendingLiveItems.current.filter(item => latest.has(item.id));
+    for (const id of seenLiveIds.current) if (!latest.has(id)) seenLiveIds.current.delete(id);
+    // Remove reorged trades and refresh corrected labels already on screen.
+    const reconcile = window.setTimeout(() => setItems(current => current.filter(item => latest.has(item.id)).map(item => latest.get(item.id)!)), 0);
     const unseen = mapped.filter((item) => !seenLiveIds.current.has(item.id));
     unseen.forEach((item) => seenLiveIds.current.add(item.id));
     pendingLiveItems.current.push(...unseen.reverse().map((item) => ({ ...item, fresh: true })));
     if (pendingLiveItems.current.length > 100) {
       pendingLiveItems.current.splice(0, pendingLiveItems.current.length - 100);
     }
+    if (seenLiveIds.current.size > 500) seenLiveIds.current = new Set([...mapped.map(item => item.id), ...pendingLiveItems.current.map(item => item.id)]);
+    return () => window.clearTimeout(reconcile);
   }, [liveFeed.data]);
 
   useEffect(() => {
     const timer = window.setInterval(() => {
-      const next = pendingLiveItems.current.shift();
-      if (!next) return;
-      setItems((current) => [next, ...current.map((item) => ({ ...item, fresh: false }))].slice(0, 16));
+      const next = pendingLiveItems.current.splice(0, Math.max(1, Math.ceil(pendingLiveItems.current.length / 8)));
+      if (!next.length) return;
+      setItems((current) => [...next.reverse(), ...current.map((item) => ({ ...item, fresh: false }))].slice(0, 16));
     }, REVEAL_INTERVAL_MS);
     return () => window.clearInterval(timer);
   }, []);

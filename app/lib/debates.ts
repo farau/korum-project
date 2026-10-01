@@ -92,6 +92,8 @@ export type Debate = {
   launchTimestamp?: number;
   creatorName?: string;
   creatorAddress?: string;
+  feeRecipientA?: string;
+  feeRecipientB?: string;
   creatorIsNew?: boolean;
   creatorRankLabel?: string;
   creatorRankClass?: "copper" | "bronze" | "silver" | "gold" | "platinum" | "diamond" | "champion";

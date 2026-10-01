@@ -10,7 +10,8 @@ import { useWatchlist } from "../../hooks/useWatchlist";
 import TokenTradePanel, { type TradeMode } from "../TokenTradePanel";
 
 const creators = ["Yasmine", "Léo", "Sam", "Nina", "Ines", "Marco"];
-const qa = ["0.001", "0.01", "0.1"];
+const buyAmounts = ["0.001", "0.01", "0.1"];
+const sellPercentages = [25, 50, 75, 100];
 
 function totalMarketCap(debate: Debate) {
   return (debate.marketCapA || 0) + (debate.marketCapB || 0);
@@ -141,6 +142,7 @@ export default function VsCard({ debate, index = 0, inlineTrading = false }: { d
 
   function selectTradeMode(nextMode: TradeMode) {
     setMode(nextMode);
+    setAmount(nextMode === "sell" ? "25" : "0.01");
     setTradeStatus("");
     setTradeExpanded(false);
   }
@@ -265,8 +267,18 @@ export default function VsCard({ debate, index = 0, inlineTrading = false }: { d
           </div>
 
           <div className="vs-quick-amount">
-            <span className="qa-label">Amount</span>
-            {qa.map((quickAmount) => (
+            <span className="qa-label">{mode === "sell" ? "Position" : "Amount"}</span>
+            {mode === "sell" ? sellPercentages.map((percentage) => (
+              <button
+                type="button"
+                className={`qa-btn ${amount === String(percentage) ? "active" : ""}`}
+                data-usd={`${percentage}% of token balance`}
+                onClick={() => { setAmount(String(percentage)); setTradeExpanded(false); setTradeStatus(""); }}
+                key={percentage}
+              >
+                {percentage}%
+              </button>
+            )) : buyAmounts.map((quickAmount) => (
               <button
                 type="button"
                 className={`qa-btn ${amount === quickAmount ? "active" : ""}`}
@@ -277,8 +289,7 @@ export default function VsCard({ debate, index = 0, inlineTrading = false }: { d
                 {quickAmount}
               </button>
             ))}
-            <button type="button" className={`qa-btn qa-btn-max ${amount === "max" ? "active" : ""}`} data-usd="≈ max" onClick={() => { setAmount("max"); setTradeExpanded(false); setTradeStatus(""); }}>MAX</button>
-            <span className="qa-unit" aria-label="ether">◆ ETH</span>
+            {mode === "buy" ? <><button type="button" className={`qa-btn qa-btn-max ${amount === "max" ? "active" : ""}`} data-usd="≈ max" onClick={() => { setAmount("max"); setTradeExpanded(false); setTradeStatus(""); }}>MAX</button><span className="qa-unit" aria-label="ether">◆ ETH</span></> : null}
           </div>
 
           <div className="vs-buy-row">
@@ -292,7 +303,8 @@ export default function VsCard({ debate, index = 0, inlineTrading = false }: { d
                 key={`${selectedToken.address ?? selectedToken.symbol}-${mode}`}
                 token={selectedToken}
                 initialMode={mode}
-                initialAmount={amount === "max" ? undefined : amount}
+                initialAmount={mode === "buy" && amount !== "max" ? amount : undefined}
+                initialSellPercentage={mode === "sell" ? Number(amount) : undefined}
                 compact
                 onStatus={setTradeStatus}
               />

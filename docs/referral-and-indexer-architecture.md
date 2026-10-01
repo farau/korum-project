@@ -148,7 +148,7 @@ The form validates the debate metadata, distinct camp names and symbols, initial
 Publication follows this sequence:
 
 1. Require a connected, application-authenticated wallet and switch it to the configured Korum chain when necessary.
-2. Generate a cryptographically random `bytes32` salt and build the exact `VersusParams` payload, with the connected wallet as `creatorFeeRecipient`.
+2. Generate a cryptographically random `bytes32` salt and build the exact `VersusParams` payload. `creatorFeeRecipient` is the non-zero address chosen by the publisher, or the connected wallet if the field is empty. It initially receives creator fees for both camps; `VersusCreated.creator` remains the publishing wallet even when the recipient differs.
 3. Resolve the candidate referrer from the pending server-validated attribution, or use `address(0)` when none exists.
 4. Resolve the pair again, set `params.quoteAsset = address(0)` and `params.expectedEconomicsId` from the registry, then call `KorumLens.previewCost(params, virtualQuote, graduationQuote)` immediately before submission so the attached native value is based on the final payload and current contract state.
 5. Run `simulateContract` to surface a revert before prompting the wallet.
@@ -181,7 +181,7 @@ On the bonding curve, buys call `quoteBuy(token, ethIn)` and sells call `quoteSe
 
 The pool venue has no Korum quote view. The frontend therefore performs a read-only simulation of `KorumRouter.swap` with `minAmountOut = 0` to obtain the router's exact returned output, including the hook behavior. Pool sales require the token allowance before this simulation can execute because the simulated router performs `transferFrom`; when necessary, the UI confirms the ERC-20 approval first, then simulates and submits the sale.
 
-Every trade derives `minAmountOut` from a fresh quote immediately before submission and applies a 1% slippage limit. It then simulates the final call with that minimum before opening the wallet. Curve sales approve `KorumCore`; pool sales approve `KorumRouter`. Pool buys attach native ETH exactly equal to `amountIn`, and all trades use the connected wallet as both caller and recipient.
+Every trade derives its minimum output from a fresh quote immediately before submission and applies the trader's global slippage setting (1% by default, configurable from 0.1% to 20%). The setting is shared across tokens and buy/sell panels in the browser, and is stored in local storage. The frontend then simulates the final call with that minimum before opening the wallet. Curve sales approve `KorumCore`; pool sales approve `KorumRouter`. Pool buys attach native ETH exactly equal to `amountIn`, and all trades use the connected wallet as both caller and recipient.
 
 The candidate referrer resolved from the pending referral cookie is passed to `buy`, `sell`, or `swap`. After the final receipt succeeds, the frontend reads `ReferralRegistry.referrerOf(wallet)` and clears the cookie only when a permanent non-zero binding is confirmed. Balances, allowance, and curve status are refreshed after confirmation.
 
@@ -197,6 +197,16 @@ Korum stores the protocol's trade events rather than periodic price snapshots. T
 | Graduated pool | `KorumHook` | `venue = 1`, exposed by APIs as `"pool"` |
 
 The venue must never be inferred from time or contract status. Keeping the event field allows a single continuous price history across graduation while retaining the boundary between the two execution mechanisms.
+
+Each indexed trade also stores its lowercase `emitter_address`. Pool trades are
+associated with the `Graduated.poolId` projection. PostgreSQL synchronizes this
+`pool_id` in both possible sink orders: a pool trade can arrive before its
+graduation row, or after it. Historical rows created before provenance tracking
+may keep a null emitter, while API reads still recover a pool ID from the
+graduation projection. Raw events remain uniquely identified by transaction hash
+and log index, so UI-level transaction grouping never discards auditable swaps.
+`scripts/backfill-trade-provenance.mjs` fills legacy emitters from the immutable
+event venue and can be rerun safely after a deployment migration.
 
 `Trade.sqrtPriceX96After` uses the protocol's ETH-as-currency0 convention. The server derives the token price in ETH with exact integer arithmetic:
 
@@ -218,7 +228,7 @@ Chart points are OHLC candles containing Unix time, price and market-cap open/hi
 
 Chart ranges are strict wall-clock windows. `range=1h` reads only trades from the last hour, `range=1d` only the last day, and so on. Candle resolution is selected automatically (`1h` → 1 minute, `1d` → 15 minutes, `7d` → 1 hour, `30d` → 4 hours, `180d` → 1 day). The API never substitutes older activity when a window is empty and returns `points: []`, which the client presents as `No trades in this period`. The latest trade preceding a non-empty window is consulted only to establish the opening value of its first real candle.
 
-The Versus page renders these points through TradingView Lightweight Charts. Its Price/MC selector switches between the two OHLC series, and the USD/ETH selector converts the same ETH-denominated response in memory with `quoteUsd`; changing display currency does not trigger an RPC or database request. The client places each candle at its real time bucket and supplies empty Lightweight Charts whitespace entries between trades. These entries reserve chronological space but contain no fabricated price, volume, or trade. Candle bodies have a fixed three-pixel width, while the formatted time/value scales, crosshair, zoom, and pan remain native chart interactions. Token and global recent-trade responses contain normalized token/ETH amounts and preserve `venue: "curve" | "pool"`. The global feed also joins each event to its camp symbol and Versus ID. All endpoints are server-side Railway reads; no database credential reaches the browser.
+The Versus page renders these points through TradingView Lightweight Charts. Its Price/MC selector switches between the two OHLC series, and the USD/ETH selector converts the same ETH-denominated response in memory with `quoteUsd`; changing display currency does not trigger an RPC or database request. The client places each candle at its real time bucket and supplies empty Lightweight Charts whitespace entries between trades. These entries reserve chronological space but contain no fabricated price, volume, or trade. Candle bodies have a fixed three-pixel width, while the formatted time/value scales, crosshair, zoom, and pan remain native chart interactions. Token and global recent-trade responses contain normalized token/ETH amounts and preserve `venue: "curve" | "pool"`, `emitterAddress`, and `poolId` provenance. The global feed also joins each event to its camp symbol and Versus ID. All endpoints are server-side Railway reads; no database credential reaches the browser.
 
 ### Network selection and RPC fallback
 
@@ -318,7 +328,7 @@ The browser never connects directly to PostgreSQL. Server Components and Route H
 
 ### Frontend read path
 
-`app/lib/db/debates.ts` is the server-only adapter between Railway's normalized indexer schema and the frontend `Debate` model. The Explore Server Component calls it directly, while browser-only consumers such as Watchlist and Analytics use `GET /api/debates`. Database credentials therefore remain on the server.
+`app/lib/db/debates.ts` is the server-only adapter between Railway's normalized indexer schema and the frontend `Debate` model. The Explore Server Component calls it directly, while browser-only consumers such as Watchlist and Analytics use `GET /api/versus`. Database credentials therefore remain on the server.
 
 The query starts from `indexer_v2.versuses` and uses inner joins for side `0` and side `1` in `indexer_v2.versus_camps`. A Versus is intentionally hidden during the short interval where Goldsky has written only part of the three-event projection. Results are scoped to the active `KORUM_CHAIN_ID`, ordered newest first, and capped server-side.
 
@@ -362,13 +372,13 @@ The public trader leaderboard reuses that same all-time PNL definition and the s
 
 Public Versus and market API responses expose `X-Korum-Cache` (`HIT`, `MISS`, `DEDUPED`, or `BYPASS`) and `X-Korum-Cache-Layer` (`redis`, `memory`, or `postgres`) for operational diagnostics in browser developer tools. `MISS` means Redis was reachable but did not contain the key, while `BYPASS` means Redis was not configured or temporarily unavailable and the authoritative loader was used directly. These headers describe the server-side request that originally produced the response; when browser developer tools show `(memory cache)` or `(disk cache)`, the browser may be replaying those original headers without contacting the server again.
 
-Goldsky writes PostgreSQL directly and does not notify the web process, so indexed market caches expire by TTL rather than explicit invalidation. A confirmed trade may consequently take the Goldsky indexing delay plus at most the relevant short TTL to appear. The application must continue distinguishing wallet receipt confirmation from read-model availability.
+Goldsky writes PostgreSQL and sends authenticated trade notifications to the app. Once the projection is committed, Redis advances the market-cache revision and broadcasts invalidations over SSE. TTL expiry and polling remain recovery paths. The application must continue distinguishing wallet receipt confirmation from read-model availability. See [Live market updates](market-live.md).
 
 ### Reactive public market reads
 
-TanStack Query supplies the browser-side refresh layer and reuses the `QueryClient` already mounted for Wagmi. Explore's card list and Hot Trending section share the same `indexed-debates` key, so rendering both does not duplicate the network request. Analytics consumes that same query. `/vs/[id]` uses the dedicated `GET /api/debates/[id]` snapshot.
+TanStack Query supplies the browser-side refresh layer and reuses the `QueryClient` already mounted for Wagmi. Explore's card list and Hot Trending section share the same `indexed-debates` key, so rendering both does not duplicate the network request. Analytics consumes that same query. `/vs/[id]` uses the dedicated `GET /api/versus/[id]` snapshot.
 
-Refresh intervals align with the Redis TTLs:
+Fallback refresh intervals align with the Redis TTLs; healthy live connections use at least 30 seconds for charts and 30 seconds for the ticker:
 
 | Visible surface | Browser interval |
 | --- | ---: |
@@ -383,7 +393,7 @@ Refresh intervals align with the Redis TTLs:
 
 Intervals stop while the browser tab is hidden and refresh immediately when it regains focus. The Activity query exists only while its tab is mounted. A confirmed buy or sell invalidates the active list, detail, chart, and trade queries immediately; normal polling then catches the Goldsky projection if the receipt has not yet reached Railway. These refreshes call only the cache-backed Next.js endpoints. They do not issue per-user blockchain RPC requests for market cap, volume, trade count, trader count, charts, or activity.
 
-The Explore ticker polls the global recent-trade endpoint but does not render a returned batch at once. It records already-seen event IDs, orders unseen events chronologically in a bounded browser queue, and reveals one item every 1.1 seconds with the existing buy/sell animation. Initial history is rendered without arrival animation. A WebSocket is intentionally unnecessary at the current scale: Goldsky writes PostgreSQL rather than publishing directly to the browser, while a five-second Redis-backed poll provides adequate freshness, simpler recovery, and no persistent connection infrastructure. WebSocket or server-sent events become relevant only if event volume or latency requirements exceed this bounded polling model.
+The Explore ticker refreshes its recent-trade snapshot on SSE notifications, with polling as a fallback. It reconciles removed or corrected events, queues new trades chronologically, and drains bursts in bounded batches every 150 ms. Initial history is rendered without arrival animation. The shared browser SSE connection closes in hidden tabs and resynchronizes snapshots after reconnecting. See [Live market updates](market-live.md) for delivery and recovery semantics.
 
 `POST /api/rpc` uses Redis for a fixed-window client budget shared by all web replicas. Client network addresses are hashed before becoming key material, and each JSON-RPC call in a batch consumes one unit. `KORUM_RPC_RATE_LIMIT` defaults to 300 units per `KORUM_RPC_RATE_WINDOW_SECONDS`, which defaults to 60 seconds. An exceeded budget returns `429` with `Retry-After`; if Redis is absent or temporarily unavailable, a bounded per-process limiter preserves basic protection without making the private RPC fallback unavailable.
 
@@ -413,11 +423,15 @@ The source reads raw logs only for the contracts that emit the current projectio
 | Contract | Address | Deployment block | Events consumed |
 | --- | --- | ---: | --- |
 | `ReferralRegistry` | `0x4CAB1f34bF69337DAfDBDbB2184519bb804fA5f6` | `123181130` | `ReferrerBound` |
-| `KorumFactory` | `0x4Be4652a39299A82f1B459534984931aFf52dA12` | `123181169` | `CampCreated`, `VersusCreated` |
+| `KorumFactory` | `0x4Be4652a39299A82f1B459534984931aFf52dA12` | `123181169` | `CampCreated`, `VersusCreated`, creator fee recipient changes |
 | `KorumCore` | `0x771735Be66bA0E4dcE80E1F120fAe539810e7691` | `123181245` | `Trade`, `GraduationPending`, `Graduated`, `CurveReopened` |
 | `KorumHook` | `0xc0c5DB0dFE3E115489f9733AFe1c7a11119AE0cC` | `123181266` | `Trade` |
 
 All four contracts share one filtered source. Consequently, the filter begins at block `123181130`, the earliest relevant deployment block. The address condition prevents unrelated chain logs from reaching the decoder. Addresses and deployment blocks are canonically recorded in `contracts/deployments/46630.json`; a contract redeployment must update that file and the pipeline together.
+
+Creator fee recipient changes additionally use `korum_factory_fee_logs`, a Factory-only source beginning at block `123181169`. Its separate checkpoint backfills historical transfers without resetting the existing market event source. Migration `0013_creator_fee_recipient_history.sql` creates the event table and `camp_fee_recipients` view; apply it before enabling the new sink and before deploying the frontend that reads the view.
+
+The signed-in current fee recipient of either camp can edit the common Versus socials. The API checks `KorumCore.getCurve(token).creator` for both camps, then writes a versioned override to `public.versus_socials_overrides` (migration `0014_create_versus_socials_overrides.sql`). Reads coalesce this override with the original `indexer_v2.versuses.socials_json`. Goldsky owns only the original `VersusCreated` projection and the on-chain fee-recipient event history; social edits are off-chain application writes. An indexer replay can upsert the original launch row without overwriting the override.
 
 ### Decode-once, fan-out pattern
 
@@ -434,6 +448,7 @@ Goldsky event parameters are one-indexed: the first Solidity parameter is `decod
 | `ReferrerBound(user, referrer, at)` | `1 -> user_wallet`, `2 -> referrer_wallet`, `3 -> bound_at` | `indexer_v2.referral_bindings` |
 | `VersusCreated(versusId, creator, configId, creatorFeeRecipient, tokenA, tokenB, createdAt, title, description, category, socialsJson)` | Parameters `1..11` map in the same order; the emitting address becomes `factory_address` | `indexer_v2.versuses` |
 | `CampCreated(versusId, token, side, name, symbol, uri, economicsId, quoteAsset, virtualQuote, graduationQuote, totalSupply)` | `1 -> versus_id`, `2 -> token_address`, `3 -> side`, `4..6 -> metadata`, `7 -> economics_id`, `8 -> quote_asset`, `9..11 -> launch values` | `indexer_v2.versus_camps` |
+| `CreatorFeeRecipientChangeProposed`, `CreatorFeeRecipientChangeCancelled`, `CreatorFeeRecipientUpdated` | Factory token and recipient fields; only the latest `Updated` event determines current rights | `indexer_v2.creator_fee_recipient_events` |
 | `Trade(token, trader, referrer, venue, …)` | `1 -> token_address`, `2 -> trader_address`, `3 -> referrer_address`, `4 -> venue`, and all post-trade values through parameter `19` | `indexer_v2.camp_trades` |
 | Curve lifecycle events | Token and event timestamp plus explicit status derived from the event signature | `indexer_v2.camp_curve_lifecycle` |
 | `Graduated(token, poolId, …, tokenResidual, at)` | Exact pool launch values and structurally locked residual | `indexer_v2.camp_graduations` |
@@ -462,8 +477,11 @@ The sink primary keys exactly match the database primary keys:
 | `camp_trades_postgres` | `(chain_id, transaction_hash, log_index)` |
 | `camp_curve_lifecycle_postgres` | `(chain_id, transaction_hash, log_index)` |
 | `camp_graduations_postgres` | `(chain_id, token_address)` |
+| `creator_fee_recipient_events_postgres` | `(chain_id, transaction_hash, log_index)` |
 
 This makes normal replay idempotent. The additional unique `(chain_id, transaction_hash, log_index)` constraints prevent the same on-chain event from being represented by two logical rows.
+
+`camp_fee_recipients` joins each camp to the most recent recipient update by block and log order, falling back to the launch recipient. `versuses.creator_wallet` remains the historical launch creator for attribution and badges. The Versus management controls read `KorumCore.getCurve` and the Factory pending proposal directly so wallet authorization does not depend on indexer freshness; Profile's Managed Versus list follows the indexed view and may lag. A direct transfer is per token, leaves already accrued fees with the previous recipient, and does not cancel a pending owner proposal.
 
 Do not add a foreign key from `versus_camps` to `versuses`: `KorumFactory` emits the two camps first, and those sinks progress independently. APIs that require a complete versus should select the parent plus both sides and omit incomplete results until all three creation events have arrived.
 
@@ -594,7 +612,7 @@ Use a separate pipeline when a new chain needs an independent lifecycle or when 
 | Paginated indexed trader leaderboard | `app/lib/db/leaderboard.ts`, `app/api/leaderboard/route.ts`, `app/leaderboard/page.tsx` |
 | ETH/USD quote provider and exact market/PNL arithmetic | `app/lib/markets/quote-usd.ts`, `app/lib/markets/math.ts`, `app/lib/markets/pnl.ts` |
 | Browser-safe market endpoints | `app/api/markets/[token]/chart/route.ts`, `app/api/markets/[token]/trades/route.ts`, `app/api/markets/trades/route.ts` |
-| Browser-safe indexed Versus endpoints | `app/api/debates/route.ts`, `app/api/debates/[id]/route.ts` |
+| Browser-safe indexed Versus endpoints | `app/api/versus/route.ts`, `app/api/versus/[id]/route.ts` |
 | Shared reactive indexed-market queries | `app/hooks/useIndexedMarkets.ts` |
 | Live Explore feed | `app/explore/page.tsx`, `app/components/explore/*` |
 | Database read-model definition | `db/migrations/0002_create_indexer_read_model.sql` through `db/migrations/0009_fix_trader_aggregate_deltas.sql` |

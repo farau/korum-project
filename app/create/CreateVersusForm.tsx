@@ -12,6 +12,8 @@ import {
   bytesToHex,
   formatEther,
   formatUnits,
+  getAddress,
+  isAddress,
   parseEventLogs,
   zeroAddress,
   type Address,
@@ -230,6 +232,7 @@ export default function CreateVersusForm({ initialPendingReferral }: { initialPe
   const [creatorBuyBpsA, setCreatorBuyBpsA] = useState(100);
   const [creatorBuyBpsB, setCreatorBuyBpsB] = useState(100);
   const [xHandle, setXHandle] = useState("");
+  const [creatorFeeRecipientInput, setCreatorFeeRecipientInput] = useState("");
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
   const { referral: pendingReferral, clear: clearPendingReferral } = usePendingReferral(initialPendingReferral);
@@ -340,6 +343,9 @@ export default function CreateVersusForm({ initialPendingReferral }: { initialPe
       return "Add a public HTTPS, IPFS, or Arweave URI for each side.";
     }
     if (normalizedXHandle && !/^[A-Za-z0-9_]{1,15}$/.test(normalizedXHandle)) return "The X account is invalid.";
+    if (creatorFeeRecipientInput.trim() && (!isAddress(creatorFeeRecipientInput.trim()) || getAddress(creatorFeeRecipientInput.trim()) === zeroAddress)) {
+      return "Enter a valid non-zero creator fee recipient address.";
+    }
     if (!termsAccepted) return "Accept the Terms of Use before publishing.";
     if (economicsError || !economicsId || economics?.quoteAsset.toLowerCase() !== KORUM_QUOTE_ASSET) return "Native ETH launch economics are unavailable.";
     if (!configId || !config?.active) return "No active launch configuration is available.";
@@ -356,6 +362,7 @@ export default function CreateVersusForm({ initialPendingReferral }: { initialPe
     economics,
     config?.active,
     configId,
+    creatorFeeRecipientInput,
     normalizedXHandle,
     termsAccepted,
     title,
@@ -373,7 +380,7 @@ export default function CreateVersusForm({ initialPendingReferral }: { initialPe
     campB: { name: campBName.trim(), symbol: campBSymbol, uri: campBUri.trim() },
     creatorBuyBpsA: effectiveCreatorBuyBpsA,
     creatorBuyBpsB: effectiveCreatorBuyBpsB,
-    creatorFeeRecipient: creator,
+    creatorFeeRecipient: creatorFeeRecipientInput.trim() ? getAddress(creatorFeeRecipientInput.trim()) : creator,
     configId,
     quoteAsset: KORUM_QUOTE_ASSET,
     expectedEconomicsId: economicsId ?? 0,
@@ -387,6 +394,7 @@ export default function CreateVersusForm({ initialPendingReferral }: { initialPe
     campBUri,
     category,
     configId,
+    creatorFeeRecipientInput,
     economicsId,
     effectiveCreatorBuyBpsA,
     effectiveCreatorBuyBpsB,
@@ -691,6 +699,11 @@ export default function CreateVersusForm({ initialPendingReferral }: { initialPe
               </div>
 
               <p className={classes.sectionTitle}>4. Visibility & profile</p>
+              <div className={classes.field}>
+                <label htmlFor="creator-fee-recipient">Creator fee recipient <span>(both camps at launch)</span></label>
+                <input id="creator-fee-recipient" value={creatorFeeRecipientInput} onChange={(event) => setCreatorFeeRecipientInput(event.target.value)} maxLength={42} placeholder={address || "0x… (defaults to your connected wallet)"} autoComplete="off" spellCheck={false} />
+                <p className={classes.formHint}>This wallet receives future creator fees and can edit the Versus socials. Each camp can transfer its fee rights separately after launch. Use a multisig or smart account: a stolen recipient key can redirect all future fees. The protocol owner can also propose a recipient change for either camp, publicly executable after three days.</p>
+              </div>
               <div className={classes.visibilityRow}>
                 <span>Visibility</span><strong><span aria-hidden="true" /> Public</strong>
               </div>
@@ -722,7 +735,7 @@ export default function CreateVersusForm({ initialPendingReferral }: { initialPe
                   <span>{receipt?.status === "success" ? "✓" : receipt?.status === "reverted" ? "!" : "↗"}</span>
                   <div>
                     <strong>{receipt?.status === "success" ? `Versus${createdVersusId ? ` #${createdVersusId}` : ""} created` : receipt?.status === "reverted" ? "Transaction reverted on-chain" : "Transaction submitted"}</strong>
-                    <p>{receipt?.status === "success" ? "Your Versus will appear once its on-chain activity has been indexed." : receipt?.status === "reverted" ? "No Versus was created, and the referral remains available for another attempt." : "Waiting for on-chain confirmation."}</p>
+                    <p>{receipt?.status === "success" ? "Your Versus has been created and will appear shortly." : receipt?.status === "reverted" ? "No Versus was created, and the referral remains available for another attempt." : "Waiting for on-chain confirmation."}</p>
                     {explorerUrl ? <a href={explorerUrl} target="_blank" rel="noreferrer">View transaction ↗</a> : null}
                   </div>
                 </div>

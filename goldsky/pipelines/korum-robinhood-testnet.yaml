@@ -19,6 +19,18 @@ sources:
         '0x4cab1f34bf69337dafdbdbb2184519bb804fa5f6'
       )
 
+  # A separate Factory-only source backfills historical fee-recipient rotations
+  # without restarting the existing market/event source checkpoint.
+  korum_factory_fee_logs:
+    type: dataset
+    dataset_name: robinhood_testnet.raw_logs
+    version: 1.1.0
+    primary_key: id
+    start_at: earliest
+    filter: >-
+      block_number >= 123181169
+      AND address = '0x4be4652a39299a82f1b459534984931aff52da12'
+
 transforms:
   decoded_korum_events:
     type: sql
@@ -29,6 +41,49 @@ transforms:
         id, block_number, block_hash, transaction_hash, log_index, address,
         block_timestamp, _gs_op
       FROM korum_deployment_v2_logs
+
+  decoded_creator_fee_events:
+    type: sql
+    primary_key: id
+    sql: |
+      SELECT _gs_log_decode('[{"anonymous":false,"inputs":[{"indexed":true,"internalType":"address","name":"token","type":"address"},{"indexed":true,"internalType":"address","name":"newRecipient","type":"address"},{"indexed":false,"internalType":"uint64","name":"at","type":"uint64"}],"name":"CreatorFeeRecipientChangeCancelled","type":"event"},{"anonymous":false,"inputs":[{"indexed":true,"internalType":"address","name":"token","type":"address"},{"indexed":true,"internalType":"address","name":"currentRecipient","type":"address"},{"indexed":true,"internalType":"address","name":"newRecipient","type":"address"},{"indexed":false,"internalType":"uint64","name":"effectiveAt","type":"uint64"},{"indexed":false,"internalType":"uint64","name":"expiresAt","type":"uint64"}],"name":"CreatorFeeRecipientChangeProposed","type":"event"},{"anonymous":false,"inputs":[{"indexed":true,"internalType":"address","name":"token","type":"address"},{"indexed":true,"internalType":"address","name":"previousRecipient","type":"address"},{"indexed":true,"internalType":"address","name":"newRecipient","type":"address"},{"indexed":false,"internalType":"uint64","name":"at","type":"uint64"}],"name":"CreatorFeeRecipientUpdated","type":"event"}]', topics, `data`) AS decoded,
+        id, block_number, block_hash, transaction_hash, log_index, address,
+        block_timestamp, _gs_op
+      FROM korum_factory_fee_logs
+
+  creator_fee_recipient_events:
+    type: sql
+    primary_key: event_id
+    sql: |
+      SELECT id AS event_id, CAST(46630 AS BIGINT) AS chain_id,
+        lower(decoded.event_params[1]) AS token_address,
+        CASE decoded.event_signature
+          WHEN 'CreatorFeeRecipientChangeProposed' THEN 'proposed'
+          WHEN 'CreatorFeeRecipientChangeCancelled' THEN 'cancelled'
+          ELSE 'updated'
+        END AS event_type,
+        CASE WHEN decoded.event_signature = 'CreatorFeeRecipientChangeCancelled'
+          THEN CAST(NULL AS STRING) ELSE lower(decoded.event_params[2]) END AS previous_recipient,
+        CASE WHEN decoded.event_signature = 'CreatorFeeRecipientChangeCancelled'
+          THEN lower(decoded.event_params[2]) ELSE lower(decoded.event_params[3]) END AS new_recipient,
+        CASE WHEN decoded.event_signature = 'CreatorFeeRecipientChangeProposed'
+          THEN to_timestamp(CAST(decoded.event_params[4] AS BIGINT)) ELSE NULL END AS effective_at,
+        CASE WHEN decoded.event_signature = 'CreatorFeeRecipientChangeProposed'
+          THEN to_timestamp(CAST(decoded.event_params[5] AS BIGINT)) ELSE NULL END AS expires_at,
+        CASE decoded.event_signature
+          WHEN 'CreatorFeeRecipientUpdated' THEN to_timestamp(CAST(decoded.event_params[4] AS BIGINT))
+          WHEN 'CreatorFeeRecipientChangeCancelled' THEN to_timestamp(CAST(decoded.event_params[3] AS BIGINT))
+          ELSE to_timestamp(block_timestamp)
+        END AS occurred_at,
+        lower(transaction_hash) AS transaction_hash,
+        lower(block_hash) AS block_hash, block_number,
+        CAST(log_index AS INT) AS log_index, _gs_op
+      FROM decoded_creator_fee_events
+      WHERE decoded.event_signature IN (
+        'CreatorFeeRecipientChangeProposed',
+        'CreatorFeeRecipientChangeCancelled',
+        'CreatorFeeRecipientUpdated'
+      )
 
   referral_bindings:
     type: sql
@@ -97,6 +152,8 @@ transforms:
     primary_key: event_id
     sql: |
       SELECT id AS event_id, CAST(46630 AS BIGINT) AS chain_id,
+        lower(address) AS emitter_address,
+        CAST(NULL AS STRING) AS pool_id,
         lower(decoded.event_params[1]) AS token_address,
         lower(decoded.event_params[2]) AS trader_address,
         lower(decoded.event_params[3]) AS referrer_address,
@@ -198,7 +255,23 @@ transforms:
       FROM decoded_korum_events
       WHERE decoded.event_signature = 'Graduated'
 
+  market_notifications:
+    type: sql
+    primary_key: event_id
+    sql: |
+      SELECT event_id, chain_id, token_address, transaction_hash, block_hash,
+        CAST(_gs_op AS STRING) AS operation, _gs_op
+      FROM camp_trades
+
 sinks:
+  creator_fee_recipient_events_postgres:
+    type: postgres
+    from: creator_fee_recipient_events
+    schema: indexer_v2
+    table: creator_fee_recipient_events
+    secret_name: KORUM_STAGING_RAILWAY_POSTGRES
+    primary_key: chain_id,transaction_hash,log_index
+
   referral_bindings_postgres:
     type: postgres
     from: referral_bindings
@@ -225,6 +298,8 @@ sinks:
 
   camp_trades_postgres:
     type: postgres
+    batch_size: 100
+    batch_flush_interval: 250ms
     from: camp_trades
     schema: indexer_v2
     table: camp_trades
@@ -246,3 +321,12 @@ sinks:
     table: camp_graduations
     secret_name: KORUM_STAGING_RAILWAY_POSTGRES
     primary_key: chain_id,token_address
+
+  market_notifications_webhook:
+    type: webhook
+    from: market_notifications
+    url: https://korum-project-production.up.railway.app/api/webhooks/goldsky
+    secret_name: KORUM_STAGING_MARKET_WEBHOOK
+    one_row_per_request: false
+    batch_size: 100
+    batch_flush_interval: 250ms
