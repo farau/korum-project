@@ -51,6 +51,7 @@ type IndexedDebateRow = {
   tokenAResidual: string | null;
   tokenAProjectedResidual: string;
   tokenACurveStatus: number;
+  tokenAPoolId: string | null;
   tokenAGraduationDisabled: boolean;
   tokenAVolume24h: string;
   tokenATrades24h: number;
@@ -67,6 +68,7 @@ type IndexedDebateRow = {
   tokenBResidual: string | null;
   tokenBProjectedResidual: string;
   tokenBCurveStatus: number;
+  tokenBPoolId: string | null;
   tokenBGraduationDisabled: boolean;
   tokenBVolume24h: string;
   tokenBTrades24h: number;
@@ -86,7 +88,7 @@ type IndexedDebateIdRow = {
   versusId: string;
 };
 
-function publicAssetUrl(uri: string) {
+export function publicAssetUrl(uri: string) {
   if (uri.startsWith("ipfs://")) return `https://ipfs.io/ipfs/${uri.slice(7)}`;
   if (uri.startsWith("ar://")) return `https://arweave.net/${uri.slice(5)}`;
   if (/^https?:\/\//i.test(uri)) return uri;
@@ -304,6 +306,7 @@ function toDebate(row: IndexedDebateRow, quoteUsd: number | null): Debate | null
       quoteUsd: quoteUsd ?? undefined,
       marketCurrency: quoteUsd === null ? "ETH" : "USD",
       curveStatus: marketA.curveStatus,
+      poolId: row.tokenAPoolId ?? undefined,
       graduationDisabled: marketA.graduationDisabled,
       graduationProgress: marketA.graduationProgress,
       curveRealEth: marketA.realEth,
@@ -355,6 +358,7 @@ function toDebate(row: IndexedDebateRow, quoteUsd: number | null): Debate | null
       quoteUsd: quoteUsd ?? undefined,
       marketCurrency: quoteUsd === null ? "ETH" : "USD",
       curveStatus: marketB.curveStatus,
+      poolId: row.tokenBPoolId ?? undefined,
       graduationDisabled: marketB.graduationDisabled,
       graduationProgress: marketB.graduationProgress,
       curveRealEth: marketB.realEth,
@@ -438,6 +442,7 @@ async function readIndexedDebates({ limit = DEFAULT_LIMIT, versusId, watchlistUs
       market_a.token_residual::TEXT AS "tokenAResidual",
       market_a.projected_token_residual::TEXT AS "tokenAProjectedResidual",
       market_a.curve_status::INTEGER AS "tokenACurveStatus",
+      graduation_a.pool_id AS "tokenAPoolId",
       market_a.graduation_disabled AS "tokenAGraduationDisabled",
       stats_a.volume_24h AS "tokenAVolume24h",
       stats_a.trades_24h AS "tokenATrades24h",
@@ -454,6 +459,7 @@ async function readIndexedDebates({ limit = DEFAULT_LIMIT, versusId, watchlistUs
       market_b.token_residual::TEXT AS "tokenBResidual",
       market_b.projected_token_residual::TEXT AS "tokenBProjectedResidual",
       market_b.curve_status::INTEGER AS "tokenBCurveStatus",
+      graduation_b.pool_id AS "tokenBPoolId",
       market_b.graduation_disabled AS "tokenBGraduationDisabled",
       stats_b.volume_24h AS "tokenBVolume24h",
       stats_b.trades_24h AS "tokenBTrades24h",
@@ -495,6 +501,10 @@ async function readIndexedDebates({ limit = DEFAULT_LIMIT, versusId, watchlistUs
     INNER JOIN ${INDEXER_SCHEMA}.camp_market_state market_b
       ON market_b.chain_id = camp_b.chain_id
       AND market_b.token_address = camp_b.token_address
+    LEFT JOIN ${INDEXER_SCHEMA}.camp_graduations graduation_a
+      ON graduation_a.chain_id = camp_a.chain_id AND graduation_a.token_address = camp_a.token_address
+    LEFT JOIN ${INDEXER_SCHEMA}.camp_graduations graduation_b
+      ON graduation_b.chain_id = camp_b.chain_id AND graduation_b.token_address = camp_b.token_address
     LEFT JOIN LATERAL (
       SELECT
         COALESCE(SUM(trade.eth_gross) FILTER (

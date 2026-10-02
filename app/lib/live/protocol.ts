@@ -1,3 +1,4 @@
+import type { ChartTrade } from "./chart";
 export const MAX_LIVE_BATCH = 100;
 export const MAX_WEBHOOK_BYTES = 128 * 1024;
 export type TradeNotice = {
@@ -8,7 +9,7 @@ export type TradeNotice = {
   block_hash: string;
   operation: "i" | "u" | "d";
 };
-export type MarketNotice = { revision: string; tokens: string[]; reset: boolean };
+export type MarketNotice = { revision: string; tokens: string[]; reset: boolean; trades?: ChartTrade[] };
 
 export function parseTradeNotices(value: unknown, chainId: number): TradeNotice[] {
   const rows = Array.isArray(value) ? value : [value];

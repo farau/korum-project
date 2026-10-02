@@ -33,6 +33,7 @@ export type DebateToken = {
   quoteUsd?: number;
   marketCurrency?: "USD" | "ETH";
   curveStatus?: number;
+  poolId?: string;
   graduationDisabled?: boolean;
   graduationProgress?: number;
   curveRealEth?: number;

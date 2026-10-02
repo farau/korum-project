@@ -1,10 +1,12 @@
 "use client";
 
-import { useMarketLive } from "../hooks/useMarketLive";
+import { slideChart, replaceChartHead, type ChartSnapshot, type ChartCandle } from "../lib/live/chart";
+import { useMarketLive, marketNoticeVersion } from "../hooks/useMarketLive";
 
 import Link from "next/link";
+import BellIcon from "./BellIcon";
 import Image from "next/image";
-import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
+import { useInfiniteQuery, useQuery, useQueryClient, type InfiniteData } from "@tanstack/react-query";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 
 import { useWatchlist } from "../hooks/useWatchlist";
@@ -18,7 +20,9 @@ import {
 import type { Debate, DebateToken } from "../lib/debates";
 import { normalizeSocialLinks, socialLinksFromJson } from "../lib/versus-socials";
 import { formatMarketValue, formatTokenAmount } from "../lib/markets/format";
-import MarketCandlestickChart, { type MarketChartCandle } from "./MarketCandlestickChart";
+import MarketCandlestickChart from "./MarketCandlestickChart";
+import GraduatedPoolChart from "./GraduatedPoolChart";
+import { GRADUATING_MESSAGE, usesKorumCandles } from "../lib/markets/venue";
 import TokenTradePanel from "./TokenTradePanel";
 import ProfileAvatar from "./ProfileAvatar";
 import CreatorFeeTransfer from "./CreatorFeeTransfer";
@@ -31,33 +35,9 @@ type VsDetailClientProps = {
 };
 
 type InfoTab = "community" | "activity" | "holders" | "traders" | "creator" | "bubble" | "positions";
-type ChartRange = "1m" | "5m" | "15m" | "1h" | "4h" | "1d" | "7d" | "30d" | "180d" | "all";
+type ChartRange = "1s" | "1m" | "5m" | "15m" | "1h" | "4h" | "1d" | "7d" | "30d" | "180d" | "all";
 type ChartMetric = "price" | "marketCap";
-type ChartResponse = {
-  points: ChartCandle[];
-  quoteUsd: number | null;
-  intervalSeconds: number;
-  windowStart: number;
-  windowEnd: number;
-  hasMore: boolean;
-  lastTradeTimestamp: number | null;
-  priorPrice: number | null;
-  priorMarketCap: number | null;
-  priorPriceUp: boolean | null;
-  priorMarketCapUp: boolean | null;
-  priorTimestamp: number | null;
-};
-type ChartCandle = MarketChartCandle & {
-  t: number;
-  open: number;
-  high: number;
-  low: number;
-  close: number;
-  price: number;
-  marketCap: number;
-  tradeCount?: number;
-  synthetic?: boolean;
-};
+type ChartResponse = ChartSnapshot;
 type LiveCampMarket = { address: string; marketCapEth: number; lastTradeTimestamp: number };
 type MarketTrade = {
   id: string;
@@ -86,14 +66,7 @@ type VersusPositionsResponse = {
 };
 
 const BONDING_CURVE_RANGES: Array<{ value: ChartRange; label: string }> = [
-  { value: "1m", label: "1m" },
-  { value: "5m", label: "5m" },
-  { value: "15m", label: "15m" },
-  { value: "1h", label: "1h" },
-  { value: "4h", label: "4h" },
-  { value: "1d", label: "1d" },
-];
-const POOL_RANGES: Array<{ value: ChartRange; label: string }> = [
+  { value: "1s", label: "1s" },
   { value: "1m", label: "1m" },
   { value: "5m", label: "5m" },
   { value: "15m", label: "15m" },
@@ -102,6 +75,7 @@ const POOL_RANGES: Array<{ value: ChartRange; label: string }> = [
   { value: "1d", label: "1d" },
 ];
 const CHART_REFRESH_MS: Record<ChartRange, number> = {
+  "1s": 5_000,
   "1m": 2_000,
   "5m": 3_000,
   "15m": 5_000,
@@ -125,10 +99,6 @@ const INFO_TABS: Array<{ id: InfoTab; label: string }> = [
 
 function ShareIcon() {
   return <svg viewBox="0 0 69.04 69.06" fill="currentColor" aria-hidden="true"><path d="M14.93 61.32h39.11c2.98 0 5.67-.88 6.68-3.64.42-1.15.58-2.33.58-3.6l.02-15.76c0-2.16 1.79-3.76 3.8-3.77s3.83 1.59 3.84 3.77l.02 15.39c.85 8.85-6.46 16.15-15.31 15.29H15.35c-4.34.42-8.4-1.12-11.39-4.13C1.09 61.89-.38 57.83.08 53.54V15.54C-.38 11.26 1.1 7.16 3.96 4.23 6.96 1.1 11.01-.17 15.34.02l15.42.09c2.12.01 3.68 1.64 3.76 3.68s-1.45 3.92-3.6 3.93l-15.93.05c-2.88 0-5.57.82-6.61 3.49-.44 1.14-.64 2.27-.64 3.59v39.39c0 3.08 1.09 5.82 4.02 6.64 1.01.28 1.9.45 3.16.45Z" /><path d="m61.24 13.27-27.94 27.9c-1.55 1.55-3.99 1.35-5.39-.09-1.52-1.57-1.44-3.92.15-5.51L55.83 7.8 46 7.74c-2.18-.01-3.82-1.75-3.82-3.81S43.81.1 46.02.1h19c2.28-.01 3.97 1.68 3.96 3.95v19c-.01 2.21-1.79 3.84-3.86 3.83s-3.88-1.76-3.8-4l-.09-9.61Z" /></svg>;
-}
-
-function BellIcon() {
-  return <svg viewBox="0 0 56.88 69.06" fill="currentColor" aria-hidden="true"><path d="M56.59 58.01c-.75 3.46-13.02 5.11-17.74 5.49l-.69-2.38c3.91-.37 7.7-.92 11.42-2.23 1.28-.45 2.46-1.01 3.32-2.09-.64-.9-1.51-1.42-2.47-1.81-10.03-4.04-31.99-3.93-42.48-.58-1.55.49-3.01 1.12-4.19 2.36 3.57 3.26 10.12 3.74 14.99 4.37l-.69 2.35C13.17 63.14-.11 61.39 0 57.35l.15-5.76c.46-1.96 2.92-2.1 4.11-3.17 1.76-1.6 2.36-4.24 2.85-6.5l2.94-13.81c1.86-7.91 5.11-15.77 13.33-18.03-1.74-3.54.1-6.97 3.35-8.34C27.15 1.18 27.42-.01 28.35 0s1.42.84 1.67 1.74c2.64 1.02 4.52 3.43 4.01 6.4l-2.38-.44c.18-1.06-.69-3.23-2-3.08-.94.11-1.31.55-2.54.06-.81-.32-1.6 1.11-1.8 1.79-.23.8-.16 2.54.82 3.01 9.42-.7 15.24 3.33 18.65 11.99 2.93 7.5 3.38 15.5 5.74 23.39-4.56-.95-8.71-1.47-13.46-1.87 2.55-1.55 5.26-1.77 8.15-2.24l-2.03-10.09c-.99-4.94-2.71-10.2-6.13-13.8-.32-.33-.77-.41-1.08-.26-.23.11-.65.51-.63.96.34 6.55-19.35 27.26-21.13 28.83 10.36-1.13 20.67-1.19 30.97.41 3.7.58 11.23 2.3 11.48 4.75.21 2.07.4 4.3-.07 6.46Z" /><path d="M31.8 62.2c-.07 2 .06 3.98-1.54 5.5-2.07 1.96-5.75 1.81-7.5-.53-1.28-1.72-1.25-3.97-.45-6 .67-1.71 2.25-3.13 4.32-3.77v-3.12l3.53-.06.07 3.16c2.19.68 3.84 2.23 4.45 4 .8 2.33.67 4.79-1.08 6.58.19-2.16.34-4.22-1.8-5.75Z" /></svg>;
 }
 
 function StarIcon() {
@@ -215,7 +185,12 @@ function TokenPanel({ token, side, marketShare, marketAvailable, onMarketUpdate,
   const [range, setRange] = useState<ChartRange>("1m");
   const [chartMetric, setChartMetric] = useState<ChartMetric>("price");
   const [chartCurrency, setChartCurrency] = useState<"USD" | "ETH">(() => currency === "USD" && !token.quoteUsd ? "ETH" : currency);
-  const chartRanges = token.curveStatus === 3 ? POOL_RANGES : BONDING_CURVE_RANGES;
+  const [observedVenue, setObservedVenue] = useState<{ address: string; status: number } | null>(null);
+  const curveStatus = token.curveStatus === 3 ? 3
+    : token.curveStatus === 2 && observedVenue?.status !== 3 ? 2
+    : observedVenue && observedVenue.address === token.address?.toLowerCase() ? observedVenue.status : token.curveStatus;
+  const chartEnabled = marketAvailable && usesKorumCandles(curveStatus);
+  const chartRanges = BONDING_CURVE_RANGES;
   const isRangeAvailable = chartRanges.some((period) => period.value === range);
   const activeRange = isRangeAvailable ? range : chartRanges[0].value;
 
@@ -223,11 +198,24 @@ function TokenPanel({ token, side, marketShare, marketAvailable, onMarketUpdate,
     ? token.address.toLowerCase()
     : null;
   const live = useMarketLive(validTokenAddress);
+  const queryClient = useQueryClient();
+  const handleCurveStatus = useCallback((address: string, status: number) => {
+    setObservedVenue(previous => previous?.address === address && previous.status === status ? previous : { address, status });
+  }, []);
+  const chartKey = useMemo(() => [TOKEN_CHART_QUERY_KEY, validTokenAddress, activeRange], [validTokenAddress, activeRange]);
+  const readChart = async (response: Response, signal: AbortSignal) => {
+    if (response.status === 409) {
+      const venue = await response.json() as { curveStatus: number };
+      if (!signal.aborted && validTokenAddress) handleCurveStatus(validTokenAddress, venue.curveStatus);
+    }
+    if (!response.ok) throw new Error("Market chart request failed.");
+    return response.json() as Promise<ChartResponse>;
+  };
   const chartQuery = useInfiniteQuery({
-    queryKey: [TOKEN_CHART_QUERY_KEY, validTokenAddress, activeRange],
+    queryKey: chartKey,
     initialPageParam: undefined as number | undefined,
     getNextPageParam: (lastPage: ChartResponse) => {
-      if (!lastPage.hasMore) return undefined;
+      if (activeRange === "1s" || !lastPage.hasMore) return undefined;
       if (lastPage.points.length === 0 && lastPage.lastTradeTimestamp !== null) {
         return Math.floor(lastPage.lastTradeTimestamp / lastPage.intervalSeconds) * lastPage.intervalSeconds + lastPage.intervalSeconds;
       }
@@ -236,16 +224,61 @@ function TokenPanel({ token, side, marketShare, marketAvailable, onMarketUpdate,
     queryFn: async ({ signal, pageParam }) => {
       const before = pageParam === undefined ? "" : `&before=${pageParam}`;
       const response = await fetch(`/api/markets/${validTokenAddress}/chart?range=${activeRange}&limit=300${before}`, { signal, cache: "no-store" });
-      if (!response.ok) throw new Error("Market chart request failed.");
-      return response.json() as Promise<ChartResponse>;
+      return readChart(response, signal);
     },
-    enabled: Boolean(validTokenAddress && marketAvailable),
-    refetchInterval: live ? Math.max(5_000, CHART_REFRESH_MS[activeRange]) : CHART_REFRESH_MS[activeRange],
+    enabled: Boolean(validTokenAddress && chartEnabled),
+    // Periodic synchronization below refreshes only the latest page.
+    refetchInterval: false,
     refetchIntervalInBackground: false,
     refetchOnWindowFocus: true,
     retry: 1,
   });
-  const latestPage = chartQuery.data?.pages[0];
+  useEffect(() => {
+    if (!validTokenAddress || !chartEnabled) return;
+    let controller: AbortController | undefined;
+    const timer = window.setInterval(async () => {
+      if (document.visibilityState === "hidden" || controller || queryClient.isFetching({ queryKey: chartKey })) return;
+      const request = new AbortController();
+      controller = request;
+      const version = marketNoticeVersion();
+      try {
+        const response = await fetch(`/api/markets/${validTokenAddress}/chart?range=${activeRange}&limit=300`, {
+          signal: request.signal, cache: "no-store",
+        });
+        if (response.status === 409) {
+          const venue = await response.json() as { curveStatus: number };
+          if (!request.signal.aborted) handleCurveStatus(validTokenAddress, venue.curveStatus);
+          return;
+        }
+        if (!response.ok) return;
+        const page = await response.json() as ChartResponse;
+        if (request.signal.aborted || version !== marketNoticeVersion()) return;
+        queryClient.setQueryData<InfiniteData<ChartResponse>>(chartKey, data => {
+          if (!data) return data;
+          const current = data.pages[0];
+          // A live event may have arrived while this snapshot was loading.
+          if (current.lastTradeCursor && (!page.lastTradeCursor
+            || current.lastTradeCursor.block > page.lastTradeCursor.block
+            || (current.lastTradeCursor.block === page.lastTradeCursor.block && current.lastTradeCursor.log > page.lastTradeCursor.log))) return data;
+          return replaceChartHead(data, page);
+        });
+      } catch { /* Keep the existing chart; the next interval retries. */ }
+      finally { controller = undefined; }
+    }, live ? Math.max(60_000, CHART_REFRESH_MS[activeRange]) : Math.max(5_000, CHART_REFRESH_MS[activeRange]));
+    return () => { window.clearInterval(timer); controller?.abort(); };
+  }, [activeRange, chartKey, live, chartEnabled, queryClient, validTokenAddress, handleCurveStatus]);
+
+  useEffect(() => {
+    if (!chartEnabled || activeRange !== "1s") return;
+    const timer = window.setInterval(() => {
+      if (document.visibilityState === "hidden") return;
+      queryClient.setQueryData<InfiniteData<ChartResponse>>(chartKey, data => data ? {
+        ...data, pages: [slideChart(data.pages[0], Math.floor(Date.now() / 1000))], pageParams: [undefined],
+      } : data);
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, [activeRange, chartKey, chartEnabled, queryClient]);
+  const latestPage = chartEnabled ? chartQuery.data?.pages[0] : undefined;
   const latestMarketCapEth = latestPage?.points.at(-1)?.closeMarketCap ?? latestPage?.priorMarketCap;
   const lastTradeTimestamp = latestPage?.lastTradeTimestamp;
   useEffect(() => {
@@ -256,12 +289,12 @@ function TokenPanel({ token, side, marketShare, marketAvailable, onMarketUpdate,
   const { fetchNextPage, hasNextPage, isFetchingNextPage } = chartQuery;
   const pageCount = chartQuery.data?.pages.length;
   useEffect(() => {
-    if (latestPage?.points.length === 0 && pageCount === 1 && hasNextPage && !isFetchingNextPage) {
+    if (chartEnabled && activeRange !== "1s" && latestPage?.points.length === 0 && pageCount === 1 && hasNextPage && !isFetchingNextPage) {
       void fetchNextPage({ cancelRefetch: false });
     }
-  }, [fetchNextPage, hasNextPage, isFetchingNextPage, latestPage, pageCount]);
+  }, [activeRange, chartEnabled, fetchNextPage, hasNextPage, isFetchingNextPage, latestPage, pageCount]);
   const candles = useMemo<ChartCandle[]>(() => {
-    if (!chartQuery.data) {
+    if (!chartEnabled || !chartQuery.data) {
       return [];
     }
     const multiplier = chartCurrency === "USD" && chartQuoteUsd ? chartQuoteUsd : 1;
@@ -282,7 +315,7 @@ function TokenPanel({ token, side, marketShare, marketAvailable, onMarketUpdate,
       closeMarketCap: point.closeMarketCap * multiplier,
       marketCap: point.marketCap * multiplier,
     }));
-  }, [chartCurrency, chartQuery.data, chartQuoteUsd]);
+  }, [chartCurrency, chartQuery.data, chartQuoteUsd, chartEnabled]);
   const chartWindows = useMemo(() => {
     const multiplier = chartCurrency === "USD" && chartQuoteUsd ? chartQuoteUsd : 1;
     return chartQuery.data?.pages.map(page => ({
@@ -316,15 +349,17 @@ function TokenPanel({ token, side, marketShare, marketAvailable, onMarketUpdate,
       </div>
 
       <div className={`${styles.chartCard} ${isLeading ? styles.leadingCard : ""}`}>
+        {curveStatus === 3 ? <GraduatedPoolChart tokenAddress={validTokenAddress} symbol={symbol} /> : curveStatus === 2 ? <div className={styles.poolChartPending} role="status"><strong>{GRADUATING_MESSAGE}</strong><span>Trading resumes when liquidity is available on Uniswap.</span></div> : <>
         <div className={styles.chartToolbar}>
-          <div className={styles.periodRow} aria-label="Candle intervals">{chartRanges.map((period) => <button className={period.value === activeRange ? styles.selectedControl : ""} type="button" key={period.value} disabled={!marketAvailable} onClick={() => setRange(period.value)}>{period.label}</button>)}</div>
+          <div className={styles.periodRow} aria-label="Candle intervals">{chartRanges.map((period) => <button className={period.value === activeRange ? styles.selectedControl : ""} type="button" key={period.value} title={period.value === "1s" ? "1-second candles · last 5 minutes" : undefined} aria-pressed={period.value === activeRange} disabled={!marketAvailable} onClick={() => setRange(period.value)}>{period.label}</button>)}</div>
           <div className={styles.chartToolbarOptions}>
             <span className={styles.segmented}><button className={chartMetric === "price" ? styles.selectedControl : ""} type="button" onClick={() => setChartMetric("price")}>Price</button><button className={chartMetric === "marketCap" ? styles.selectedControl : ""} type="button" onClick={() => setChartMetric("marketCap")}>MC</button></span>
             <span className={styles.segmented}><button className={chartCurrency === "USD" ? styles.selectedControl : ""} type="button" disabled={!chartQuoteUsd} onClick={() => setChartCurrency("USD")}>USD</button><button className={chartCurrency === "ETH" ? styles.selectedControl : ""} type="button" onClick={() => setChartCurrency("ETH")}>ETH</button></span>
           </div>
         </div>
-        <div className={styles.chartInstrument}><span className={styles.instrumentMark} aria-hidden="true">✳</span><strong>{symbol}</strong><span>· {activeRange} · KORUM</span>{marketAvailable ? <span className={styles.instrumentLive}><i /> LIVE</span> : null}</div>
+        <div className={styles.chartInstrument}><span className={styles.instrumentMark} aria-hidden="true">✳</span><strong>{symbol}</strong><span>· {activeRange}{activeRange === "1s" ? " · Last 5 min" : ""} · KORUM</span>{marketAvailable ? <span className={styles.instrumentLive}><i /> LIVE</span> : null}</div>
         <MarketCandlestickChart candles={candles} available={marketAvailable} loading={chartQuery.isPending && marketAvailable} error={chartQuery.isError && !chartQuery.data} metric={chartMetric} currency={chartCurrency} range={activeRange} intervalSeconds={latestPage?.intervalSeconds} windows={chartWindows} lastTradeTimestamp={latestPage?.lastTradeTimestamp} hasMore={chartQuery.hasNextPage} loadingOlder={chartQuery.isFetchingNextPage} onLoadOlder={() => void chartQuery.fetchNextPage({ cancelRefetch: false })} />
+        </>}
       </div>
       <div className={styles.marketStats}>
         <div><StatIcon kind="market" /><span>Market cap<strong>{marketAvailable ? formatMarketValue(token.marketCap, currency) : "—"}</strong></span></div>
@@ -332,14 +367,14 @@ function TokenPanel({ token, side, marketShare, marketAvailable, onMarketUpdate,
         <div><StatIcon kind="volume" /><span>Vol 24h<strong>{marketAvailable ? formatMarketValue(token.volume24h, currency) : "—"}</strong></span></div>
       </div>
 
-      {marketAvailable && token.curveStatus !== 3 && token.graduationTargetEth != null && token.graduationTargetEth > 0 ? (
+      {marketAvailable && curveStatus !== 3 && token.graduationTargetEth != null && token.graduationTargetEth > 0 ? (
         <p className={styles.graduationTarget}>
-          {token.graduationDisabled ? "Graduation disabled for this reopened curve." : token.curveStatus === 2 ? "Liquidity is moving to the pool. Trading will resume when graduation completes." : <>
+          {token.graduationDisabled ? "Graduation disabled for this reopened curve." : curveStatus === 2 ? GRADUATING_MESSAGE : <>
             <strong>{(token.curveRealEth ?? 0).toLocaleString("en-US", { maximumFractionDigits: 6 })} / {token.graduationTargetEth.toLocaleString("en-US", { maximumFractionDigits: 6 })} ETH</strong> toward this side’s graduation to Uniswap.
           </>}
         </p>
       ) : null}
-      <TokenTradePanel token={token} onStatus={onStatus} />
+      <TokenTradePanel token={token} onStatus={onStatus} onCurveStatus={handleCurveStatus} />
     </article>
   );
 }
@@ -491,8 +526,8 @@ export default function VsDetailClient({ indexedDebate, indexedReadFailed }: VsD
 
   const indexedTokenA: DebateToken = debate.tokenA ?? { name: debate.sideA, symbol: debate.tokenASymbol || debate.sideA, image: debate.imageA };
   const indexedTokenB: DebateToken = debate.tokenB ?? { name: debate.sideB, symbol: debate.tokenBSymbol || debate.sideB, image: debate.imageB };
-  const liveCapA = liveCampMarkets.a?.address === indexedTokenA.address?.toLowerCase() ? liveCampMarkets.a?.marketCapEth ?? null : null;
-  const liveCapB = liveCampMarkets.b?.address === indexedTokenB.address?.toLowerCase() ? liveCampMarkets.b?.marketCapEth ?? null : null;
+  const liveCapA = usesKorumCandles(indexedTokenA.curveStatus) && liveCampMarkets.a?.address === indexedTokenA.address?.toLowerCase() ? liveCampMarkets.a?.marketCapEth ?? null : null;
+  const liveCapB = usesKorumCandles(indexedTokenB.curveStatus) && liveCampMarkets.b?.address === indexedTokenB.address?.toLowerCase() ? liveCampMarkets.b?.marketCapEth ?? null : null;
   const tokenA = liveCapA === null ? indexedTokenA : { ...indexedTokenA, marketCapEth: liveCapA, marketCap: liveCapA * (debate.quoteUsd ?? 1) };
   const tokenB = liveCapB === null ? indexedTokenB : { ...indexedTokenB, marketCapEth: liveCapB, marketCap: liveCapB * (debate.quoteUsd ?? 1) };
   const marketAvailable = hasMarketData(debate);

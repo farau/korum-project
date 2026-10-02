@@ -4,7 +4,11 @@ import type Redis from "ioredis";
 import { connectedRedis, redisCacheKey } from "../cache/redis";
 import { INDEXER_SCHEMA } from "../../config/deployment";
 import { getDatabase } from "../db/client";
+import { tokenPriceWad, unitsNumber } from "../markets/math";
+import { prepareChartMutations, publishChartScript } from "./chart-cache";
+import type { ChartTrade } from "./chart";
 import type { MarketNotice, TradeNotice } from "./protocol";
+import { usesKorumCandles } from "../markets/venue";
 
 const channel = redisCacheKey("live", "markets");
 export const marketRevisionKey = redisCacheKey("live", "revision");
@@ -27,29 +31,82 @@ export async function projectionsReady(notices: TradeNotice[]) {
   });
 }
 
-// Dedupe, cache version and broadcast form one atomic operation. Cache loads
-// started before this operation cannot overwrite data for the new revision.
-const publishScript = `
-local changed = false
-for i = 3, #KEYS do
-  if redis.call('GET', KEYS[i]) ~= ARGV[i] then changed = true end
-end
-if not changed then return 0 end
-for i = 3, #KEYS do redis.call('SET', KEYS[i], ARGV[i], 'EX', 86400) end
-redis.call('SET', KEYS[1], ARGV[1])
-redis.call('PUBLISH', KEYS[2], ARGV[2])
-return 1
-`;
+// One bounded read per webhook batch, shared by all subscribers and resolutions.
+// The predecessor lets clients detect missing/out-of-order deliveries.
+async function readChartTrades(notices: TradeNotice[]): Promise<{ trades: ChartTrade[]; disabledTokens: string[] }> {
+  const rows = await getDatabase().unsafe<{
+    eventId: string; blockHash: string; token: string; block: string; log: number; timestamp: string;
+    previousBlock: string | null; previousLog: number | null;
+    sqrtPrice: string; supply: string; volume: string; curveStatus: number; venue: number;
+  }[]>(`
+    SELECT trade.event_id AS "eventId", trade.block_hash AS "blockHash",
+      trade.token_address AS token, trade.block_number::TEXT AS block,
+      market.curve_status::INTEGER AS "curveStatus", trade.venue,
+      trade.log_index AS log, FLOOR(EXTRACT(EPOCH FROM trade.traded_at))::TEXT AS timestamp,
+      previous.block_number::TEXT AS "previousBlock", previous.log_index AS "previousLog",
+      trade.sqrt_price_x96_after::TEXT AS "sqrtPrice", trade.eth_gross::TEXT AS volume,
+      (CASE WHEN trade.venue = 1 AND graduation.token_residual IS NOT NULL
+        THEN camp.total_supply - graduation.token_residual
+        ELSE camp.total_supply - trade.token_reserve_after END)::TEXT AS supply
+    FROM ${INDEXER_SCHEMA}.camp_trades trade
+    JOIN ${INDEXER_SCHEMA}.versus_camps camp
+      ON camp.chain_id = trade.chain_id AND camp.token_address = trade.token_address
+    JOIN ${INDEXER_SCHEMA}.camp_market_state market
+      ON market.chain_id = trade.chain_id AND market.token_address = trade.token_address
+    LEFT JOIN ${INDEXER_SCHEMA}.camp_graduations graduation
+      ON graduation.chain_id = trade.chain_id AND graduation.token_address = trade.token_address
+    LEFT JOIN LATERAL (
+      SELECT block_number, log_index FROM ${INDEXER_SCHEMA}.camp_trades candidate
+      WHERE candidate.chain_id = trade.chain_id AND candidate.token_address = trade.token_address
+        AND trade.venue = 0 AND market.curve_status = 1
+        AND (candidate.block_number, candidate.log_index) < (trade.block_number, trade.log_index)
+      ORDER BY candidate.block_number DESC, candidate.log_index DESC LIMIT 1
+    ) previous ON true
+    WHERE trade.chain_id = $1 AND trade.event_id = ANY($2::text[])
+    ORDER BY trade.block_number, trade.log_index
+  `, [notices[0].chain_id, notices.map(row => row.event_id)]);
+  if (rows.length !== notices.length) throw new Error("Live projection changed while loading");
+  const expected = new Map(notices.map(notice => [notice.event_id, notice.block_hash]));
+  const disabledTokens: string[] = [];
+  const trades = rows.flatMap(row => {
+    if (expected.get(row.eventId) !== row.blockHash) throw new Error("Live projection hash changed");
+    if (row.venue === 1 || !usesKorumCandles(row.curveStatus)) {
+      disabledTokens.push(row.token);
+      return [];
+    }
+    const price = unitsNumber(tokenPriceWad(row.sqrtPrice));
+    const supply = unitsNumber(row.supply);
+    const volumeQuote = unitsNumber(row.volume);
+    if (price === null || supply === null || volumeQuote === null) throw new Error("Invalid live market values");
+    return [{
+      token: row.token, cursor: { block: Number(row.block), log: row.log },
+      previous: row.previousBlock === null ? null : { block: Number(row.previousBlock), log: row.previousLog! },
+      timestamp: Number(row.timestamp), price, marketCap: price * supply, volumeQuote,
+    }];
+  });
+  return { trades, disabledTokens: [...new Set(disabledTokens)] };
+}
+
 export async function publishMarketNotice(notices: TradeNotice[]) {
   const redis = await connectedRedis();
   if (!redis || redis.status !== "ready") throw new Error("Live Redis unavailable");
+  const reset = notices.some(row => row.operation !== "i");
+  const chartUpdates = reset ? undefined : await readChartTrades(notices);
+  const trades = chartUpdates?.trades;
   const notice: MarketNotice = {
     revision: randomUUID(), tokens: [...new Set(notices.map(row => row.token_address))],
-    reset: notices.some(row => row.operation !== "i"),
+    reset, trades,
   };
   const keys = notices.map(row => redisCacheKey("live", "event", createHash("sha256").update(row.event_id).digest("hex")));
-  return redis.eval(publishScript, 2 + keys.length, marketRevisionKey, channel, ...keys,
-    notice.revision, JSON.stringify(notice), ...notices.map(row => `${row.block_hash}:${row.operation}`));
+  for (let attempt = 0; attempt < 8; attempt++) {
+    const previous = await redis.get(marketRevisionKey) ?? "0";
+    const { mutations, revisions } = await prepareChartMutations(redis, redisCacheKey, notice.tokens, notice.revision, trades ?? [], reset, chartUpdates?.disabledTokens);
+    const published = await redis.eval(publishChartScript, 2 + keys.length, marketRevisionKey, channel, ...keys,
+      notice.revision, JSON.stringify(notice), previous, notices.length,
+      ...notices.map(row => `${row.block_hash}:${row.operation}`), JSON.stringify(revisions), JSON.stringify(mutations));
+    if (published !== -1) return published;
+  }
+  throw new Error("Concurrent live publications; retry the batch");
 }
 
 type Listener = (notice: MarketNotice) => void;

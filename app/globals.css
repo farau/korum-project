@@ -8159,7 +8159,6 @@ html[data-theme="light"] #page-concept .combined-total-glow::before {
 
 .profile-page .profile-tabs button:hover {
   color: var(--text);
-  transform: translateY(-1px);
 }
 
 .profile-page .profile-tabs button.active {
@@ -13041,3 +13040,11 @@ html[data-theme="light"] .profile-page .profile-locked-benefits article {
   .create-cost-row { flex-wrap: wrap; gap: 6px 12px; }
   .create-cost-row strong { margin-left: auto; }
 }
+
+/* Managed Versus uses the watchlist matchup style with one action per versus. */
+.vs-table.profile-managed-table { min-width: 620px; }
+.profile-managed-table .table-token-row { height: 52px; }
+.profile-managed-table .table-matchup-title { white-space: normal; overflow-wrap: anywhere; }
+.profile-managed-table .profile-managed-rights { color: var(--text-2); }
+.profile-managed-table .profile-managed-action { width: 110px; vertical-align: middle; text-align: right; }
+.profile-managed-action .btn { min-height: 36px; padding: 8px 16px; font-size: 12px; }

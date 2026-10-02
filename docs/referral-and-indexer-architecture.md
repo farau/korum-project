@@ -8,7 +8,7 @@
 
 
 Status: accepted  
-Last updated: 2026-09-14
+Last updated: 2026-10-02
 
 ## Purpose
 
@@ -174,12 +174,14 @@ The curve status controls routing:
 | --- | --- |
 | `NONE (0)` | Reject the token as non-tradable. |
 | `TRADING (1)` | Quote and trade through `KorumCore`. |
-| `GRADUATING (2)` | Disable both actions until graduation finishes. |
+| `GRADUATING (2)` | Pause buy/sell controls and quotes; display `Token has bonded and is graduating`. |
 | `LIVE (3)` | Reconstruct the pool key and trade through `KorumRouter`. |
 
 On the bonding curve, buys call `quoteBuy(token, ethIn)` and sells call `quoteSell(token, tokenAmount)`. The displayed output and fee come directly from those views. A capped buy may return `ethAccepted < ethIn`; the difference is shown as an automatic refund, while the transaction still attaches the original input expected by `buy`.
 
 The pool venue has no Korum quote view. The frontend therefore performs a read-only simulation of `KorumRouter.swap` with `minAmountOut = 0` to obtain the router's exact returned output, including the hook behavior. Pool sales require the token allowance before this simulation can execute because the simulated router performs `transferFrom`; when necessary, the UI confirms the ERC-20 approval first, then simulates and submits the sale.
+
+The panel refreshes `getCurve` every 15 seconds and reports lifecycle changes to the Versus chart. Each attempted trade reads the status again before any approval or wallet prompt: status 2 stops submission, and a changed venue requires a fresh quote. This guard applies to both Explore and Versus.
 
 Every trade derives its minimum output from a fresh quote immediately before submission and applies the trader's global slippage setting (1% by default, configurable from 0.1% to 20%). The setting is shared across tokens and buy/sell panels in the browser, and is stored in local storage. The frontend then simulates the final call with that minimum before opening the wallet. Curve sales approve `KorumCore`; pool sales approve `KorumRouter`. Pool buys attach native ETH exactly equal to `amountIn`, and all trades use the connected wallet as both caller and recipient.
 
@@ -196,7 +198,29 @@ Korum stores the protocol's trade events rather than periodic price snapshots. T
 | Pre-bonding curve | `KorumCore` | `venue = 0`, exposed by APIs as `"curve"` |
 | Graduated pool | `KorumHook` | `venue = 1`, exposed by APIs as `"pool"` |
 
-The venue must never be inferred from time or contract status. Keeping the event field allows a single continuous price history across graduation while retaining the boundary between the two execution mechanisms.
+The stored venue comes from the event field. Keeping pool trades preserves market state, analytics, activity, fee accounting and trader aggregates after graduation. The candle rendering and API details below apply to active bonding curves.
+
+### Post-bonding charts and analytics
+
+Chart selection follows each token's lifecycle independently:
+
+| Status | Chart delivery | Buy/sell delivery |
+| --- | --- | --- |
+| `TRADING (1)` | Curve-only OHLC from PostgreSQL, maintained in Redis and updated over SSE | Core trades with Lens quotes |
+| `GRADUATING (2)` | Stop chart requests and show `Token has bonded and is graduating` | Controls and quotes paused |
+| `LIVE (3)` | Verified DEX Screener embed for the recorded Uniswap v4 PoolId | Existing `KorumRouter.swap` path |
+
+The graduation event already records the bytes32 `PoolId` in `indexer_v2.camp_graduations.pool_id`. The server resolves it with the indexed lifecycle via `GET /api/markets/:token/venue`; it does not discover pools through additional RPC calls. On Robinhood mainnet, discovery verifies the exact pool, chain, Uniswap v4 label, Korum base token and native-ETH quote token before constructing the embed URL locally. Testnet returns an unsupported chart state. Missing metadata or an unavailable DEX Screener API produces a pending state, without restoring the old curve chart.
+
+The DEX Screener iframe loads chart data directly in the browser. Korum caches the verified pool identity and URL for one hour, pending/error discoveries for 30 seconds, and the small indexed lifecycle lookup for five seconds. Redis shares discovery and its request budget across replicas; bounded memory caching and request coalescing also work per process without Redis. These cache durations do not delay the iframe's own chart updates.
+
+Korum's chart API returns `409` for statuses 2/3 before reading candle caches or executing OHLC queries, including historical pages. Live pool/graduating notifications discard cached candle windows and omit incremental chart values. The frontend stops candle polling, pagination and local one-second chart advancement, and removes any old cached chart from view.
+
+Goldsky continues indexing `KorumHook.Trade` pool swaps and PostgreSQL continues maintaining analytics. Pool trading retains the existing router, hook and fee/referral behavior. The saving concerns candle aggregation and Redis chart maintenance; trade storage, indexing and analytics costs remain. No new migration, secret or pipeline change is required for the embed itself. Mainnet activation still requires its normal deployment and indexing configuration.
+
+See [Graduated token charts](market-live.md#graduated-token-charts) for endpoint contracts, exact cache keys, pending/unsupported behavior, implementation files and verification commands.
+
+### Trade provenance and curve candles
 
 Each indexed trade also stores its lowercase `emitter_address`. Pool trades are
 associated with the `Graduated.poolId` projection. PostgreSQL synchronizes this
@@ -219,16 +243,20 @@ The application does not ask Alchemy to rediscover protocol trades. Goldsky prov
 The internal endpoints deliberately follow the supplied market API shape:
 
 ```text
-GET /api/markets/:token/chart?range=1h|1d|7d|30d|180d
+GET /api/markets/:token/chart?range=1s|1m|5m|15m|1h|4h|1d|7d|30d|180d|all&limit=300
+GET /api/markets/:token/venue
+GET /api/markets/live?tokens=0x...&feed=1
 GET /api/markets/:token/trades?limit=1..250
 GET /api/markets/trades?limit=1..100
 ```
 
-Chart points are OHLC candles containing Unix time, price and market-cap open/high/low/close values, the backward-compatible `price` and `marketCap` close aliases, block number, ETH volume, and trade count. Price buckets are calculated from the first, minimum, maximum, and last indexed `sqrtPriceX96After` values; because this square-root ratio is inverse to the displayed token price, the lowest ratio produces the candle high and the highest ratio produces its low. Market-cap candles multiply each price state by the circulating supply attached to the same trade. Before graduation that supply is `totalSupply - tokenReserveAfter`; after graduation it is `totalSupply - Graduated.tokenResidual`, so the structural 8.16% locker allocation remains excluded.
+Chart points are OHLC candles containing Unix time, price and market-cap open/high/low/close values, the backward-compatible `price` and `marketCap` close aliases, block number, ETH volume, and trade count. Price buckets are calculated from the first, minimum, maximum, and last indexed `sqrtPriceX96After` values; because this square-root ratio is inverse to the displayed token price, the lowest ratio produces the candle high and the highest ratio produces its low. Market-cap candles multiply each price state by the circulating supply attached to the same trade. Curve candles use `totalSupply - tokenReserveAfter`. After graduation, indexed market metrics use `totalSupply - Graduated.tokenResidual`, so the structural 8.16% locker allocation remains excluded, but Korum no longer generates market-cap candles. DEX Screener chart values are provided independently and do not override Korum indexed metrics.
 
-Chart ranges are strict wall-clock windows. `range=1h` reads only trades from the last hour, `range=1d` only the last day, and so on. Candle resolution is selected automatically (`1h` → 1 minute, `1d` → 15 minutes, `7d` → 1 hour, `30d` → 4 hours, `180d` → 1 day). The API never substitutes older activity when a window is empty and returns `points: []`, which the client presents as `No trades in this period`. The latest trade preceding a non-empty window is consulted only to establish the opening value of its first real candle.
+The `range` parameter selects the candle interval: `1m` means one minute per candle, `1h` means one hour per candle, and so on; `all` uses daily candles. The latest page defaults to 300 intervals, with an API maximum of 500 for resolutions other than `1s`. `before=<Unix seconds>` requests an earlier page. The `1s` view is restricted to the latest 300 seconds (five minutes), rejects historical pagination and never substitutes older activity. The API also provides the previous curve trade as the opening price reference when available.
 
-The Versus page renders these points through TradingView Lightweight Charts. Its Price/MC selector switches between the two OHLC series, and the USD/ETH selector converts the same ETH-denominated response in memory with `quoteUsd`; changing display currency does not trigger an RPC or database request. The client places each candle at its real time bucket and supplies empty Lightweight Charts whitespace entries between trades. These entries reserve chronological space but contain no fabricated price, volume, or trade. Candle bodies have a fixed three-pixel width, while the formatted time/value scales, crosshair, zoom, and pan remain native chart interactions. Token and global recent-trade responses contain normalized token/ETH amounts and preserve `venue: "curve" | "pool"`, `emitterAddress`, and `poolId` provenance. The global feed also joins each event to its camp symbol and Versus ID. All endpoints are server-side Railway reads; no database credential reaches the browser.
+The Versus page renders curve candles through TradingView Lightweight Charts. Its Price/MC selector switches OHLC series, and its USD/ETH selector converts the same response in memory using `quoteUsd`; changing display currency does not trigger an RPC or database request. Intervals without trades can carry forward the previous price with zero volume and zero trade count. The one-second window advances locally every second, while confirmed trades update OHLC in chain order. Initial snapshots and recovery use the maintained Redis window when available; they do not force a PostgreSQL aggregation on every browser synchronization.
+
+Token and global recent-trade responses preserve normalized token/ETH amounts, `venue: "curve" | "pool"`, `emitterAddress`, and `poolId` provenance. The global feed also joins events to camp symbols and Versus IDs. These indexed endpoints read Railway server-side; no database credential reaches the browser.
 
 ### Network selection and RPC fallback
 
@@ -332,9 +360,9 @@ The browser never connects directly to PostgreSQL. Server Components and Route H
 
 The query starts from `indexer_v2.versuses` and uses inner joins for side `0` and side `1` in `indexer_v2.versus_camps`. A Versus is intentionally hidden during the short interval where Goldsky has written only part of the three-event projection. Results are scoped to the active `KORUM_CHAIN_ID`, ordered newest first, and capped server-side.
 
-The adapter exposes on-chain metadata plus the market view: current price, 24-hour volume/trades, distinct traders, curve progress, circulating and locked supply, circulating market cap, adjusted FDV, and recent price history. Explore's `Traders` count comes from distinct non-zero `Trade.trader` addresses across both camps; per-token table rows use the corresponding camp count. Holder counts and liquidity remain absent until their own authoritative projections exist and never override trader counts. `ipfs://` and `ar://` media identifiers are translated to public gateways for the current image components.
+The adapter exposes on-chain metadata plus the market view: current price, 24-hour volume/trades, distinct traders, `curveStatus`, graduation `poolId`, curve progress, circulating and locked supply, circulating market cap, adjusted FDV, and recent price history. Explore's `Traders` count comes from distinct non-zero `Trade.trader` addresses across both camps; per-token table rows use the corresponding camp count. Holder counts and liquidity remain absent until their own authoritative projections exist and never override trader counts. `ipfs://` and `ar://` media identifiers are translated to public gateways for the current image components.
 
-Goldsky/Railway is the exclusive Versus and market-data source. API or database failures produce an explicit empty or unavailable state. The dynamic `/vs/[id]` page resolves its numeric ID only against the indexed read model.
+Goldsky/Railway is the source for Versus metadata, indexed market metrics and activity. Graduated chart rendering is supplied separately by the verified DEX Screener iframe. API or database failures produce an explicit empty or unavailable state. The dynamic `/vs/[id]` page resolves its numeric ID only against the indexed read model.
 
 ### Shared cache and RPC rate limiting
 
@@ -342,7 +370,7 @@ Railway Redis is a disposable performance layer in front of PostgreSQL and Alche
 
 The `staging` environment contains one private service named `Redis`. The web service receives `REDIS_URL` through the Railway reference `${{Redis.REDIS_URL}}`; Redis has no browser-facing endpoint. `app/lib/cache/redis.ts` creates one lazy `ioredis` client per Next.js process. Multiple web replicas therefore keep separate client connections but share the same cached keys. Local development may omit `REDIS_URL`, and every cache operation fails open to its PostgreSQL or Alchemy loader after a short timeout. A five-second circuit breaker prevents a Redis outage from adding that timeout to every application request.
 
-All keys use the versioned `korum:v1:<network>:` namespace. Including `testnet` or `mainnet` prevents a network switch from returning values generated from the other chain. Current entries and TTLs are:
+By default, keys use the versioned `korum:v1:<chainId>:v<deploymentVersion>:` namespace, isolating chains and contract deployments. `KORUM_CACHE_NAMESPACE` can override the `korum:v1` prefix for isolated integration runs. Revisioned market reads append the current shared revision; maintained chart windows instead use a stable key with a token revision guard. Current entries and TTLs are:
 
 | Data | Key suffix | TTL |
 | --- | --- | ---: |
@@ -351,16 +379,16 @@ All keys use the versioned `korum:v1:<network>:` namespace. Including `testnet` 
 | Versus detail | `debates:detail:<versusId>` | 15 seconds |
 | Recent token trades | `market:trades:<token>:<limit>` | 5 seconds |
 | Global recent-trade ticker | `market:recent-trades:<limit>` | 5 seconds |
-| 1-hour chart | `market:chart:<token>:1h` | 5 seconds |
-| 1-day chart | `market:chart:<token>:1d` | 15 seconds |
-| 7-day chart | `market:chart:<token>:7d` | 30 seconds |
-| 30-day chart | `market:chart:<token>:30d` | 60 seconds |
-| 180-day chart | `market:chart:<token>:180d` | 300 seconds |
+| Canonical latest curve chart (`limit=300`, live configured) | `live:chart-v1:<token>:<range>` | 600 seconds idle; consultations renew it, trade updates preserve it |
+| Other latest curve pages / request-cache fallback | `market:chart-v6:<token>:<range>:<start>:<end>` | 2 seconds |
+| Historical curve chart page | Same request-cache suffix | 30 seconds |
+| Indexed lifecycle and PoolId | `market:venue-v1:<token>` | 5 seconds |
+| Verified DEX Screener discovery | `dexscreener:pool-v1:<chainId>:<token>:<poolId>` | 3,600 seconds ready; 30 seconds pending/error |
 | Profile summary | `private:profile-stats-v4:<walletHash>` | 20 seconds |
 | Profile Activity page | `private:profile-activity-v1:<walletHash>:<page>:10` | 20 seconds |
 | Trader leaderboard page without search | `leaderboard:traders-v3:<sort>:<page>:12` | 300 seconds |
 
-The quote retains a small per-process promise cache as an L1 deduplicator and uses Redis as the replica-shared L2 cache. Other cached loaders also deduplicate simultaneous misses inside one process. Public market Route Handlers publish matching short `Cache-Control` and `stale-while-revalidate` directives. Authentication, referral, notification, and watchlist endpoints remain private and `no-store`. The Profile endpoint also remains `private, no-store`, while its expensive derived statistics use the private Redis service as a short-lived server-side optimization.
+The quote retains a small per-process promise cache as an L1 deduplicator and uses Redis as the replica-shared L2 cache. Other cached loaders also deduplicate simultaneous misses inside one process. Chart snapshots, venue discovery and SSE use `Cache-Control: no-store`; this leaves shared server-side Redis caching enabled. See [Live market updates](market-live.md) for chart leases, incremental updates and recovery. Authentication, referral, notification, and watchlist endpoints remain private and `no-store`. The Profile endpoint also remains `private, no-store`, while its expensive derived statistics use the private Redis service as a short-lived server-side optimization.
 
 Profile summary statistics and Activity history follow the same authenticated private path. `app/lib/db/profile-stats.ts` scopes every aggregate query to the configured chain and the wallet recovered from the signed session. It counts reverse referral bindings, created and joined Versus, and reads trade count, gross volume, remaining token quantity, and net cash flow from `indexer_v2.trader_totals` and `indexer_v2.trader_positions`. The complete derived summary, including estimated PNL, is stored for 20 seconds in private Railway Redis under a network-scoped SHA-256 wallet key. Activity is deliberately separate: `app/lib/db/profile-activity.ts` performs an indexed `LIMIT 11 OFFSET …` read against raw trades only when the Activity tab mounts, returns 10 rows plus a `hasNext` signal, and caches each wallet/page pair privately for 20 seconds. Raw wallet addresses are not used in Redis key names, simultaneous misses are deduplicated per web process, and Redis failure falls through to PostgreSQL. Both authenticated responses retain `Cache-Control: private, no-store`, so neither a CDN nor a shared browser cache stores wallet data. `0007_add_profile_stats_index.sql` supports the remaining raw Activity and joined-Versus reads.
 
@@ -378,20 +406,24 @@ Goldsky writes PostgreSQL and sends authenticated trade notifications to the app
 
 TanStack Query supplies the browser-side refresh layer and reuses the `QueryClient` already mounted for Wagmi. Explore's card list and Hot Trending section share the same `indexed-debates` key, so rendering both does not duplicate the network request. Analytics consumes that same query. `/vs/[id]` uses the dedicated `GET /api/versus/[id]` snapshot.
 
-Fallback refresh intervals align with the Redis TTLs; healthy live connections use at least 30 seconds for charts and 30 seconds for the ticker:
+Visible curve charts receive trades over SSE and periodically reconcile their latest page from the maintained snapshot. A browser request does not necessarily cause a PostgreSQL read. Current refresh intervals are:
 
 | Visible surface | Browser interval |
-| --- | ---: |
+| --- | --- |
 | Explore, Analytics, and Versus detail metrics | 15 seconds |
 | Open Activity tab | 5 seconds |
-| Explore buy/sell ticker | 5 seconds |
-| 1-hour chart | 5 seconds |
-| 1-day chart | 15 seconds |
-| 7-day chart | 30 seconds |
-| 30-day chart | 60 seconds |
-| 180-day chart | 300 seconds |
+| Explore buy/sell ticker | 30 seconds with SSE; 5 seconds without SSE |
+| Curve charts `1s`, `1m`, `5m`, `15m`, `1h` | 60 seconds with SSE; 5 seconds without SSE |
+| Curve chart `4h` | 60 seconds with SSE; 10 seconds without SSE |
+| Curve chart `1d` | 60 seconds with SSE; 15 seconds without SSE |
+| Curve chart `7d` | 60 seconds with SSE; 30 seconds without SSE |
+| Curve chart `30d` | 60 seconds |
+| Curve charts `180d`, `all` | 300 seconds |
+| Closed curve history pages | No periodic synchronization |
+| Graduating curve chart | No candle requests |
+| Graduated pool discovery | 30 seconds while pending/error; interval stops once ready/unsupported |
 
-Intervals stop while the browser tab is hidden and refresh immediately when it regains focus. The Activity query exists only while its tab is mounted. A confirmed buy or sell invalidates the active list, detail, chart, and trade queries immediately; normal polling then catches the Goldsky projection if the receipt has not yet reached Railway. These refreshes call only the cache-backed Next.js endpoints. They do not issue per-user blockchain RPC requests for market cap, volume, trade count, trader count, charts, or activity.
+Hidden tabs stop curve synchronization, close SSE and disable background query intervals. The Activity query exists only while its tab is mounted. Confirmed trades invalidate relevant active snapshots, and normal refreshes catch up with the Goldsky projection when wallet receipts precede indexing. Market snapshots use cache-backed Next.js endpoints without per-user blockchain RPCs for indexed metrics or candles. Trading still performs its own on-chain status, balance and quote reads as described in the write path. The graduated iframe manages its external chart data independently.
 
 The Explore ticker refreshes its recent-trade snapshot on SSE notifications, with polling as a fallback. It reconciles removed or corrected events, queues new trades chronologically, and drains bursts in bounded batches every 150 ms. Initial history is rendered without arrival animation. The shared browser SSE connection closes in hidden tabs and resynchronizes snapshots after reconnecting. See [Live market updates](market-live.md) for delivery and recovery semantics.
 

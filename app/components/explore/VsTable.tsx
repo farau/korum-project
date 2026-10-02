@@ -11,7 +11,7 @@ function Change({ value }: { value?: number }) {
   return value == null ? <span className="muted">—</span> : <span className={value >= 0 ? "buy" : "sell"}>{value >= 0 ? "+" : ""}{value.toFixed(1)}%</span>;
 }
 
-function TokenImage({ src, name }: { src?: string; name: string }) {
+export function TokenImage({ src, name }: { src?: string; name: string }) {
   const [failed, setFailed] = useState(false);
   return <span className="table-thumb">{src && !failed ? <Image src={src} alt="" fill sizes="28px" unoptimized onError={() => setFailed(true)} /> : name.slice(0, 1)}</span>;
 }

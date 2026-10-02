@@ -1,5 +1,7 @@
 "use client";
 
+import { GRADUATING_MESSAGE } from "../lib/markets/venue";
+
 import { usePendingReferral } from "../hooks/usePendingReferral";
 import { fetchPendingReferral } from "../lib/referrals/client";
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
@@ -143,6 +145,7 @@ export default function TokenTradePanel({
   initialAmount,
   initialSellPercentage,
   compact = false,
+  onCurveStatus,
 }: {
   token: DebateToken;
   onStatus: (message: string) => void;
@@ -150,6 +153,7 @@ export default function TokenTradePanel({
   initialAmount?: string;
   initialSellPercentage?: number;
   compact?: boolean;
+  onCurveStatus?: (address: string, status: number) => void;
 }) {
   const queryClient = useQueryClient();
   const { address, isConnected } = useAccount();
@@ -261,6 +265,10 @@ export default function TokenTradePanel({
     query: { enabled: Boolean(tokenAddress), refetchInterval: 15_000 },
   });
   const curve = curveData as CurveState | undefined;
+  const graduating = curve?.status === 2 || (token.curveStatus === 2 && curve?.status !== 3);
+  useEffect(() => {
+    if (tokenAddress && curve) onCurveStatus?.(tokenAddress.toLowerCase(), curve.status);
+  }, [curve, onCurveStatus, tokenAddress]);
   const buyPresets = useMemo(() => {
     if (!curve?.graduationQuote || curve.quoteAsset !== zeroAddress) return [];
     return [...new Set([1, 5, 10, 25, 50, 100].map(percent => curve.graduationQuote * BigInt(percent) / HUNDRED)
@@ -309,7 +317,7 @@ export default function TokenTradePanel({
 
 
   useEffect(() => {
-    if (!publicClient || !tokenAddress || !amountRaw || !curve || curve.quoteAsset !== zeroAddress || (curve.status === 3 && !config)) return;
+    if (graduating || !publicClient || !tokenAddress || !amountRaw || !curve || curve.quoteAsset !== zeroAddress || (curve.status === 3 && !config)) return;
     let cancelled = false;
     const timer = window.setTimeout(() => {
       setIsQuoting(true);
@@ -393,11 +401,12 @@ export default function TokenTradePanel({
       cancelled = true;
       window.clearTimeout(timer);
     };
-  }, [address, allowance, amountRaw, config, curve, mode, pendingReferrer, publicClient, slippageBps, symbol, tokenAddress]);
+  }, [address, allowance, amountRaw, config, curve, graduating, mode, pendingReferrer, publicClient, slippageBps, symbol, tokenAddress]);
 
   const currentQuote = curve?.quoteAsset === zeroAddress && quote?.amountIn === amountRaw
     && quote.mode === mode
     && quote.venueStatus === curve?.status
+    && !graduating
     ? quote
     : null;
   const insufficientBalance = amountRaw !== null && (
@@ -459,6 +468,8 @@ export default function TokenTradePanel({
     setTransactionError(null);
     setTransactionHash(null);
 
+    if (graduating) return;
+
     if (!isConnected || !authenticated || !address) {
       connect();
       return;
@@ -471,6 +482,15 @@ export default function TokenTradePanel({
 
     try {
       resetWrite();
+      // Recheck before approval or opening the wallet: graduation may have
+      // happened since the last quote/poll.
+      const freshCurve = (await refetchCurve()).data as CurveState | undefined;
+      if (!freshCurve) throw new Error("Unable to confirm the token's trading status. Try again shortly.");
+      if (freshCurve.status === 2) {
+        setTransactionError(GRADUATING_MESSAGE);
+        return;
+      }
+      if (freshCurve.status !== curve.status) throw new Error("This token changed trading venue. Please try again with a fresh quote.");
       if (chainId !== KORUM_CHAIN.id) await switchChainAsync({ chainId: KORUM_CHAIN.id });
 
       const target = curve.status === 3 ? KORUM_ROUTER_ADDRESS : KORUM_CORE_ADDRESS;
@@ -625,7 +645,10 @@ export default function TokenTradePanel({
 
   let buttonLabel = `${mode === "buy" ? "BUY" : "SELL"} ${symbol}`;
   let buttonHint = curve?.status === 3 ? "Uniswap pool via KorumRouter" : "Korum bonding curve";
-  if (!isConnected || !authenticated) {
+  if (graduating) {
+    buttonLabel = "GRADUATING";
+    buttonHint = GRADUATING_MESSAGE;
+  } else if (!isConnected || !authenticated) {
     buttonLabel = authenticating ? "AUTHENTICATING…" : "CONNECT WALLET";
     buttonHint = "Connect and sign in to trade";
   } else if (chainId !== KORUM_CHAIN.id) {
@@ -643,9 +666,6 @@ export default function TokenTradePanel({
   } else if (transactionStep === "confirming") {
     buttonLabel = "CONFIRMING TRADE…";
     buttonHint = "Waiting for one network confirmation";
-  } else if (curve?.status === 2) {
-    buttonLabel = "GRADUATION IN PROGRESS";
-    buttonHint = "Trading resumes automatically on the pool";
   } else if (curve && curve.quoteAsset !== zeroAddress) {
     buttonLabel = "TRADING UNAVAILABLE";
     buttonHint = "Only native ETH pairs are supported";
@@ -658,6 +678,7 @@ export default function TokenTradePanel({
   }
 
   const submitDisabled = transactionBusy
+    || graduating
     || !slippageValid
     || isLoadingCurve
     || !tokenAddress
@@ -673,10 +694,11 @@ export default function TokenTradePanel({
 
   return (
     <form className={`${styles.tradeCard} ${mode === "sell" ? styles.sellMode : ""} ${compact ? styles.compactTradeCard : ""}`} onSubmit={handleTrade}>
+      {graduating ? <p className={styles.tradeNotice} role="status">{GRADUATING_MESSAGE}</p> : null}
       {!compact ? (
         <div className={styles.tradeTabs}>
-          <button type="button" className={mode === "buy" ? styles.activeBuy : ""} onClick={() => selectMode("buy")}>BUY</button>
-          <button type="button" className={mode === "sell" ? styles.activeSell : ""} onClick={() => selectMode("sell")}>SELL</button>
+          <button type="button" disabled={graduating} className={mode === "buy" ? styles.activeBuy : ""} onClick={() => selectMode("buy")}>BUY</button>
+          <button type="button" disabled={graduating} className={mode === "sell" ? styles.activeSell : ""} onClick={() => selectMode("sell")}>SELL</button>
         </div>
       ) : null}
 
@@ -692,6 +714,7 @@ export default function TokenTradePanel({
             min="0"
             step="any"
             inputMode="decimal"
+            disabled={graduating}
             value={amount}
             onChange={(event) => {
               initialSellPercentageApplied.current = true;
@@ -705,19 +728,19 @@ export default function TokenTradePanel({
           />
           <b>{inputUnit}</b>
         </span>
-        <small>{curve?.status === 3 ? "Pool quote simulated on-chain" : "Live quote"} · {slippageLabel(slippageBps)} maximum slippage</small>
+        <small>{graduating ? "Trading paused" : curve?.status === 3 ? "Pool quote simulated on-chain" : "Live quote"} · {slippageLabel(slippageBps)} maximum slippage</small>
       </label>
 
       {mode === "buy" ? (
         <div className={styles.quickAmounts}>
           {buyPresets.map((value) => (
-            <button type="button" className={amount === value ? styles.quickSelected : ""} onClick={() => selectBuyAmount(value)} key={value}>{value}</button>
+            <button type="button" disabled={graduating} className={amount === value ? styles.quickSelected : ""} onClick={() => selectBuyAmount(value)} key={value}>{value}</button>
           ))}
         </div>
       ) : (
         <div className={`${styles.quickAmounts} ${styles.sellQuickAmounts}`}>
           {SELL_PERCENTAGES.map((percentage) => (
-            <button type="button" onClick={() => setSellPercentage(percentage)} disabled={tokenBalance === undefined || tokenBalance === ZERO} key={percentage.toString()}>{percentage === HUNDRED ? "MAX" : `${percentage}%`}</button>
+            <button type="button" onClick={() => setSellPercentage(percentage)} disabled={graduating || tokenBalance === undefined || tokenBalance === ZERO} key={percentage.toString()}>{percentage === HUNDRED ? "MAX" : `${percentage}%`}</button>
           ))}
         </div>
       )}
@@ -753,7 +776,7 @@ export default function TokenTradePanel({
           {refund > ZERO ? <span>Automatic refund <b>{trimUnits(refund, 18)} ETH</b></span> : null}
         </div>
       ) : null}
-      {quoteError && amountRaw ? <p className={styles.tradeNotice}>{quoteError}</p> : null}
+      {!graduating && quoteError && amountRaw ? <p className={styles.tradeNotice}>{quoteError}</p> : null}
       {transactionError ? <p className={`${styles.tradeNotice} ${styles.tradeError}`}>{transactionError}</p> : null}
       {transactionStep === "success" && explorerUrl ? (
         <a className={styles.transactionLink} href={explorerUrl} target="_blank" rel="noreferrer">Trade confirmed · View transaction ↗</a>

@@ -201,7 +201,7 @@ export default function MarketCandlestickChart({ candles, available, loading, er
       ? formatMarketValue(value, currency) : formatTokenPrice(value, currency);
     const timeFormatter = (time: Time) => typeof time !== "number" ? String(time)
       : new Intl.DateTimeFormat(undefined, intervalSeconds && intervalSeconds < 86400
-        ? { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }
+        ? { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", ...(intervalSeconds < 60 ? { second: "2-digit" } : {}) }
         : { year: "numeric", month: "short", day: "numeric" }).format(new Date(time * 1000));
     price.applyOptions({ priceFormat: { type: "custom", formatter, minMove: 1e-12 } });
     chart.applyOptions({ localization: { priceFormatter: formatter, timeFormatter }, timeScale: { tickMarkFormatter: timeFormatter } });

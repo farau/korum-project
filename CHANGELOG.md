@@ -6,6 +6,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+
+- Verified DEX Screener charts for graduated Uniswap v4 tokens, with shared pool discovery and pending/testnet states.
+- Functional Explore advanced filters for minimum combined market cap, minimum traders and creation age, with an active filter count and reset action.
+- One-second Versus candles with a rolling five-minute window, second-level time labels and no historical pagination.
+
+### Changed
+
+- Stop Korum candle queries and Redis OHLC updates after bonding; retain indexed pool trades for analytics and show `Token has bonded and is graduating` with trading disabled during graduation.
+- Broadcast confirmed trade prices, circulating market caps and volumes once per webhook batch; update active chart candles locally with cursor deduplication and gap recovery, without additional blockchain RPC calls.
+- Synchronize only the latest chart page every minute while live, retaining polling and snapshot recovery after reconnects or indexed corrections.
+- Maintain consulted chart windows in Redis with a ten-minute idle TTL, atomic trade updates and token revisions; share cold/recovery loads across replicas without periodic PostgreSQL rebuilds in quiet markets.
+
 ## [0.2.3] - 2026-10-01
 
 ### Added

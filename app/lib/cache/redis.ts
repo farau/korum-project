@@ -100,7 +100,7 @@ export async function invalidateIndexedDebateCaches() {
   await runRedis(client => client.set(redisCacheKey("live", "revision"), randomUUID()));
 }
 
-async function readJson<T>(key: string) {
+export async function readJson<T>(key: string) {
   const result = await runRedis((client) => client.get(key));
   if (!result.ok) return { hit: false as const, bypassed: true as const };
   if (result.value === null) return { hit: false as const, bypassed: false as const };
@@ -113,7 +113,7 @@ async function readJson<T>(key: string) {
   }
 }
 
-async function writeJson(key: string, value: unknown, ttlSeconds: number) {
+export async function writeJson(key: string, value: unknown, ttlSeconds: number) {
   await runRedis((client) => client.set(key, JSON.stringify(value), "EX", ttlSeconds));
 }
 

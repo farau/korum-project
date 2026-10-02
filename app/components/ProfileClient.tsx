@@ -11,7 +11,7 @@ import type { UserProfile, UserProfileActivityPage, UserProfileStats, ProfileRef
 import type { ProfileHoldings } from "../lib/profile-holdings";
 import ProfileAvatar from "./ProfileAvatar";
 import AvatarUpload from "./AvatarUpload";
-import { VsTableView } from "./explore/VsTable";
+import { TokenImage, VsTableView } from "./explore/VsTable";
 import { shortenAddress, useWallet } from "./WalletProvider";
 
 type ProfileTab = "information" | "holdings" | "managed" | "activity" | "referrals" | "badges" | "watchlist" | "simulator";
@@ -297,7 +297,7 @@ function HoldingsPanel({ holdings, loading, error, retry }: { holdings: ProfileH
   );
 }
 
-type ManagedCamp = { versusId: string; title: string; side: number; tokenAddress: string; tokenName: string; tokenSymbol: string };
+type ManagedCamp = { versusId: string; title: string; side: number; tokenAddress: string; tokenName: string; tokenSymbol: string; tokenImage?: string };
 
 function ManagedVersusPanel() {
   const [result, setResult] = useState<{ items: ManagedCamp[]; limited: boolean } | null>(null);
@@ -316,14 +316,47 @@ function ManagedVersusPanel() {
     return () => controller.abort();
   }, [retry]);
 
+  const managedVersus = Array.from((result?.items ?? []).reduce((groups, camp) => {
+    const group = groups.get(camp.versusId);
+    if (group) group.camps.push(camp);
+    else groups.set(camp.versusId, { versusId: camp.versusId, title: camp.title, camps: [camp] });
+    return groups;
+  }, new Map<string, { versusId: string; title: string; camps: ManagedCamp[] }>()).values());
+
   return <div className="profile-tab-panel" role="tabpanel" id="profile-panel-managed">
     <section className="profile-content-card">
-      <div className="profile-section-title"><div><span className="profile-eyebrow">Current fee rights</span><h2>Managed Versus</h2></div>{result ? <span className="profile-count-pill">{result.items.length} {result.items.length === 1 ? "camp" : "camps"}</span> : null}</div>
+      <div className="profile-section-title"><div><span className="profile-eyebrow">Current fee rights</span><h2>Managed Versus</h2></div>{result ? <span className="profile-count-pill">{managedVersus.length} versus</span> : null}</div>
       <p className="profile-holdings-note">These camps currently send their future creator fees to your wallet. The original launch creator remains unchanged.</p>
       {!result && !error ? <div className="profile-empty-state"><Icon name="wallet" /><strong>Loading managed camps…</strong></div> : null}
       {error ? <div className="profile-empty-state" role="alert"><Icon name="wallet" /><strong>Unable to load managed Versus</strong><p>{error}</p><button type="button" className="btn btn-glass" onClick={() => { setError(null); setRetry((value) => value + 1); }}>Retry</button></div> : null}
       {result && !error && result.items.length === 0 ? <div className="profile-empty-state"><Icon name="wallet" /><strong>No managed camps yet</strong><p>When your wallet receives a camp’s creator fees, it will appear here.</p></div> : null}
-      {result && !error && result.items.length > 0 ? <div className="profile-table-scroll"><table className="profile-data-table"><thead><tr><th>Versus</th><th>Camp</th><th>Rights</th><th>Action</th></tr></thead><tbody>{result.items.map((item) => <tr key={item.tokenAddress}><td><Link href={`/vs/${item.versusId}`}>{item.title}</Link></td><td>{item.tokenName} · {item.tokenSymbol}</td><td>Future creator fees</td><td><Link href={`/vs/${item.versusId}`}>Manage →</Link></td></tr>)}</tbody></table></div> : null}
+      {result && !error && managedVersus.length > 0 ? (
+        <div className="vs-table-wrap profile-managed-table-wrap" tabIndex={0} role="region" aria-label="Managed Versus and fee rights">
+          <table className="vs-table profile-managed-table">
+            <thead><tr><th scope="col">VS</th><th scope="col">Camp</th><th scope="col">Rights</th><th scope="col"><span className="sr-only">Manage</span></th></tr></thead>
+            {managedVersus.map((versus) => (
+              <tbody key={versus.versusId} className="table-matchup-group">
+                {versus.camps.map((camp, index) => (
+                  <tr className="table-token-row" key={camp.tokenAddress}>
+                    {index === 0 ? <td className="col-matchup" rowSpan={versus.camps.length}>
+                      <Link className="table-matchup-link" href={`/vs/${versus.versusId}`}>
+                        <span className="table-matchup-tint" />
+                        <span className="table-matchup-content">
+                          <span className="pair-bolt" aria-hidden="true"><span className="pb-dot pb-dot1" /><span className="pb-dot pb-dot2" /><span className="pb-icon" /></span>
+                          <span className="table-matchup-text"><span className="table-matchup-title">{versus.title}</span></span>
+                        </span>
+                      </Link>
+                    </td> : null}
+                    <td><Link href={`/vs/${versus.versusId}`} className="table-vs-link"><TokenImage src={camp.tokenImage} name={camp.tokenName} /><span className="table-vs-title">{camp.tokenName}</span></Link></td>
+                    <td className="profile-managed-rights">Future creator fees</td>
+                    {index === 0 ? <td className="profile-managed-action" rowSpan={versus.camps.length}><Link className="btn btn-glass" href={`/vs/${versus.versusId}`} aria-label={`Manage ${versus.title}`}>Manage</Link></td> : null}
+                  </tr>
+                ))}
+              </tbody>
+            ))}
+          </table>
+        </div>
+      ) : null}
       {result?.limited ? <p className="profile-holdings-note">Showing the 100 most recent managed camps.</p> : null}
     </section>
   </div>;

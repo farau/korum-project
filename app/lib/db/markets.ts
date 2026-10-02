@@ -3,16 +3,26 @@ import "server-only";
 import { INDEXER_SCHEMA } from "../../config/deployment";
 
 import { KORUM_CHAIN_ID } from "../../config/korum-network";
-import { redisCacheKey, rememberJson, type CacheDiagnostic } from "../cache/redis";
+import { connectedRedis, redisCacheKey, rememberJson, type CacheDiagnostic } from "../cache/redis";
 import { getEthUsdQuote } from "../markets/quote-usd";
 import { tokenPriceWad, unitsNumber } from "../markets/math";
+import { readLiveChart } from "../live/chart-cache";
 import { getDatabase } from "./client";
+import { getTokenVenue } from "./token-venue";
+import { usesKorumCandles, GRADUATING_MESSAGE, type TokenVenue } from "../markets/venue";
+
+export class TokenChartUnavailable extends Error {
+  constructor(public venue: TokenVenue) {
+    super(venue.curveStatus === 2 ? GRADUATING_MESSAGE : "This token uses the graduated pool chart.");
+  }
+}
 
 const TOKEN_ADDRESS = /^0x[0-9a-fA-F]{40}$/;
 
-export type MarketRange = "1m" | "5m" | "15m" | "1h" | "4h" | "1d" | "7d" | "30d" | "180d" | "all";
+export type MarketRange = "1s" | "1m" | "5m" | "15m" | "1h" | "4h" | "1d" | "7d" | "30d" | "180d" | "all";
 
 const RANGE_CONFIG: Record<MarketRange, { intervalSeconds: number; cacheSeconds: number }> = {
+  "1s": { intervalSeconds: 1, cacheSeconds: 2 },
   "1m": { intervalSeconds: 60, cacheSeconds: 2 },
   "5m": { intervalSeconds: 5 * 60, cacheSeconds: 2 },
   "15m": { intervalSeconds: 15 * 60, cacheSeconds: 2 },
@@ -42,6 +52,7 @@ type ChartRow = {
   lowMarketCap: string;
   blockNumber: number | string;
   lastTradeAt: number | string;
+  lastLogIndex: number;
   volumeQuote: string;
   tradeCount: number;
 };
@@ -55,6 +66,7 @@ type PriorChartRow = {
   previousCirculatingSupply: string | null;
   blockNumber: number | string;
   timestamp: number | string;
+  logIndex: number;
 };
 
 type TradeRow = {
@@ -107,18 +119,25 @@ export async function getTokenChart(tokenAddress: string, range: MarketRange, li
   const token = normalizeTokenAddress(tokenAddress);
   if (!token) return null;
 
+  // Check lifecycle before even serving an old cached window or history page.
+  const venue = await getTokenVenue(token);
+  if (venue && !usesKorumCandles(venue.curveStatus)) throw new TokenChartUnavailable(venue);
+
+  if (range === "1s" && before !== undefined) return null;
   const config = RANGE_CONFIG[range];
-  const safeLimit = Math.min(500, Math.max(1, Math.trunc(limit)));
+  const safeLimit = Math.min(range === "1s" ? 300 : 500, Math.max(1, Math.trunc(limit)));
   const interval = config.intervalSeconds;
   const nowSeconds = Math.floor(Date.now() / 1_000);
   const latestBucket = Math.floor(nowSeconds / interval) * interval;
   const endBucket = before === undefined ? latestBucket : Math.min(latestBucket, Math.floor(before / interval) * interval - interval);
   const startSeconds = Math.max(0, endBucket - (safeLimit - 1) * interval);
   const endExclusive = endBucket + interval;
-  return rememberJson(
-    redisCacheKey("market", "chart-v5", token, range, startSeconds, endExclusive),
-    before === undefined ? config.cacheSeconds : 30,
-    async () => {
+  const loadSnapshot = async () => {
+      // Retries after a concurrent live revision must query the current window.
+      const latestBucket = Math.floor(Date.now() / 1000 / interval) * interval;
+      const endBucket = before === undefined ? latestBucket : Math.min(latestBucket, Math.floor(before / interval) * interval - interval);
+      const startSeconds = Math.max(0, endBucket - (safeLimit - 1) * interval);
+      const endExclusive = endBucket + interval;
       const database = getDatabase();
       const [rows, quote] = await Promise.all([
         database.unsafe<ChartRow[]>(`
@@ -136,6 +155,7 @@ export async function getTokenChart(tokenAddress: string, range: MarketRange, li
               ON graduation.chain_id = trade.chain_id AND graduation.token_address = trade.token_address
             WHERE trade.chain_id = $1
               AND trade.token_address = $2
+              AND trade.venue = 0
               AND trade.traded_at >= TO_TIMESTAMP($4::DOUBLE PRECISION)
               AND trade.traded_at < TO_TIMESTAMP($5::DOUBLE PRECISION)
           )
@@ -152,6 +172,7 @@ export async function getTokenChart(tokenAddress: string, range: MarketRange, li
             MAX(POWER(2::NUMERIC, 192) / NULLIF(sqrt_price_x96_after::NUMERIC * sqrt_price_x96_after::NUMERIC, 0) * circulating_supply::NUMERIC / POWER(10::NUMERIC, 18))::TEXT AS "highMarketCap",
             MIN(POWER(2::NUMERIC, 192) / NULLIF(sqrt_price_x96_after::NUMERIC * sqrt_price_x96_after::NUMERIC, 0) * circulating_supply::NUMERIC / POWER(10::NUMERIC, 18))::TEXT AS "lowMarketCap",
             MAX(block_number) AS "blockNumber",
+            (ARRAY_AGG(log_index ORDER BY block_number DESC, log_index DESC))[1] AS "lastLogIndex",
             MAX(EXTRACT(EPOCH FROM traded_at)) AS "lastTradeAt",
             SUM(eth_gross)::TEXT AS "volumeQuote",
             COUNT(*)::INTEGER AS "tradeCount"
@@ -182,11 +203,12 @@ export async function getTokenChart(tokenAddress: string, range: MarketRange, li
             ELSE camp.total_supply - previous_trade.token_reserve_after
           END::TEXT AS "previousCirculatingSupply",
           trade.block_number AS "blockNumber",
+          trade.log_index AS "logIndex",
           EXTRACT(EPOCH FROM trade.traded_at)::BIGINT AS "timestamp"
         FROM (
           SELECT *
           FROM ${INDEXER_SCHEMA}.camp_trades
-          WHERE chain_id = $1 AND token_address = $2
+          WHERE chain_id = $1 AND token_address = $2 AND venue = 0
             AND traded_at < TO_TIMESTAMP($3::DOUBLE PRECISION)
           ORDER BY block_number DESC, log_index DESC
           LIMIT 1
@@ -200,6 +222,7 @@ export async function getTokenChart(tokenAddress: string, range: MarketRange, li
           FROM ${INDEXER_SCHEMA}.camp_trades candidate
           WHERE candidate.chain_id = trade.chain_id
             AND candidate.token_address = trade.token_address
+            AND candidate.venue = 0
             AND candidate.traded_at >= TO_TIMESTAMP(FLOOR(EXTRACT(EPOCH FROM trade.traded_at) / $4) * $4)
             AND candidate.traded_at < TO_TIMESTAMP((FLOOR(EXTRACT(EPOCH FROM trade.traded_at) / $4) + 1) * $4)
           ORDER BY candidate.block_number ASC, candidate.log_index ASC
@@ -210,6 +233,7 @@ export async function getTokenChart(tokenAddress: string, range: MarketRange, li
           FROM ${INDEXER_SCHEMA}.camp_trades candidate
           WHERE candidate.chain_id = trade.chain_id
             AND candidate.token_address = trade.token_address
+            AND candidate.venue = 0
             AND candidate.traded_at < TO_TIMESTAMP(FLOOR(EXTRACT(EPOCH FROM trade.traded_at) / $4) * $4)
           ORDER BY candidate.block_number DESC, candidate.log_index DESC
           LIMIT 1
@@ -322,7 +346,10 @@ export async function getTokenChart(tokenAddress: string, range: MarketRange, li
         intervalSeconds: config.intervalSeconds,
         windowStart: startSeconds,
         windowEnd: endBucket,
-        hasMore: Boolean(prior),
+        hasMore: range !== "1s" && Boolean(prior),
+        lastTradeCursor: rows.length
+          ? { block: Number(rows.at(-1)!.blockNumber), log: rows.at(-1)!.lastLogIndex }
+          : prior ? { block: Number(prior.blockNumber), log: prior.logIndex } : null,
         priorPrice,
         priorMarketCap,
         priorPriceUp,
@@ -335,7 +362,30 @@ export async function getTokenChart(tokenAddress: string, range: MarketRange, li
         quoteUsd: quote?.value ?? null,
         quoteUsdUpdatedAt: quote?.updatedAt ?? null,
       };
-    },
+  };
+  // Persist only the canonical live window used by the UI. Arbitrary page sizes
+  // and closed history retain the bounded request cache.
+  if (before === undefined && safeLimit === 300 && (process.env.KORUM_GOLDSKY_WEBHOOK_SECRET?.length ?? 0) >= 32 && process.env.REDIS_URL) {
+    let loadFailed = false;
+    try {
+      const redis = await connectedRedis();
+      if (redis?.status === "ready") {
+        const snapshot = await readLiveChart(redis, redisCacheKey, token, range, async () => {
+          try { return await loadSnapshot(); }
+          catch (error) { loadFailed = true; throw error; }
+        }, diagnostic);
+        const quote = await getEthUsdQuote();
+        return { ...snapshot, quoteUsd: quote?.value ?? null, quoteUsdUpdatedAt: quote?.updatedAt ?? null };
+      }
+    } catch (error) {
+      if (loadFailed) throw error;
+      // Redis failure must not hide market data or serve a stale long-lived page.
+    }
+  }
+  return rememberJson(
+    redisCacheKey("market", "chart-v6", token, range, startSeconds, endExclusive),
+    before === undefined ? config.cacheSeconds : 30,
+    loadSnapshot,
     diagnostic,
   );
 }

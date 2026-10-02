@@ -1,4 +1,4 @@
-import { getTokenChart, isMarketRange } from "../../../../lib/db/markets";
+import { getTokenChart, isMarketRange, TokenChartUnavailable } from "../../../../lib/db/markets";
 import type { CacheDiagnostic } from "../../../../lib/cache/redis";
 
 export async function GET(
@@ -18,6 +18,9 @@ export async function GET(
   if (!Number.isInteger(limit) || limit < 1 || limit > 500 || (before !== undefined && (!Number.isSafeInteger(before) || before < 1))) {
     return Response.json({ error: "Invalid chart pagination." }, { status: 400 });
   }
+  if (rangeValue === "1s" && (before !== undefined || limit > 300)) {
+    return Response.json({ error: "The 1s chart is limited to the latest five minutes." }, { status: 400 });
+  }
   const cache: CacheDiagnostic = { status: "BYPASS" };
 
   try {
@@ -32,6 +35,9 @@ export async function GET(
         })
       : Response.json({ error: "Invalid token address." }, { status: 400 });
   } catch (error) {
+    if (error instanceof TokenChartUnavailable) {
+      return Response.json({ error: error.message, ...error.venue }, { status: 409, headers: { "Cache-Control": "no-store" } });
+    }
     console.error("Unable to read the indexed token chart.", error);
     return Response.json({ error: "Market data is temporarily unavailable." }, { status: 503 });
   }

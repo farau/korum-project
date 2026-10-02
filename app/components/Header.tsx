@@ -10,6 +10,7 @@ import {
   type AppNotification,
 } from "../lib/notifications/client";
 import ProfileAvatar from "./ProfileAvatar";
+import BellIcon from "./BellIcon";
 import { shortenAddress, useWallet } from "./WalletProvider";
 
 const navItems = [
@@ -258,7 +259,7 @@ function HeaderContent({ notificationWallet }: { notificationWallet: string | nu
               aria-controls="notification-panel"
               onClick={toggleNotifications}
             >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M6 9a6 6 0 0 1 12 0c0 4 1.5 5.5 2 6H4c0.5-0.5 2-2 2-6z" /><path d="M10 19a2 2 0 0 0 4 0" /></svg>
+              <BellIcon />
               <span className="notif-dot" hidden={!hasUnreadNotifications} />
             </button>
 

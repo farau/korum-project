@@ -3,6 +3,7 @@ import "server-only";
 import { INDEXER_SCHEMA } from "../../config/deployment";
 import { KORUM_CHAIN_ID } from "../../config/korum-network";
 import { getDatabase } from "./client";
+import { publicAssetUrl } from "./debates";
 
 export type ManagedCamp = {
   versusId: string;
@@ -11,14 +12,15 @@ export type ManagedCamp = {
   tokenAddress: string;
   tokenName: string;
   tokenSymbol: string;
+  tokenImage?: string;
 };
 
 export async function getManagedVersus(wallet: string) {
-  const rows = await getDatabase().unsafe<ManagedCamp[]>(`
+  const rows = await getDatabase().unsafe<(ManagedCamp & { tokenUri: string })[]>(`
     SELECT recipient.versus_id::TEXT AS "versusId",
       versus.title, recipient.side,
       recipient.token_address AS "tokenAddress",
-      camp.name AS "tokenName", camp.symbol AS "tokenSymbol"
+      camp.name AS "tokenName", camp.symbol AS "tokenSymbol", camp.uri AS "tokenUri"
     FROM ${INDEXER_SCHEMA}.camp_fee_recipients recipient
     JOIN ${INDEXER_SCHEMA}.versuses versus
       ON versus.chain_id = recipient.chain_id AND versus.versus_id = recipient.versus_id
@@ -29,5 +31,8 @@ export async function getManagedVersus(wallet: string) {
     LIMIT 101
   `, [KORUM_CHAIN_ID, wallet.toLowerCase()]);
 
-  return { items: rows.slice(0, 100), limited: rows.length > 100 };
+  return {
+    items: rows.slice(0, 100).map(({ tokenUri, ...camp }) => ({ ...camp, tokenImage: publicAssetUrl(tokenUri) })),
+    limited: rows.length > 100,
+  };
 }

@@ -2,7 +2,7 @@
 
 Korum is a Next.js application for creating and exploring tokenized matchups. Each matchup contains two opposing tokens. Users can follow market activity, compare both sides, simulate potential earnings, maintain a watchlist, and access wallet-linked profile data.
 
-The current repository is a functional dApp connected to Robinhood Testnet contracts. Railway stores application data and Goldsky-indexed protocol projections, which are the exclusive source for Versus and market activity displayed by the application. Wallet connection is provided by RainbowKit and authenticated through a server-verified wallet signature.
+The current repository is a functional dApp connected to Robinhood Testnet contracts. Railway stores application data and Goldsky-indexed protocol projections for Versus metadata, market metrics and activity. Active curve charts use these projections; graduated charts use a verified DEX Screener embed on supported mainnet pools. Wallet connection is provided by RainbowKit and authenticated through a server-verified wallet signature.
 
 ## Testnet v2
 
@@ -17,7 +17,11 @@ Read-only contract verification: `node --experimental-strip-types scripts/check-
 Versus charts and the Explore ticker support authenticated Goldsky webhooks,
 Redis Pub/Sub and one shared SSE connection per browser tab. Notifications are
 published after PostgreSQL commits the corresponding event. Market snapshots
-use revisioned Redis caches; polling remains enabled as a recovery path.
+use revisioned Redis caches; polling remains enabled as a recovery path. Active
+curve charts maintain shared 300-interval windows in Redis, with a five-minute
+limit for the `1s` view. Graduation pauses trading and candle requests; once the
+token is live, its chart switches to the verified DEX Screener pool embed.
+Goldsky continues storing pool trades for analytics and market activity.
 See [configuration, delivery semantics and rollout](docs/market-live.md).
 
 ## Creator fee recipient transfers
@@ -39,7 +43,7 @@ Either camp's **current on-chain fee recipient** can edit the Versus X, Telegram
 - Profile access requires a valid server-side session created from a verified wallet signature.
 - Wallet identities, editable profile fields, and wallet-bound watchlists are persisted in a managed Railway PostgreSQL database.
 - Trading and VS creation simulate contract calls before submitting wallet-confirmed transactions to the deployed Robinhood Testnet contracts.
-- Goldsky indexes both curve and pool trades into Railway for strict-window Lightweight Charts, current prices, volumes, market caps, adjusted FDVs, and recent activity.
+- Goldsky indexes both curve and pool trades into Railway for current prices, volumes, market caps, adjusted FDVs, and recent activity. Korum Lightweight Charts generate candles only for active bonding curves.
 - A private Railway Redis service caches public indexed reads, Alchemy quotes, and wallet-scoped Profile statistics across application replicas without becoming a source of truth.
 - Explore, Versus details, Analytics, charts, and visible activity refresh automatically through Redis-backed HTTP reads without polling blockchain RPCs for indexed metrics.
 - The Explore buy/sell ticker reads real indexed trades and spaces incoming results through a bounded client queue instead of displaying simultaneous bursts.
@@ -53,6 +57,7 @@ Either camp's **current on-chain fee recipient** can edit the Versus X, Telegram
 - Category filters and sorting by trend, market cap, volume, traders, or launch date.
 - Grid and table views for matchup discovery.
 - Buy and sell card states for both matchup tokens.
+- Graduation trading pause and verified DEX Screener charts after migration on mainnet; explicit waiting and unsupported-testnet states.
 - Live indexed transaction ticker with green buy and red sell highlights and sequential reveal of polled events.
 - Dedicated empty and unavailable states when the Goldsky/Railway read model returns no Versus or cannot be reached.
 - Persistent Railway-backed watchlist synchronized across authenticated wallet sessions.
@@ -83,6 +88,7 @@ Either camp's **current on-chain fee recipient** can edit the Versus X, Telegram
 | Database | Managed PostgreSQL on Railway through the `postgres` driver |
 | Cache | Private Railway Redis through `ioredis`, with graceful source fallback |
 | Indexing | Goldsky Turbo streaming Robinhood Testnet events into Railway |
+| Charts | TradingView Lightweight Charts for active curves; verified DEX Screener iframe for graduated mainnet pools |
 | USD quote | Alchemy Prices API, server-side only, with an explicit ETH fallback |
 
 ## Architecture Decisions
@@ -160,6 +166,7 @@ If port `3000` is already occupied, Next.js selects the next available port and 
 | `npm run auth:check` | Exercise wallet authentication, profile persistence, referrals, and watchlist API access with a disposable test account |
 | `npx tsc --noEmit` | Run a standalone TypeScript check |
 | `npx next typegen` | Regenerate typed App Router route definitions |
+| `node scripts/check-graduated-markets.mjs` | Check graduation guards, pool discovery/cache behavior and chart switching in isolation; no external writes |
 
 ## Routes
 
@@ -181,7 +188,9 @@ If port `3000` is already occupied, Next.js selects the next available port and 
 | `/api/versus/[id]` | Cache-backed reactive snapshot for one indexed Versus |
 | `/api/versus/search` | Search indexed Versus |
 | `/api/versus/[id]/positions` | Authenticated wallet positions for one Versus |
-| `/api/markets/[token]/chart` | Railway-backed price and circulating-supply market-cap OHLC candles; accepts `range=1h|1d|7d|30d|180d` |
+| `/api/markets/[token]/chart` | Active-curve price and market-cap OHLC; resolutions from `1s` to `180d`, plus `all`; returns `409` while graduating or live |
+| `/api/markets/[token]/venue` | Indexed lifecycle and PoolId, with verified DEX Screener chart discovery for live tokens |
+| `/api/markets/live` | Shared SSE delivery for token chart interests and the global trade feed |
 | `/api/markets/[token]/trades` | Recent normalized trades preserving `venue=curve|pool` |
 | `/api/markets/trades` | Global Redis-backed recent-trade feed used by the Explore ticker |
 | `/api/rpc` | Same-origin, read-only and rate-limited proxy used only after the official Robinhood RPC fails |

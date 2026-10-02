@@ -43,7 +43,9 @@ export async function GET(request: Request) {
       };
       send = notice => {
         if (!notice.reset && !feed && !notice.tokens.some(token => tokens.has(token))) return;
-        enqueue(`event: market\ndata: ${JSON.stringify(notice)}\n\n`);
+        // Feed subscribers need all token notices, but only chart interests need prices.
+        const payload = { ...notice, trades: notice.trades?.filter(trade => tokens.has(trade.token)) };
+        enqueue(`event: market\ndata: ${JSON.stringify(payload)}\n\n`);
       };
       request.signal.addEventListener("abort", close, { once: true });
       enqueue('retry: 5000\nevent: ready\ndata: {}\n\n');

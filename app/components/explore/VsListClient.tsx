@@ -8,10 +8,32 @@ import { useIndexedDebates, useIndexedDebateSearch } from "../../hooks/useIndexe
 import { useExploreSearch } from "./ExploreSearchProvider";
 
 type SortMode = "trending" | "marketCap" | "volume" | "holders" | "recent";
+type AgeFilter = "all" | "1h" | "24h" | "7d";
 type PaginationItem = number | "start-ellipsis" | "end-ellipsis";
 
 const PAGE_SIZE = 12;
 const EMPTY_DEBATES: Debate[] = [];
+const ageFilters: Array<{ value: AgeFilter; label: string; minutes: number | null }> = [
+  { value: "all", label: "All dates", minutes: null },
+  { value: "1h", label: "< 1h", minutes: 60 },
+  { value: "24h", label: "< 24h", minutes: 1440 },
+  { value: "7d", label: "< 7d", minutes: 10080 },
+];
+
+function minimumValue(value: string) {
+  const number = Number(value);
+  return Number.isFinite(number) && number > 0 ? number : 0;
+}
+
+function matchesAdvancedFilters(debate: Debate, marketCapMin: number, tradersMin: number, maxAgeMinutes: number | null, now: number | null) {
+  if (totalMarketCap(debate) < marketCapMin || debateParticipants(debate) < tradersMin) return false;
+  if (maxAgeMinutes === null) return true;
+  const timestamp = newestTimestamp(debate);
+  const ageMinutes = timestamp && now !== null
+    ? Math.max(0, (now - timestamp) / 60_000)
+    : Math.max(0, debate.createdMinutesAgo);
+  return ageMinutes < maxAgeMinutes;
+}
 
 const sortLabels: Array<{ value: SortMode; label: string }> = [
   { value: "trending", label: "Trending" },
@@ -154,6 +176,13 @@ export default function VsListClient({ indexedDebates, indexedReadFailed }: VsLi
   const searchedDebates = useIndexedDebateSearch(activeSearchQuery, Boolean(activeSearchQuery));
   const [sortMode, setSortMode] = useState<SortMode>("trending");
   const [menuOpen, setMenuOpen] = useState(false);
+  const [marketCapMinInput, setMarketCapMinInput] = useState("");
+  const [tradersMinInput, setTradersMinInput] = useState("");
+  const [ageFilter, setAgeFilter] = useState<AgeFilter>("all");
+  const marketCapMin = minimumValue(marketCapMinInput);
+  const tradersMin = minimumValue(tradersMinInput);
+  const maxAgeMinutes = ageFilters.find((filter) => filter.value === ageFilter)!.minutes;
+  const activeFilterCount = Number(marketCapMin > 0) + Number(tradersMin > 0) + Number(ageFilter !== "all");
   const [view, setView] = useState<"grid" | "table">("grid");
   const [now, setNow] = useState<number | null>(null);
   const baseDebates = liveDebates.data ?? indexedDebates;
@@ -173,7 +202,7 @@ export default function VsListClient({ indexedDebates, indexedReadFailed }: VsLi
   }, []);
 
   const filtered = useMemo(() => {
-    const debates = currentIndexedDebates;
+    const debates = currentIndexedDebates.filter((debate) => matchesAdvancedFilters(debate, marketCapMin, tradersMin, maxAgeMinutes, now));
     const list = category === "HotTake"
       ? [...debates].sort((a, b) => debateVolume(b) - debateVolume(a)).slice(0, 12)
       : debates.filter((debate) => category === "All" || normalizeSearch(debate.category) === normalizeSearch(category));
@@ -183,9 +212,15 @@ export default function VsListClient({ indexedDebates, indexedReadFailed }: VsLi
     if (sortMode === "holders") searchedList.sort((a, b) => debateParticipants(b) - debateParticipants(a));
     if (sortMode === "recent") searchedList.sort((a, b) => newestTimestamp(b) - newestTimestamp(a));
     return searchedList;
-  }, [category, currentIndexedDebates, sortMode]);
+  }, [category, currentIndexedDebates, sortMode, marketCapMin, tradersMin, maxAgeMinutes, now]);
 
-  const paginationKey = `indexed:${category}:${activeSearchQuery}:${sortMode}:${filtered.map((debate) => debate.id).join(",")}`;
+  const paginationKey = `indexed:${category}:${activeSearchQuery}:${sortMode}:${marketCapMin}:${tradersMin}:${ageFilter}:${filtered.map((debate) => debate.id).join(",")}`;
+
+  function resetAdvancedFilters() {
+    setMarketCapMinInput("");
+    setTradersMinInput("");
+    setAgeFilter("all");
+  }
 
   return (
     <section className="grid-section">
@@ -216,7 +251,7 @@ export default function VsListClient({ indexedDebates, indexedReadFailed }: VsLi
                 aria-controls="explore-filters-menu"
                 onClick={() => setMenuOpen((open) => !open)}
               >
-                Filters <span className="chevron">▾</span>
+                Filters{activeFilterCount > 0 ? ` (${activeFilterCount})` : ""} <span className="chevron">▾</span>
               </button>
               <div
                 id="explore-filters-menu"
@@ -241,19 +276,21 @@ export default function VsListClient({ indexedDebates, indexedReadFailed }: VsLi
                 <div className="fs-section-title">Advanced filters</div>
                 <div className="adv-filters">
                   <div className="adv-field">
-                    <label>Market cap min</label>
-                    <input type="number" placeholder="0" />
+                    <label htmlFor="explore-market-cap-min">Market cap min</label>
+                    <input id="explore-market-cap-min" type="number" min="0" step="any" placeholder="0" value={marketCapMinInput} onChange={(event) => setMarketCapMinInput(event.target.value)} />
                   </div>
                   <div className="adv-field">
-                    <label>Minimum traders</label>
-                    <input type="number" placeholder="0" />
+                    <label htmlFor="explore-traders-min">Minimum traders</label>
+                    <input id="explore-traders-min" type="number" min="0" step="1" placeholder="0" value={tradersMinInput} onChange={(event) => setTradersMinInput(event.target.value)} />
                   </div>
                   <div className="age-pill-row">
-                    <button type="button" className="active">All dates</button>
-                    <button type="button">&lt; 1h</button>
-                    <button type="button">&lt; 24h</button>
-                    <button type="button">&lt; 7d</button>
+                    {ageFilters.map((filter) => (
+                      <button type="button" key={filter.value} className={ageFilter === filter.value ? "active" : ""} aria-pressed={ageFilter === filter.value} onClick={() => setAgeFilter(filter.value)}>
+                        {filter.label}
+                      </button>
+                    ))}
                   </div>
+                  <button type="button" disabled={marketCapMinInput === "" && tradersMinInput === "" && ageFilter === "all"} onClick={resetAdvancedFilters}>Reset filters</button>
                 </div>
               </div>
             </div>
@@ -290,7 +327,8 @@ export default function VsListClient({ indexedDebates, indexedReadFailed }: VsLi
               ? "Versus are temporarily unavailable. Try again shortly."
               : indexedFeedEmpty
                 ? "No Versus have been created yet."
-                : "Try a different search, category, or sorting option."}</p>
+                : "Try a different search, category, or filter."}</p>
+            {activeFilterCount > 0 ? <button type="button" className="btn" onClick={resetAdvancedFilters}>Reset filters</button> : null}
           </div>
         ) : (
           <PaginatedResults debates={filtered} view={view} now={now} key={paginationKey} />
