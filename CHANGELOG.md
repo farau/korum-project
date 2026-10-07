@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.2.6] - 2026-10-07
+
 ### Added
 
 - Authenticated token-image uploads to Pinata with server-side validation, WebP normalization (256 × 256, at most 100 KiB), and CID/provenance storage in Railway PostgreSQL; migration `0015` associates images with indexed token addresses through confirmed camp URIs.
