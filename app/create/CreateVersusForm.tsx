@@ -45,6 +45,8 @@ import {
   REFERRAL_REGISTRY_ADDRESS,
 } from "../lib/contracts/korum";
 import type { PendingReferral } from "../lib/referrals/pending";
+import { TOKEN_IMAGE_MAX_INPUT_BYTES, TOKEN_IMAGE_TYPES } from "../lib/token-image-policy";
+import { uploadTokenImage } from "../lib/token-image-client";
 
 const classes = {
   actions: "create-actions",
@@ -107,10 +109,6 @@ const CATEGORIES = [
   "WTF",
 ] as const;
 
-const PUBLIC_URI_PATTERN = /^(https?:\/\/|ipfs:\/\/|ar:\/\/)/i;
-const MAX_IMAGE_SIZE = 5 * 1024 * 1024;
-
-
 type VersusParams = {
   title: string;
   description: string;
@@ -144,12 +142,6 @@ function symbolFromName(value: string) {
 
 function sanitizeSymbol(value: string) {
   return value.replace(/[^a-z0-9]/gi, "").slice(0, 10).toUpperCase();
-}
-
-function displayImageUri(uri: string) {
-  if (uri.startsWith("ipfs://")) return `https://ipfs.io/ipfs/${uri.slice(7)}`;
-  if (uri.startsWith("ar://")) return `https://arweave.net/${uri.slice(5)}`;
-  return uri;
 }
 
 function backgroundImage(uri: string) {
@@ -225,8 +217,8 @@ export default function CreateVersusForm({ initialPendingReferral }: { initialPe
   const [campBSymbol, setCampBSymbol] = useState("");
   const [campASymbolEdited, setCampASymbolEdited] = useState(false);
   const [campBSymbolEdited, setCampBSymbolEdited] = useState(false);
-  const [campAUri, setCampAUri] = useState("");
-  const [campBUri, setCampBUri] = useState("");
+  const [campAFile, setCampAFile] = useState<File | null>(null);
+  const [campBFile, setCampBFile] = useState<File | null>(null);
   const [campAPreview, setCampAPreview] = useState("");
   const [campBPreview, setCampBPreview] = useState("");
   const [creatorBuyBpsA, setCreatorBuyBpsA] = useState(100);
@@ -243,7 +235,20 @@ export default function CreateVersusForm({ initialPendingReferral }: { initialPe
   const processedReceipt = useRef<Hash | null>(null);
   const submittingRef = useRef(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isUploadingImages, setIsUploadingImages] = useState(false);
+  const activeWallet = useRef<string | undefined>(address);
 
+  useEffect(() => {
+    activeWallet.current = authenticated ? address : undefined;
+  }, [address, authenticated]);
+
+  useEffect(() => () => {
+    if (campAPreview) URL.revokeObjectURL(campAPreview);
+  }, [campAPreview]);
+
+  useEffect(() => () => {
+    if (campBPreview) URL.revokeObjectURL(campBPreview);
+  }, [campBPreview]);
 
   useEffect(() => {
     if (!previewOpen) return;
@@ -328,8 +333,8 @@ export default function CreateVersusForm({ initialPendingReferral }: { initialPe
     && balanceData !== undefined
     && balanceData.value < estimatedTotalCost;
 
-  const campAImage = campAPreview || (PUBLIC_URI_PATTERN.test(campAUri) ? displayImageUri(campAUri) : "");
-  const campBImage = campBPreview || (PUBLIC_URI_PATTERN.test(campBUri) ? displayImageUri(campBUri) : "");
+  const campAImage = campAPreview;
+  const campBImage = campBPreview;
   const normalizedXHandle = xHandle.trim().replace(/^@/, "");
 
   const formIssue = useMemo(() => {
@@ -339,9 +344,7 @@ export default function CreateVersusForm({ initialPendingReferral }: { initialPe
     if (campAName.trim().toLowerCase() === campBName.trim().toLowerCase()) return "The two sides must be different.";
     if (!campASymbol || !campBSymbol) return "Enter both token symbols.";
     if (campASymbol === campBSymbol) return "The two token symbols must be different.";
-    if (!PUBLIC_URI_PATTERN.test(campAUri.trim()) || !PUBLIC_URI_PATTERN.test(campBUri.trim())) {
-      return "Add a public HTTPS, IPFS, or Arweave URI for each side.";
-    }
+    if (!campAFile || !campBFile) return "Choose an image from your device for each side.";
     if (normalizedXHandle && !/^[A-Za-z0-9_]{1,15}$/.test(normalizedXHandle)) return "The X account is invalid.";
     if (creatorFeeRecipientInput.trim() && (!isAddress(creatorFeeRecipientInput.trim()) || getAddress(creatorFeeRecipientInput.trim()) === zeroAddress)) {
       return "Enter a valid non-zero creator fee recipient address.";
@@ -353,10 +356,10 @@ export default function CreateVersusForm({ initialPendingReferral }: { initialPe
   }, [
     campAName,
     campASymbol,
-    campAUri,
+    campAFile,
     campBName,
     campBSymbol,
-    campBUri,
+    campBFile,
     economicsId,
     economicsError,
     economics,
@@ -368,7 +371,7 @@ export default function CreateVersusForm({ initialPendingReferral }: { initialPe
     title,
   ]);
 
-  const buildParams = useCallback((creator: Address, creationSalt: Hex): VersusParams => ({
+  const buildParams = useCallback((creator: Address, creationSalt: Hex, imageUris: { a: string; b: string }): VersusParams => ({
     title: title.trim(),
     description: description.trim(),
     category,
@@ -376,8 +379,8 @@ export default function CreateVersusForm({ initialPendingReferral }: { initialPe
       ...(normalizedXHandle ? { x: `https://x.com/${normalizedXHandle}` } : {}),
       visibility: "public",
     }),
-    campA: { name: campAName.trim(), symbol: campASymbol, uri: campAUri.trim() },
-    campB: { name: campBName.trim(), symbol: campBSymbol, uri: campBUri.trim() },
+    campA: { name: campAName.trim(), symbol: campASymbol, uri: imageUris.a },
+    campB: { name: campBName.trim(), symbol: campBSymbol, uri: imageUris.b },
     creatorBuyBpsA: effectiveCreatorBuyBpsA,
     creatorBuyBpsB: effectiveCreatorBuyBpsB,
     creatorFeeRecipient: creatorFeeRecipientInput.trim() ? getAddress(creatorFeeRecipientInput.trim()) : creator,
@@ -388,10 +391,8 @@ export default function CreateVersusForm({ initialPendingReferral }: { initialPe
   }), [
     campAName,
     campASymbol,
-    campAUri,
     campBName,
     campBSymbol,
-    campBUri,
     category,
     configId,
     creatorFeeRecipientInput,
@@ -507,12 +508,26 @@ export default function CreateVersusForm({ initialPendingReferral }: { initialPe
     try {
       resetWrite();
       setTransactionHash(undefined);
+      if (!campAFile || !campBFile) throw new Error("Choose an image for each side.");
+      const assertWalletUnchanged = () => {
+        if (activeWallet.current?.toLowerCase() !== address.toLowerCase()) {
+          throw new Error("Your wallet changed. Sign in again before publishing.");
+        }
+      };
+      setIsUploadingImages(true);
+      // Each response is returned only once the compressed image is pinned and
+      // its CID is committed in PostgreSQL. Retries reuse the server's saved pin.
+      const imageA = await uploadTokenImage(campAFile, address);
+      assertWalletUnchanged();
+      const imageB = await uploadTokenImage(campBFile, address);
+      assertWalletUnchanged();
+      setIsUploadingImages(false);
       const [expectedEconomicsId, latestEconomics] = await publicClient.readContract({
         address: KORUM_PAIR_REGISTRY_ADDRESS, abi: KORUM_PAIR_REGISTRY_ABI,
         functionName: "resolve", args: [KORUM_QUOTE_ASSET],
       }) as readonly [number, PairEconomics];
       if (latestEconomics.quoteAsset.toLowerCase() !== KORUM_QUOTE_ASSET) throw new Error("Only native ETH launches are supported.");
-      const params = { ...buildParams(address, createSalt()), expectedEconomicsId };
+      const params = { ...buildParams(address, createSalt(), { a: imageA.uri, b: imageB.uri }), expectedEconomicsId };
       const referrer = (await fetchPendingReferral(address))?.evmWallet ?? zeroAddress;
       const latestCost = await publicClient.readContract({
         address: KORUM_LENS_ADDRESS,
@@ -530,6 +545,7 @@ export default function CreateVersusForm({ initialPendingReferral }: { initialPe
         value: latestCost,
       });
 
+      assertWalletUnchanged();
       const hash = await writeContractAsync({
         account: address,
         address: KORUM_FACTORY_ADDRESS,
@@ -542,9 +558,11 @@ export default function CreateVersusForm({ initialPendingReferral }: { initialPe
       setTransactionHash(hash);
     } catch (error) {
       setSubmitError(errorMessage(error));
+    } finally {
+      setIsUploadingImages(false);
+      submittingRef.current = false;
+      setIsSubmitting(false);
     }
-    submittingRef.current = false;
-    setIsSubmitting(false);
   }
 
   function handleCampName(side: "a" | "b", value: string) {
@@ -560,19 +578,20 @@ export default function CreateVersusForm({ initialPendingReferral }: { initialPe
   function handleImageFile(side: "a" | "b", event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
     if (!file) return;
-    if (!file.type.startsWith("image/") || file.size > MAX_IMAGE_SIZE) {
-      setFileError("Choose a PNG, JPEG, WebP, or GIF image under 5 MB.");
+    if (!TOKEN_IMAGE_TYPES.includes(file.type) || !file.size || file.size > TOKEN_IMAGE_MAX_INPUT_BYTES) {
+      setFileError("Choose a PNG, JPEG, WebP, or GIF image no larger than 5 MB.");
       event.target.value = "";
       return;
     }
     setFileError(null);
-    const reader = new FileReader();
-    reader.onload = () => {
-      const result = typeof reader.result === "string" ? reader.result : "";
-      if (side === "a") setCampAPreview(result);
-      else setCampBPreview(result);
-    };
-    reader.readAsDataURL(file);
+    const preview = URL.createObjectURL(file);
+    if (side === "a") {
+      setCampAFile(file);
+      setCampAPreview(preview);
+    } else {
+      setCampBFile(file);
+      setCampBPreview(preview);
+    }
   }
 
   const transactionPending = isSubmitting || isWalletPromptOpen || isConfirming || Boolean(transactionHash && !receipt && !receiptError);
@@ -585,6 +604,7 @@ export default function CreateVersusForm({ initialPendingReferral }: { initialPe
   if (!isConnected || !authenticated) publishLabel = authenticating ? "Authenticating…" : "Connect wallet to publish";
   else if (chainId !== KORUM_CHAIN.id) publishLabel = `Switch to ${KORUM_CHAIN.name}`;
   else if (isSwitchingChain) publishLabel = "Switching network…";
+  else if (isUploadingImages) publishLabel = "Uploading token images…";
   else if (isSubmitting) publishLabel = "Preparing transaction…";
   else if (isWalletPromptOpen) publishLabel = "Confirm in your wallet…";
   else if (isConfirming) publishLabel = "Publishing…";
@@ -632,12 +652,12 @@ export default function CreateVersusForm({ initialPendingReferral }: { initialPe
               </div>
 
               <p className={classes.sectionTitle}>2. The two tokens</p>
-              <p className={classes.sectionNote}>Each side becomes a token when published. The local image is used for the preview; its public URI is stored on-chain.</p>
+              <p className={classes.sectionNote}>Choose an image from your device for each token. PNG, JPEG, WebP or GIF, up to 5 MB each. Images are cropped to 256 × 256 and compressed to WebP (100 KB max). Animated images use their first frame.</p>
               <div className={classes.tokenRow}>
                 <div className={classes.tokenCard}>
                   <label className={classes.uploadSquare}>
-                    <input type="file" accept="image/png,image/jpeg,image/webp,image/gif" onChange={(event) => handleImageFile("a", event)} />
-                    {campAImage ? <span className={classes.imagePreview} style={{ backgroundImage: backgroundImage(campAImage) }} /> : <span className={classes.uploadPlaceholder}><ImageIcon /><span>Side A image</span><small>Local preview</small></span>}
+                    <input type="file" aria-label="Side A image" accept={TOKEN_IMAGE_TYPES.join(",")} disabled={transactionPending} onChange={(event) => handleImageFile("a", event)} />
+                    {campAImage ? <span className={classes.imagePreview} style={{ backgroundImage: backgroundImage(campAImage) }} /> : <span className={classes.uploadPlaceholder}><ImageIcon /><span>Side A image</span><small>Choose a file · Max 5 MB</small></span>}
                   </label>
                   <div className={classes.field}>
                     <label htmlFor="camp-a-name">Name · Option A</label>
@@ -647,18 +667,14 @@ export default function CreateVersusForm({ initialPendingReferral }: { initialPe
                     <label htmlFor="camp-a-symbol">Symbol <span>(auto-generated)</span></label>
                     <div className={classes.tickerInput}><span>$</span><input id="camp-a-symbol" value={campASymbol} onChange={(event) => { setCampASymbolEdited(true); setCampASymbol(sanitizeSymbol(event.target.value)); }} maxLength={10} placeholder="PIZZA" /></div>
                   </div>
-                  <div className={classes.field}>
-                    <label htmlFor="camp-a-uri">Public image URI</label>
-                    <input id="camp-a-uri" type="url" value={campAUri} onChange={(event) => setCampAUri(event.target.value)} maxLength={512} placeholder="ipfs://… or https://…" />
-                  </div>
                 </div>
 
                 <div className={classes.tokenVs}><span><BoltIcon /></span></div>
 
                 <div className={classes.tokenCard}>
                   <label className={classes.uploadSquare}>
-                    <input type="file" accept="image/png,image/jpeg,image/webp,image/gif" onChange={(event) => handleImageFile("b", event)} />
-                    {campBImage ? <span className={classes.imagePreview} style={{ backgroundImage: backgroundImage(campBImage) }} /> : <span className={classes.uploadPlaceholder}><ImageIcon /><span>Side B image</span><small>Local preview</small></span>}
+                    <input type="file" aria-label="Side B image" accept={TOKEN_IMAGE_TYPES.join(",")} disabled={transactionPending} onChange={(event) => handleImageFile("b", event)} />
+                    {campBImage ? <span className={classes.imagePreview} style={{ backgroundImage: backgroundImage(campBImage) }} /> : <span className={classes.uploadPlaceholder}><ImageIcon /><span>Side B image</span><small>Choose a file · Max 5 MB</small></span>}
                   </label>
                   <div className={classes.field}>
                     <label htmlFor="camp-b-name">Name · Option B</label>
@@ -668,13 +684,9 @@ export default function CreateVersusForm({ initialPendingReferral }: { initialPe
                     <label htmlFor="camp-b-symbol">Symbol <span>(auto-generated)</span></label>
                     <div className={classes.tickerInput}><span>$</span><input id="camp-b-symbol" value={campBSymbol} onChange={(event) => { setCampBSymbolEdited(true); setCampBSymbol(sanitizeSymbol(event.target.value)); }} maxLength={10} placeholder="BURGER" /></div>
                   </div>
-                  <div className={classes.field}>
-                    <label htmlFor="camp-b-uri">Public image URI</label>
-                    <input id="camp-b-uri" type="url" value={campBUri} onChange={(event) => setCampBUri(event.target.value)} maxLength={512} placeholder="ipfs://… or https://…" />
-                  </div>
                 </div>
               </div>
-              {fileError ? <p className={classes.inlineError}>{fileError}</p> : null}
+              {fileError ? <p className={classes.inlineError} role="alert">{fileError}</p> : null}
               <div className={classes.infoNote}><InfoIcon /><span>Token supply: <strong>{formatTokenAmount(config?.totalSupply)} tokens</strong> per side.</span></div>
 
               <div className={classes.infoNote}><InfoIcon /><span>

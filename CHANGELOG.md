@@ -6,6 +6,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+
+- Authenticated token-image uploads to Pinata with server-side validation, WebP normalization (256 × 256, at most 100 KiB), and CID/provenance storage in Railway PostgreSQL; migration `0015` associates images with indexed token addresses through confirmed camp URIs.
+
+### Changed
+
+- Require a local image file for both tokens when creating a Versus, replacing public URI inputs; retain the 5 MiB input limit and upload both images before wallet signing, with retries reusing saved content.
+- Resolve indexed token images through a configurable public Pinata gateway across Versus and profile views.
+
+### Fixed
+
+- Defer the reduced-motion stats update in `EarnHeroStats` to a cancellable animation frame, resolving the React effect lint error.
+
 ## [0.2.5] - 2026-10-07
 
 ### Added

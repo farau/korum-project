@@ -11,8 +11,8 @@ export default function EarnHeroStats() {
     if (!root) return;
 
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-      setProgress(1);
-      return;
+      const frame = window.requestAnimationFrame(() => setProgress(1));
+      return () => window.cancelAnimationFrame(frame);
     }
 
     let animationFrame = 0;

@@ -10,6 +10,8 @@ import { redisCacheKey, rememberJson, type CacheDiagnostic } from "../cache/redi
 import { getEthUsdQuote } from "../markets/quote-usd";
 import { marketValueWei, percentageChange, tokenPriceWad, unitsNumber } from "../markets/math";
 import { getDatabase } from "./client";
+import { publicAssetUrl } from "../public-asset-url";
+export { publicAssetUrl } from "../public-asset-url";
 
 const DEFAULT_LIMIT = 100;
 const MAX_LIMIT = 250;
@@ -88,13 +90,6 @@ type IndexedDebateOptions = {
 type IndexedDebateIdRow = {
   versusId: string;
 };
-
-export function publicAssetUrl(uri: string) {
-  if (uri.startsWith("ipfs://")) return `https://ipfs.io/ipfs/${uri.slice(7)}`;
-  if (uri.startsWith("ar://")) return `https://arweave.net/${uri.slice(5)}`;
-  if (/^https?:\/\//i.test(uri)) return uri;
-  return undefined;
-}
 
 function isoTimestamp(value: Date | string) {
   const date = value instanceof Date ? value : new Date(value);
