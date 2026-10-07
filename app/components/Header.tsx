@@ -74,7 +74,21 @@ function HeaderContent({ notificationWallet }: { notificationWallet: string | nu
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const notificationCenterRef = useRef<HTMLDivElement>(null);
   const walletCenterRef = useRef<HTMLDivElement>(null);
+  const headerRef = useRef<HTMLElement>(null);
   const { address, connected, authenticating, connect, disconnect, hydrated: walletHydrated } = useWallet();
+
+  useEffect(() => {
+    const header = headerRef.current;
+    if (!header) return;
+
+    const updateHeight = () => {
+      document.documentElement.style.setProperty("--navbar-height", `${header.getBoundingClientRect().height}px`);
+    };
+    updateHeight();
+    const observer = new ResizeObserver(updateHeight);
+    observer.observe(header);
+    return () => observer.disconnect();
+  }, []);
 
   useEffect(() => {
     if (!walletHydrated) return;
@@ -235,7 +249,7 @@ function HeaderContent({ notificationWallet }: { notificationWallet: string | nu
   }
 
   return (
-    <header className="topbar">
+    <header className="topbar" ref={headerRef}>
       <div className="topbar-inner">
         <Link href="/explore" className="logo" aria-label="Korum">
           <LogoMark />
@@ -311,14 +325,14 @@ function HeaderContent({ notificationWallet }: { notificationWallet: string | nu
 
               {walletMenuOpen ? (
                 <section className="wallet-account-panel" id="wallet-account-panel" role="dialog" aria-label="Connected wallet">
-                  <div className="wallet-account-summary">
+                  <Link href="/profile" className="wallet-account-summary" aria-label="View your profile" onClick={() => setWalletMenuOpen(false)}>
                     <ProfileAvatar address={address} className="wallet-avatar-large" />
                     <div className="wallet-account-copy">
                       <span>Connected with</span>
                       <strong>{shortenAddress(address)}</strong>
                     </div>
-                    <Link href="/profile" className="wallet-profile-link" onClick={() => setWalletMenuOpen(false)}>See Profile</Link>
-                  </div>
+                    <span className="wallet-profile-link">See Profile</span>
+                  </Link>
                   <div className="wallet-account-divider" />
                   <button type="button" className="wallet-disconnect-button" disabled={disconnecting} onClick={disconnectWallet}>
                     <DisconnectIcon />

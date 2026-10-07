@@ -8,6 +8,26 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- Claimable ETH fees and a wallet-confirmed FeeEscrow withdrawal in the Profile Managed Versus and Referrals sections, showing the wallet-wide balance and retaining access to accrued fees after creator rights are transferred.
+- Indexed Versus holder counts based on distinct wallets with positive net token positions across either camp, excluding the zero address.
+- Mocked fee-claim regression checks covering both Profile tabs, retained fees after rights transfers, successful withdrawals, unavailable or empty balances, transaction failures and network switching, without sending transactions.
+
+### Changed
+
+- Replace Explore and Watchlist grid cards with a shared, compact two-image layout showing creator avatars, per-camp market caps and price changes, camp shares, combined market cap, holders, 24-hour volume and watchlist controls; use a responsive four-to-one-column Explore grid with smaller images, tighter spacing and a compact View Tokens button.
+- Replace inline Explore buy/sell controls with a View Tokens link to the Versus detail page; remove the legacy card component, unused quick-amount settings button and modal, compact trading-panel options and obsolete card styles.
+- Rework Earn around the Create, Trade and Refer cards, with separate dark/light reference artwork, clearer revenue explanations and a maximum-total-fee notice; remove the video hero and animated hero statistics while retaining the earnings calculator.
+- Widen responsive page gutters across the header, footer and core pages, limiting the main content to 1,200 px on large screens while retaining tablet and mobile spacing; keep the Earn calculator within those margins and derive sticky filter and mobile navigation offsets from the measured header height.
+- Unify Concept and Earn card backgrounds in dark and light themes, and reduce the shared content-to-footer spacing to 32 px with explicit support for both pages' final sections.
+- Make the entire connected-wallet summary a Profile link that closes the account menu.
+- Restyle Versus trading panels with clearer buy/sell selection, selected amount and slippage controls, keyboard focus indicators and an arrow-led transaction button.
+- Refine Concept card artwork and spacing, consolidate shared styles, and remove Explore's pointer-following spotlight while retaining animated grid streaks and reduced-motion support.
+- Document the shared FeeEscrow claim flow, wallet-wide creator/referral balance and retained withdrawal rights in the referral and indexer architecture guide.
+
+## [0.2.4] - 2026-10-03
+
+### Added
+
 - Verified DEX Screener charts for graduated Uniswap v4 tokens, with shared pool discovery and pending/testnet states.
 - Functional Explore advanced filters for minimum combined market cap, minimum traders and creation age, with an active filter count and reset action.
 - One-second Versus candles with a rolling five-minute window, second-level time labels and no historical pagination.
@@ -18,6 +38,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Broadcast confirmed trade prices, circulating market caps and volumes once per webhook batch; update active chart candles locally with cursor deduplication and gap recovery, without additional blockchain RPC calls.
 - Synchronize only the latest chart page every minute while live, retaining polling and snapshot recovery after reconnects or indexed corrections.
 - Maintain consulted chart windows in Redis with a ten-minute idle TTL, atomic trade updates and token revisions; share cold/recovery loads across replicas without periodic PostgreSQL rebuilds in quiet markets.
+- Group managed camps by Versus in Profile and display their token images.
+
+### Fixed
+
+- Unify Profile tab icons and prevent hover states from being clipped.
 
 ## [0.2.3] - 2026-10-01
 

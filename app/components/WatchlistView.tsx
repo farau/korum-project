@@ -3,7 +3,7 @@
 import React, { useMemo } from "react";
 import Link from "next/link";
 import { useWatchlist } from "../hooks/useWatchlist";
-import VsCard from "./explore/VsCard";
+import ExploreVsCard from "./explore/ExploreVsCard";
 
 function formatMoney(value: number) {
   return `$${Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 1 }).format(value)}`;
@@ -47,7 +47,7 @@ export default function WatchlistView() {
             </div>
           ) : (
             <div className="card-grid watchlist-grid">
-              {items.map((debate, index) => <VsCard key={debate.id} debate={debate} index={index} />)}
+              {items.map((debate, index) => <ExploreVsCard key={debate.id} debate={debate} index={index} />)}
             </div>
           )}
         </div>

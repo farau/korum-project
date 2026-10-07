@@ -52,7 +52,7 @@ import {
 import { useWallet } from "./WalletProvider";
 import styles from "./VsDetailClient.module.css";
 
-export type TradeMode = "buy" | "sell";
+type TradeMode = "buy" | "sell";
 type TransactionStep = "idle" | "approving" | "submitting" | "confirming" | "success";
 
 type CurveState = {
@@ -141,18 +141,10 @@ function minimumOutput(amountOut: bigint, slippageBps: number) {
 export default function TokenTradePanel({
   token,
   onStatus,
-  initialMode = "buy",
-  initialAmount,
-  initialSellPercentage,
-  compact = false,
   onCurveStatus,
 }: {
   token: DebateToken;
   onStatus: (message: string) => void;
-  initialMode?: TradeMode;
-  initialAmount?: string;
-  initialSellPercentage?: number;
-  compact?: boolean;
   onCurveStatus?: (address: string, status: number) => void;
 }) {
   const queryClient = useQueryClient();
@@ -163,9 +155,8 @@ export default function TokenTradePanel({
   const { switchChainAsync, isPending: isSwitchingChain } = useSwitchChain();
   const { writeContractAsync, isPending: isWalletPromptOpen, reset: resetWrite } = useWriteContract();
 
-  const [mode, setMode] = useState<TradeMode>(initialMode);
-  const [amount, setAmount] = useState(initialAmount ?? (initialMode === "buy" ? "0.01" : ""));
-  const initialSellPercentageApplied = useRef(false);
+  const [mode, setMode] = useState<TradeMode>("buy");
+  const [amount, setAmount] = useState("0.01");
   const [quote, setQuote] = useState<Quote | null>(null);
   const [quoteError, setQuoteError] = useState<string | null>(null);
   const [isQuoting, setIsQuoting] = useState(false);
@@ -299,11 +290,7 @@ export default function TokenTradePanel({
     query: { enabled: Boolean(address && tokenAddress), refetchInterval: 15_000 },
   });
   const tokenBalance = tokenBalanceData as bigint | undefined;
-  useEffect(() => {
-    if (initialMode !== "sell" || initialSellPercentage === undefined || initialSellPercentageApplied.current || tokenBalance === undefined) return;
-    initialSellPercentageApplied.current = true;
-    setAmount(formatUnits(tokenBalance * BigInt(initialSellPercentage) / HUNDRED, decimals));
-  }, [initialMode, initialSellPercentage, tokenBalance, decimals]);
+
   const spender = curve?.status === 3 ? KORUM_ROUTER_ADDRESS : KORUM_CORE_ADDRESS;
   const { data: allowanceData, isLoading: isLoadingAllowance, refetch: refetchAllowance } = useReadContract({
     address: tokenAddress ?? zeroAddress,
@@ -607,7 +594,6 @@ export default function TokenTradePanel({
 
   function setSellPercentage(percentage: bigint) {
     if (tokenBalance === undefined) return;
-    initialSellPercentageApplied.current = true;
     setAmount(formatUnits(tokenBalance * percentage / HUNDRED, decimals));
     setQuote(null);
     setQuoteError(null);
@@ -693,14 +679,12 @@ export default function TokenTradePanel({
           || (!currentQuote && !(approvalRequired && curve?.status === 3)));
 
   return (
-    <form className={`${styles.tradeCard} ${mode === "sell" ? styles.sellMode : ""} ${compact ? styles.compactTradeCard : ""}`} onSubmit={handleTrade}>
+    <form className={`${styles.tradeCard} ${mode === "sell" ? styles.sellMode : ""}`} onSubmit={handleTrade}>
       {graduating ? <p className={styles.tradeNotice} role="status">{GRADUATING_MESSAGE}</p> : null}
-      {!compact ? (
-        <div className={styles.tradeTabs}>
-          <button type="button" disabled={graduating} className={mode === "buy" ? styles.activeBuy : ""} onClick={() => selectMode("buy")}>BUY</button>
-          <button type="button" disabled={graduating} className={mode === "sell" ? styles.activeSell : ""} onClick={() => selectMode("sell")}>SELL</button>
-        </div>
-      ) : null}
+      <div className={styles.tradeTabs}>
+        <button type="button" disabled={graduating} aria-pressed={mode === "buy"} className={mode === "buy" ? styles.activeBuy : ""} onClick={() => selectMode("buy")}>BUY</button>
+        <button type="button" disabled={graduating} aria-pressed={mode === "sell"} className={mode === "sell" ? styles.activeSell : ""} onClick={() => selectMode("sell")}>SELL</button>
+      </div>
 
       <div className={styles.amountHead}>
         <span>AMOUNT</span>
@@ -717,7 +701,6 @@ export default function TokenTradePanel({
             disabled={graduating}
             value={amount}
             onChange={(event) => {
-              initialSellPercentageApplied.current = true;
               setAmount(event.target.value);
               setQuote(null);
               setQuoteError(null);
@@ -783,8 +766,8 @@ export default function TokenTradePanel({
       ) : null}
 
       <button className={styles.tradeSubmit} type="submit" disabled={submitDisabled}>
-        {buttonLabel}
-        <small>{buttonHint}</small>
+        <span className={styles.tradeSubmitArrow} aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14m-6-6 6 6-6 6" /></svg></span>
+        <span className={styles.tradeSubmitText}>{buttonLabel}<small>{buttonHint}</small></span>
       </button>
     </form>
   );

@@ -189,6 +189,8 @@ The candidate referrer resolved from the pending referral cookie is passed to `b
 
 The component never writes trading results to Railway. Goldsky independently projects confirmed `Trade` events into the historical read model. Wallet balances, live curve status, and the immediately simulated quote remain authoritative for submitting a transaction; the indexed projection is authoritative only for historical charts and aggregates.
 
+The Profile Managed Versus and Referrals sections share a fee claim card that reads `FeeEscrow.claimable(connectedWallet)` on-chain every 15 seconds while visible. Its Claim fees action checks the network and fresh balance, simulates `claim()`, asks the wallet to sign, waits for a successful receipt and refreshes the claimable and wallet balances. FeeEscrow holds a single ETH balance per recipient: the displayed amount and withdrawal include all accrued creator and referral fees across Versus, rather than a per-camp total. Previous recipients can still withdraw their accrued fees after transferring creator rights. Native ETH is the configured launch quote asset; ERC-20 claims are not exposed by this UI.
+
 ## Market-data architecture
 
 Korum stores the protocol's trade events rather than periodic price snapshots. This is viable because every confirmed trade is an immutable, auditable market fact and the event already carries the post-trade state required by the UI. Goldsky listens to the identical `Trade` signature on both emitters:

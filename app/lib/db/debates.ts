@@ -75,6 +75,7 @@ type IndexedDebateRow = {
   tokenBTraderCount: number;
   tokenBPriceHistory: string[] | null;
   versusTraderCount: number;
+  versusHolderCount: number;
 };
 
 type IndexedDebateOptions = {
@@ -249,6 +250,7 @@ function toDebate(row: IndexedDebateRow, quoteUsd: number | null): Debate | null
     liquidity: 0,
     trades24h: marketA.trades24h + marketB.trades24h,
     participantCount: row.versusTraderCount,
+    holderCount: row.versusHolderCount,
     createdMinutesAgo,
     marketCapA: marketA.marketCap,
     marketCapB: marketB.marketCap,
@@ -465,7 +467,15 @@ async function readIndexedDebates({ limit = DEFAULT_LIMIT, versusId, watchlistUs
       stats_b.trades_24h AS "tokenBTrades24h",
       stats_b.trader_count AS "tokenBTraderCount",
       stats_b.price_history AS "tokenBPriceHistory",
-      stats_versus.trader_count AS "versusTraderCount"
+      stats_versus.trader_count AS "versusTraderCount",
+      (
+        SELECT COUNT(DISTINCT position.trader_address)::INTEGER
+        FROM ${INDEXER_SCHEMA}.trader_positions position
+        WHERE position.chain_id = v.chain_id
+          AND position.token_address IN (camp_a.token_address, camp_b.token_address)
+          AND position.net_token_amount > 0
+          AND position.trader_address <> '0x0000000000000000000000000000000000000000'
+      ) AS "versusHolderCount"
     FROM ${INDEXER_SCHEMA}.versuses v
     LEFT JOIN public.versus_socials_overrides social_override
       ON social_override.chain_id = v.chain_id AND social_override.versus_id = v.versus_id

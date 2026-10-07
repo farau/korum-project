@@ -63,16 +63,6 @@ export default async function ExplorePage() {
             indexedReadFailed={indexedReadFailed}
           />
         </ExploreSearchProvider>
-
-        <div className="preview-modal-overlay" id="quickAmountModalOverlay" style={{ display: 'none' }}>
-          <div className="preview-modal" style={{ maxWidth: 360 }}>
-            <button type="button" className="preview-modal-close" id="quickAmountModalClose" aria-label="Close">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
-            </button>
-            <p className="preview-label">Quick amounts</p>
-            <p className="form-section-note" style={{ marginTop: -4 }}>Customize the three amounts offered for one-click purchases from the home page.</p>
-          </div>
-        </div>
       </div>
     </PageWrapper>
   );

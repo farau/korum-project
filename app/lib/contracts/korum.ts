@@ -10,6 +10,7 @@ import referralRegistryAbiJson from "../../../contracts/abis/ReferralRegistry.js
 import versusTokenAbiJson from "../../../contracts/abis/VersusToken.json";
 import lensAbiJson from "../../../contracts/abis/KorumLens.json";
 import pairRegistryAbiJson from "../../../contracts/abis/KorumPairRegistry.json";
+import feeEscrowAbiJson from "../../../contracts/abis/FeeEscrow.json";
 
 export { KORUM_CHAIN };
 
@@ -30,6 +31,7 @@ export const KORUM_FACTORY_ADDRESS = deployedAddress("KorumFactory");
 export const KORUM_HOOK_ADDRESS = deployedAddress("KorumHook");
 
 export const KORUM_ROUTER_ADDRESS = deployedAddress("KorumRouter");
+export const FEE_ESCROW_ADDRESS = deployedAddress("FeeEscrow");
 
 export const REFERRAL_REGISTRY_ADDRESS = deployedAddress("ReferralRegistry");
 export const KORUM_LENS_ADDRESS = deployedAddress("KorumLens");
@@ -50,3 +52,4 @@ export const REFERRAL_REGISTRY_ABI = referralRegistryAbiJson as Abi;
 export const VERSUS_TOKEN_ABI = versusTokenAbiJson as Abi;
 export const KORUM_LENS_ABI = lensAbiJson as Abi;
 export const KORUM_PAIR_REGISTRY_ABI = pairRegistryAbiJson as Abi;
+export const FEE_ESCROW_ABI = feeEscrowAbiJson as Abi;

@@ -11,6 +11,7 @@ import type { UserProfile, UserProfileActivityPage, UserProfileStats, ProfileRef
 import type { ProfileHoldings } from "../lib/profile-holdings";
 import ProfileAvatar from "./ProfileAvatar";
 import AvatarUpload from "./AvatarUpload";
+import ProfileFeeClaim from "./ProfileFeeClaim";
 import { TokenImage, VsTableView } from "./explore/VsTable";
 import { shortenAddress, useWallet } from "./WalletProvider";
 
@@ -324,6 +325,7 @@ function ManagedVersusPanel() {
   }, new Map<string, { versusId: string; title: string; camps: ManagedCamp[] }>()).values());
 
   return <div className="profile-tab-panel" role="tabpanel" id="profile-panel-managed">
+    <ProfileFeeClaim />
     <section className="profile-content-card">
       <div className="profile-section-title"><div><span className="profile-eyebrow">Current fee rights</span><h2>Managed Versus</h2></div>{result ? <span className="profile-count-pill">{managedVersus.length} versus</span> : null}</div>
       <p className="profile-holdings-note">These camps currently send their future creator fees to your wallet. The original launch creator remains unchanged.</p>
@@ -461,6 +463,7 @@ function ReferralsPanel({ code }: { code: string }) {
 
   return (
     <div className="profile-tab-panel" role="tabpanel" id="profile-panel-referrals">
+      <ProfileFeeClaim />
       <div className="profile-referral-flow" aria-label="Referral reward flow">
         <article><span>01</span><strong>Share your code</strong><p>Your unique referral code stays bound to your connected EVM wallet.</p></article>
         <span className="profile-flow-arrow">→</span>
