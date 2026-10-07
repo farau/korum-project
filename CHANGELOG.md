@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.2.5] - 2026-10-07
+
 ### Added
 
 - Claimable ETH fees and a wallet-confirmed FeeEscrow withdrawal in the Profile Managed Versus and Referrals sections, showing the wallet-wide balance and retaining access to accrued fees after creator rights are transferred.
