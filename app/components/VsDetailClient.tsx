@@ -109,6 +109,10 @@ function CopyIcon() {
   return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="9" y="9" width="12" height="12" rx="2" /><path d="M5 15V5a2 2 0 0 1 2-2h10" /></svg>;
 }
 
+function XIcon() {
+  return <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M5 4h4.5l3.2 4.5L17 4h2l-5.4 6 5.9 10H15l-3.6-5.2L6.8 20h-2l5.7-6.7L5 4Z" /></svg>;
+}
+
 function ExternalIcon() {
   return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M14 3h7v7M10 14 21 3" /><path d="M21 14v5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5" /></svg>;
 }
@@ -592,7 +596,7 @@ export default function VsDetailClient({ indexedDebate, indexedReadFailed }: VsD
               <button className={styles.actionButton} type="button" onClick={() => setStatusMessage("Market alerts are not available yet.")}><BellIcon /> New Alert</button>
               <div className={styles.shareMenuWrap}>
                 <button className={styles.actionButton} type="button" aria-expanded={shareOpen} onClick={() => setShareOpen((open) => !open)}>Share <ShareIcon /></button>
-                {shareOpen ? <div className={styles.shareMenu}><button type="button" onClick={copyLink}><CopyIcon /> Copy link</button><button type="button" onClick={shareOnX}>𝕏 Share on X</button><button type="button" onClick={share}><ExternalIcon /> More options</button></div> : null}
+                {shareOpen ? <div className={styles.shareMenu}><button type="button" onClick={copyLink}><CopyIcon /> Copy link</button><button type="button" onClick={shareOnX}><XIcon /> Share on X</button><button type="button" onClick={share}><ExternalIcon /> More options</button></div> : null}
               </div>
             </div>
           </div>
@@ -602,8 +606,9 @@ export default function VsDetailClient({ indexedDebate, indexedReadFailed }: VsD
             <span>·</span>
             <span>Launched {formatAge(debate.createdMinutesAgo)}</span>
             <span>·</span>
-          <span className={styles.creatorMeta}><span>Created by</span><b>{debate.creatorName || shortAddress(debate.creatorAddress)}</b>{debate.creatorRankLabel ? <small>{debate.creatorRankLabel}</small> : null}{debate.creatorIsNew ? <small>New creator</small> : null}</span>
+            <span className={styles.creatorMeta}><span>Created by</span><b>{debate.creatorName || shortAddress(debate.creatorAddress)}</b>{debate.creatorRankLabel ? <small>{debate.creatorRankLabel}</small> : null}{debate.creatorIsNew ? <small>New creator</small> : null}</span>
           </div>
+          {debate.description?.trim() ? <p className={styles.description}>{debate.description}</p> : null}
 
           <PendingCreatorFeeNotice camps={[{ name: debate.sideA, token: debate.tokenA?.address }, { name: debate.sideB, token: debate.tokenB?.address }]} />
 

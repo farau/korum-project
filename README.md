@@ -433,4 +433,4 @@ See [CHANGELOG.md](./CHANGELOG.md) for notable project changes.
 
 ## License
 
-No open-source license is currently declared. All rights remain with Korum Labs, LLC unless a license file is added.
+No open-source license is currently declared. All rights remain with Korum Labs unless a license file is added.

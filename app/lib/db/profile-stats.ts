@@ -15,6 +15,7 @@ import { getDatabase } from "./client";
 
 type ProfileStatsRow = {
   referralCount: number;
+  activeReferralCount: number;
   versusCreated: number;
   versusJoined: number;
   tradeCount: number;
@@ -113,6 +114,16 @@ async function loadUserProfileStats(wallet: string): Promise<UserProfileStats> {
         ) AS "referralCount",
         (
           SELECT COUNT(*)::INTEGER
+          FROM ${INDEXER_SCHEMA}.referral_bindings binding
+          JOIN ${INDEXER_SCHEMA}.trader_totals totals
+            ON totals.chain_id = binding.chain_id
+            AND totals.trader_address = binding.user_wallet
+          WHERE binding.chain_id = $1
+            AND binding.referrer_wallet = $2
+            AND totals.trade_count > 0
+        ) AS "activeReferralCount",
+        (
+          SELECT COUNT(*)::INTEGER
           FROM ${INDEXER_SCHEMA}.versuses versus
           WHERE versus.chain_id = $1
             AND versus.creator_wallet = $2
@@ -198,6 +209,7 @@ async function loadUserProfileStats(wallet: string): Promise<UserProfileStats> {
 
   return {
     referralCount: row?.referralCount ?? 0,
+    activeReferralCount: row?.activeReferralCount ?? 0,
     versusCreated: row?.versusCreated ?? 0,
     versusJoined: row?.versusJoined ?? 0,
     tradeCount: row?.tradeCount ?? 0,
@@ -222,7 +234,7 @@ export async function getUserProfileStats(
   const walletKey = createHash("sha256").update(wallet).digest("hex");
 
   return rememberJson(
-    redisCacheKey("private", "profile-stats-v4", walletKey),
+    redisCacheKey("private", "profile-stats-v5", walletKey),
     PROFILE_STATS_CACHE_TTL_SECONDS,
     () => loadUserProfileStats(wallet),
     diagnostic,

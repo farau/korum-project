@@ -85,7 +85,7 @@ export default function MarketCandlestickChart({ candles, available, loading, er
       layout: {
         background: { type: ColorType.Solid, color: "transparent" },
         textColor: cssColor(container, "--text-3", "#85858d"),
-        fontFamily: "var(--font-geist-mono), monospace", fontSize: 10,
+        fontFamily: "var(--font-geist-mono), monospace", fontSize: 12,
       },
       grid: {
         vertLines: { color: cssColor(container, "--line-soft", "rgba(255,255,255,.06)") },

@@ -64,7 +64,7 @@ export default function Footer() {
         </div>
 
         <div className="footer-bottom">
-          <span>© 2026 Korum Labs, LLC.</span>
+          <span>© 2026 Korum Labs.</span>
           <span className="footer-chain">
             Built on
             {/* eslint-disable-next-line @next/next/no-img-element */}

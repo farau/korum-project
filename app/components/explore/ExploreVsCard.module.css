@@ -12,8 +12,27 @@
 .category { position: relative; padding-bottom: 9px; font-size: 12px; font-weight: 650; letter-spacing: 2px; text-transform: uppercase; }
 .category::after { content: ""; position: absolute; bottom: 0; left: 0; width: 30px; height: 2px; background: currentColor; }
 .age { flex-shrink: 0; padding: 5px 9px; border-radius: 9px; background: var(--panel-2); color: var(--text-2); font-size: 11px; }
-.visuals { position: relative; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin: 0 10px; text-decoration: none; color: inherit; }
-.token { position: relative; display: grid; place-items: center; aspect-ratio: 1.08; overflow: hidden; border: 1px solid var(--text-3); border-radius: 3px; background: radial-gradient(ellipse at top, var(--panel-3), var(--bg)); }
+.visuals { position: relative; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin: 0 10px; text-decoration: none; color: inherit; }
+.token { position: relative; display: grid; place-items: center; aspect-ratio: 1.08; overflow: hidden; border-radius: 4px; background: radial-gradient(ellipse at top, var(--panel-3), var(--bg)); }
+.token::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  padding: 1.5px;
+  border-radius: inherit;
+  background:
+    radial-gradient(32px 32px at top left, var(--text-2), transparent),
+    radial-gradient(32px 32px at top right, var(--text-2), transparent),
+    radial-gradient(32px 32px at bottom left, var(--text-2), transparent),
+    radial-gradient(32px 32px at bottom right, var(--text-2), transparent);
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  filter: drop-shadow(0 0 2px color-mix(in srgb, var(--text) 25%, transparent));
+  pointer-events: none;
+}
 .token img { object-fit: cover; }
 .token::after { content: ""; position: absolute; inset: 40% 0 0; background: linear-gradient(transparent, #000b); pointer-events: none; }
 .initial { color: var(--text-3); font-size: 72px; font-weight: 800; }

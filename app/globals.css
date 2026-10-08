@@ -1385,7 +1385,7 @@ html[data-theme="light"] #page-earn .earn-card-artwork-light {
   scroll-margin-top: 78px;
 }
 
-#page-earn .earn-sim-card {
+:is(#page-earn, .profile-global-simulator) .earn-sim-card {
   position: relative;
   isolation: isolate;
   overflow: hidden;
@@ -1397,8 +1397,8 @@ html[data-theme="light"] #page-earn .earn-card-artwork-light {
   background: var(--panel);
 }
 
-#page-earn .earn-sim-card::before,
-#page-earn .earn-sim-card::after {
+:is(#page-earn, .profile-global-simulator) .earn-sim-card::before,
+:is(#page-earn, .profile-global-simulator) .earn-sim-card::after {
   content: "";
   position: absolute;
   z-index: -1;
@@ -1407,7 +1407,7 @@ html[data-theme="light"] #page-earn .earn-card-artwork-light {
   pointer-events: none;
 }
 
-#page-earn .earn-sim-card::before {
+:is(#page-earn, .profile-global-simulator) .earn-sim-card::before {
   top: -80px;
   left: -80px;
   width: 260px;
@@ -1416,7 +1416,7 @@ html[data-theme="light"] #page-earn .earn-card-artwork-light {
   filter: blur(35px);
 }
 
-#page-earn .earn-sim-card::after {
+:is(#page-earn, .profile-global-simulator) .earn-sim-card::after {
   right: -60px;
   bottom: -100px;
   width: 320px;
@@ -1425,25 +1425,25 @@ html[data-theme="light"] #page-earn .earn-card-artwork-light {
   filter: blur(40px);
 }
 
-#page-earn .global-sim-grid {
+:is(#page-earn, .profile-global-simulator) .global-sim-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 28px;
 }
 
-#page-earn .global-sim-col {
+:is(#page-earn, .profile-global-simulator) .global-sim-col {
   padding: 0;
   border: 0;
   border-radius: 0;
   background: transparent;
 }
 
-#page-earn .gsim-col-head {
+:is(#page-earn, .profile-global-simulator) .gsim-col-head {
   align-items: center;
   margin: 0 0 20px;
 }
 
-#page-earn .gsim-icon {
+:is(#page-earn, .profile-global-simulator) .gsim-icon {
   display: flex;
   width: 42px;
   height: 42px;
@@ -1455,13 +1455,13 @@ html[data-theme="light"] #page-earn .earn-card-artwork-light {
   background: transparent;
 }
 
-#page-earn .gsim-icon svg {
+:is(#page-earn, .profile-global-simulator) .gsim-icon svg {
   width: 24px;
   height: auto;
   overflow: visible;
 }
 
-#page-earn .gsim-col-title {
+:is(#page-earn, .profile-global-simulator) .gsim-col-title {
   color: var(--text);
   font-family: var(--display);
   font-size: 16px;
@@ -1469,7 +1469,7 @@ html[data-theme="light"] #page-earn .earn-card-artwork-light {
   text-transform: none;
 }
 
-#page-earn .gsim-col-sub {
+:is(#page-earn, .profile-global-simulator) .gsim-col-sub {
   margin-top: 2px;
   color: var(--text-3);
   font-size: 10.5px;
@@ -1477,13 +1477,13 @@ html[data-theme="light"] #page-earn .earn-card-artwork-light {
   text-transform: uppercase;
 }
 
-#page-earn .global-sim-col input[type="range"] {
+:is(#page-earn, .profile-global-simulator) .global-sim-col input[type="range"] {
   width: 100%;
   margin: 0 0 6px;
   accent-color: var(--text);
 }
 
-#page-earn .sim-label {
+:is(#page-earn, .profile-global-simulator) .sim-label {
   display: block;
   margin-top: 18px;
   color: var(--text-2);
@@ -1491,25 +1491,25 @@ html[data-theme="light"] #page-earn .earn-card-artwork-light {
   text-transform: none;
 }
 
-#page-earn .sim-value {
+:is(#page-earn, .profile-global-simulator) .sim-value {
   color: var(--text-2);
   font-size: 22px;
   font-weight: 400;
   text-transform: none;
 }
 
-#page-earn .sim-value b {
+:is(#page-earn, .profile-global-simulator) .sim-value b {
   color: var(--text);
   font-weight: 800;
 }
 
-#page-earn .gsim-results {
+:is(#page-earn, .profile-global-simulator) .gsim-results {
   grid-template-columns: repeat(3, 1fr);
   gap: 12px;
   margin: 22px 0 14px;
 }
 
-#page-earn .gsim-stat {
+:is(#page-earn, .profile-global-simulator) .gsim-stat {
   position: relative;
   isolation: isolate;
   padding: 14px;
@@ -1518,7 +1518,7 @@ html[data-theme="light"] #page-earn .earn-card-artwork-light {
   background: rgba(255,255,255,.06);
 }
 
-#page-earn .gsim-stat::before {
+:is(#page-earn, .profile-global-simulator) .gsim-stat::before {
   content: "";
   position: absolute;
   inset: -2px;
@@ -1533,24 +1533,24 @@ html[data-theme="light"] #page-earn .earn-card-artwork-light {
   mask-composite: exclude;
 }
 
-html[data-theme="light"] #page-earn .gsim-stat::before {
+html[data-theme="light"] :is(#page-earn, .profile-global-simulator) .gsim-stat::before {
   background: linear-gradient(145deg, rgba(25, 25, 28, .82), rgba(25, 25, 28, .16) 42%, rgba(25, 25, 28, .62));
 }
 
-#page-earn .gsim-stat .lbl {
+:is(#page-earn, .profile-global-simulator) .gsim-stat .lbl {
   margin-bottom: 4px;
   color: var(--text-3);
   font-size: 11px;
 }
 
-#page-earn .gsim-stat .val {
+:is(#page-earn, .profile-global-simulator) .gsim-stat .val {
   color: var(--green);
   font-family: var(--display);
   font-size: 20px;
   font-weight: 700;
 }
 
-#page-earn .gsim-note {
+:is(#page-earn, .profile-global-simulator) .gsim-note {
   display: flex;
   justify-content: center;
   align-items: center;
@@ -1559,7 +1559,7 @@ html[data-theme="light"] #page-earn .gsim-stat::before {
   text-align: center;
 }
 
-#page-earn .gsim-note svg {
+:is(#page-earn, .profile-global-simulator) .gsim-note svg {
   width: 15px;
   height: 15px;
   flex-shrink: 0;
@@ -1987,7 +1987,7 @@ html[data-theme="light"] #page-concept .lex-card {
 }
 
 @media (max-width: 760px) {
-  #page-earn .global-sim-grid {
+  :is(#page-earn, .profile-global-simulator) .global-sim-grid {
     grid-template-columns: 1fr;
   }
 
@@ -2012,7 +2012,7 @@ html[data-theme="light"] #page-concept .lex-card {
 }
 
 @media (max-width: 560px) {
-  #page-earn .gsim-results {
+  :is(#page-earn, .profile-global-simulator) .gsim-results {
     grid-template-columns: 1fr;
   }
 
@@ -4071,8 +4071,31 @@ html[data-theme="light"] .concept-hero::before {
   font-weight: 950;
 }
 
+.legal-page {
+  background: var(--bg);
+}
+
 .legal-page .subpage-hero {
-  padding-bottom: 48px;
+  padding: 32px 0 24px;
+}
+
+.legal-page .wrap {
+  max-width: 1120px;
+  padding-inline: clamp(20px, 4vw, 48px);
+}
+
+.legal-page .info-section {
+  padding-top: 24px;
+  border-top: 0;
+}
+
+.legal-page .subpage-hero .vs-hero-badge {
+  margin-bottom: 12px;
+}
+
+.legal-page .subpage-hero .legal-meta {
+  margin-top: 12px;
+  font-size: 14px;
 }
 
 .legal-meta {
@@ -4086,7 +4109,6 @@ html[data-theme="light"] .concept-hero::before {
 }
 
 .legal-doc {
-  max-width: 760px;
   margin: 0 auto;
 }
 
@@ -4101,7 +4123,7 @@ html[data-theme="light"] .concept-hero::before {
 }
 
 .legal-doc h2 {
-  margin: 32px 0 10px;
+  margin: 24px 0 8px;
   color: var(--text);
   font-family: var(--display);
   font-size: 17px;
@@ -7542,12 +7564,18 @@ html[data-theme="dark"] .profile-page .profile-versus-values span {
   font-size: 19px;
 }
 
+.profile-page .profile-referral-summary {
+  margin: 12px 0 0;
+  color: var(--text-3);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
 .profile-page .profile-simulator-card > h2 {
   margin: 5px 0 24px;
 }
 
-.profile-page .profile-simulator-card label,
-.profile-page .profile-sim-controls label {
+.profile-page .profile-simulator-card label {
   display: flex;
   margin-bottom: 8px;
   justify-content: space-between;
@@ -7559,6 +7587,22 @@ html[data-theme="dark"] .profile-page .profile-versus-values span {
 .profile-page input[type="range"] {
   width: 100%;
   accent-color: var(--blue);
+}
+
+.profile-page .profile-simulator-card input[type="number"] {
+  width: 100%;
+  min-width: 0;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel);
+  color: var(--text);
+  font: inherit;
+}
+
+.profile-page .profile-simulator-card input[type="number"]:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 2px;
 }
 
 .profile-page .profile-simulator-result {
@@ -7675,49 +7719,67 @@ html[data-theme="dark"] .profile-page .profile-versus-values span {
   color: var(--text-3);
 }
 
-.profile-page .profile-global-sim-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 28px;
+.profile-page .profile-global-simulator > .profile-panel-intro {
+  max-width: none;
 }
 
-.profile-page .profile-sim-controls {
-  display: flex;
-  flex-direction: column;
+#profile-panel-simulator .profile-global-simulator {
+  max-width: 960px;
+}
+
+#profile-panel-simulator .earn-sim-card {
+  padding: 18px;
+  border-radius: 12px;
+}
+
+#profile-panel-simulator .global-sim-grid {
+  gap: 18px;
+}
+
+#profile-panel-simulator .gsim-col-head {
   gap: 8px;
-}
-
-.profile-page .profile-sim-controls input {
   margin-bottom: 12px;
 }
 
-.profile-page .profile-sim-output {
-  display: flex;
-  padding: 24px;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  background: var(--panel);
-  text-align: center;
+#profile-panel-simulator .gsim-icon {
+  width: 32px;
+  height: 32px;
+  flex-basis: 32px;
 }
 
-.profile-page .profile-sim-output > span {
-  color: var(--text-3);
+#profile-panel-simulator .gsim-icon svg {
+  width: 20px;
+}
+
+#profile-panel-simulator .gsim-col-title {
+  font-size: 14px;
+}
+
+#profile-panel-simulator .sim-label {
+  margin-top: 12px;
+}
+
+#profile-panel-simulator .sim-value {
+  font-size: 18px;
+}
+
+#profile-panel-simulator .gsim-results {
+  gap: 8px;
+  margin: 16px 0 10px;
+}
+
+#profile-panel-simulator .gsim-stat {
+  padding: 10px;
+}
+
+#profile-panel-simulator .gsim-stat .val {
+  font-size: 18px;
+}
+
+#profile-panel-simulator .gsim-note {
+  margin-top: 12px;
   font-size: 11px;
-  text-transform: uppercase;
 }
-
-.profile-page .profile-sim-output > strong {
-  margin: 8px 0;
-  font-family: var(--display);
-  font-size: 34px;
-}
-
-.profile-page .profile-sim-output > strong.positive { color: var(--green); }
-.profile-page .profile-sim-output > strong.negative { color: var(--red); }
-.profile-page .profile-sim-output p { max-width: 340px; margin: 0; color: var(--text-3); font-size: 11px; line-height: 1.45; }
 
 .profile-page .profile-locked-hero {
   min-height: 460px;
@@ -7771,9 +7833,6 @@ html[data-theme="dark"] .profile-page .profile-versus-values span {
     text-align: center;
   }
 
-  .profile-page .profile-global-sim-grid {
-    grid-template-columns: 1fr;
-  }
 }
 
 @media (max-width: 560px) {
@@ -7981,6 +8040,223 @@ html[data-theme="light"] #page-concept .concept-final-section .btn-solid {
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, .08);
 }
 
+/* Earn and Concept use the combined earnings table as their density reference. */
+:is(#page-earn, #page-concept) .wrap {
+  max-width: 960px;
+  padding-inline: clamp(20px, 4vw, 32px);
+}
+
+#page-earn .info-section:not(.earn-combined-section),
+#page-concept .info-section {
+  padding-block: 32px;
+}
+
+:is(#page-earn, #page-concept) .info-head {
+  max-width: 620px;
+  margin-bottom: 20px;
+}
+
+:is(#page-earn, #page-concept) .info-head p {
+  font-size: 13.5px;
+  line-height: 1.55;
+}
+
+#page-earn .earn-paths-head h1 {
+  font-size: clamp(24px, 3vw, 28px);
+}
+
+#page-concept .earn-hero {
+  padding: 32px 0 28px;
+}
+
+#page-concept .earn-hero-title {
+  max-width: 620px;
+  margin-block: 12px;
+  font-size: clamp(26px, 3.5vw, 32px);
+}
+
+#page-concept .earn-hero-sub {
+  max-width: 620px;
+  font-size: 13.5px;
+  line-height: 1.55;
+}
+
+#page-earn .earn-cards,
+#page-concept .three-steps-row,
+#page-concept .fee-tier-grid {
+  gap: 14px;
+}
+
+#page-earn .earn-card,
+#page-concept .three-steps-card {
+  padding: 16px;
+}
+
+#page-earn .earn-card-artwork,
+#page-concept .step-image-wrap {
+  width: calc(100% + 32px);
+  max-width: 320px;
+  margin: -16px -16px 6px;
+}
+
+#page-earn .earn-card-subtitle,
+#page-concept .three-steps-card h3 {
+  font-size: 16px;
+  line-height: 1.3;
+}
+
+#page-earn .earn-example,
+#page-concept .three-steps-card p {
+  font-size: 13.5px;
+  line-height: 1.55;
+}
+
+#page-earn .earn-card-btn {
+  min-height: 36px;
+  padding-top: 10px;
+}
+
+#page-earn .earn-fees-note {
+  gap: 2px;
+  margin-top: 18px;
+  padding-top: 12px;
+  font-size: 12px;
+}
+
+#page-earn .earn-fees-note strong {
+  font-size: 16px;
+}
+
+#page-earn .earn-sim-card {
+  padding: 18px;
+  border-radius: 12px;
+}
+
+#page-earn .global-sim-grid {
+  gap: 18px;
+}
+
+#page-earn .gsim-col-head {
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+#page-earn .gsim-icon {
+  width: 32px;
+  height: 32px;
+  flex-basis: 32px;
+}
+
+#page-earn .gsim-icon svg {
+  width: 20px;
+}
+
+#page-earn .gsim-col-title {
+  font-size: 14px;
+}
+
+#page-earn .sim-label {
+  margin-top: 12px;
+}
+
+#page-earn .sim-value {
+  font-size: 18px;
+}
+
+#page-earn .gsim-results {
+  gap: 8px;
+  margin: 16px 0 10px;
+}
+
+#page-earn .gsim-stat {
+  padding: 10px;
+}
+
+#page-earn .gsim-stat .val {
+  font-size: 18px;
+}
+
+#page-earn .gsim-note {
+  margin-top: 12px;
+  font-size: 11.5px;
+}
+
+#page-concept .lexicon-grid {
+  gap: 12px;
+}
+
+#page-concept .lex-card {
+  min-height: 0;
+  padding: 14px;
+  gap: 12px;
+}
+
+#page-concept .lex-icon-ring {
+  width: 48px;
+  height: 48px;
+}
+
+#page-concept .lex-icon {
+  width: 24px;
+  height: 24px;
+}
+
+#page-concept .lex-term {
+  font-size: 14px;
+}
+
+#page-concept .lex-def {
+  font-size: 13.5px;
+}
+
+#page-concept .fee-tier-card {
+  padding: 16px;
+  border-radius: 12px;
+}
+
+#page-concept .fee-tier-pct {
+  margin-bottom: 10px;
+  font-size: 24px;
+}
+
+#page-concept .fee-tier-split {
+  padding-top: 10px;
+}
+
+#page-concept .ref-flow-card {
+  padding: 16px 18px;
+  gap: 14px;
+}
+
+#page-concept .ref-flow-icon {
+  width: 40px;
+  height: 40px;
+  flex-basis: 40px;
+}
+
+#page-concept .ref-flow-value,
+#page-concept .ref-split-item .v {
+  font-size: 18px;
+}
+
+:is(#page-earn, #page-concept) .center-cta {
+  margin-top: 18px;
+  gap: 12px;
+}
+
+:is(#page-earn, #page-concept) .center-cta .btn {
+  padding: 10px 18px;
+  font-size: 13px;
+}
+
+@media (max-width: 760px) {
+  #page-earn .earn-cards,
+  #page-concept .three-steps-row,
+  #page-concept .fee-tier-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* Legal heroes without the generic green accent */
 #page-privacy .subpage-hero,
 #page-terms .subpage-hero {
@@ -7992,7 +8268,7 @@ html[data-theme="light"] #page-concept .concept-final-section .btn-solid {
 #page-privacy .subpage-hero .vs-hero-badge,
 #page-terms .subpage-hero .vs-hero-badge {
   position: relative;
-  top: -22px;
+  top: 0;
 }
 
 #page-privacy .legal-intro,

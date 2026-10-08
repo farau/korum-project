@@ -6,6 +6,29 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+
+- Display the Versus description below the creator metadata when provided, preserving line breaks and wrapping long text.
+- Populate Profile's Referral overview with confirmed referral counts, active referrals with at least one recorded trade, and all-time referred volume in USD with an ETH fallback; add the active-referral count to profile statistics and version the statistics cache accordingly.
+
+### Changed
+
+- Expand Privacy Policy and Terms of Use with details on profiles, public blockchain activity, cookies, service providers, privacy requests, wallet security, transactions, fees, referrals, and acceptable use; update their revision date to October 8, 2026.
+- Widen and align legal-page content, reduce hero and section spacing, and replace the background grid with a solid background.
+- Replace `Korum Labs, LLC` with `Korum Labs` in legal pages, the footer, and the README.
+- Replace the capped referral reward slider with a numeric USD input supporting nonnegative decimal values without the former $250,000 ceiling, with immediate reward recalculation.
+- Remove the separate Rewards metric and referral-history placeholder from Referral overview; show an empty state only when no referrals are confirmed and direct users to the combined creator/referral fee claim.
+- Replace Profile's trading-return simulator with the shared creation/referral earnings simulator, using English labels for planned VS count, average volume per VS, active referral count, and average monthly volume per referral; display creator revenue, referral revenue, and their combined projection.
+- Compact Profile's Global simulator with a 960 px maximum width, smaller icons and values, and tighter controls and result cards.
+- Halve desktop side gutters on Versus detail pages and enlarge small text throughout creator metadata, market statistics, chart controls, trading panels, and activity views; increase chart-axis text while retaining mobile gutters.
+- Compact Earn and Concept around the Combined earnings table's proportions, with narrower content, smaller cards, artwork and typography, tighter section spacing, and single-column card layouts on mobile.
+- Rename Explore's shared card action from `View Tokens` to `View versus`, widen the gap between camp images from 8 px to 12 px, and replace continuous image borders with fading corner accents and a subtle glow.
+
+### Fixed
+
+- Align Share on X with the other Versus sharing options by using a consistently sized SVG icon.
+- Apply illustrative creator fee tiers to each VS's average volume before multiplying by the number of VS, rather than applying tiers to their aggregated volume; share the corrected calculation between Earn and Profile.
+
 ## [0.2.6] - 2026-10-07
 
 ### Added

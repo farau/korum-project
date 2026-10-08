@@ -146,7 +146,7 @@ export default function ExploreVsCard({ debate, index = 0 }: { debate: Debate; i
         </div>
         <Link href={href} className={styles.cta}>
           <span className={styles.arrow}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M5 12h14m-6-6 6 6-6 6" /></svg></span>
-          <span>View Tokens</span>
+          <span>View versus</span>
         </Link>
       </div>
     </article>

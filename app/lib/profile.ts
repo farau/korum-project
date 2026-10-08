@@ -27,6 +27,7 @@ export type UserProfile = {
 
 export type UserProfileStats = {
   referralCount: number;
+  activeReferralCount: number;
   versusCreated: number;
   versusJoined: number;
   tradeCount: number;

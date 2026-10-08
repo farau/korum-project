@@ -52,7 +52,7 @@ export default function EarningsSimulator() {
   const [refVolume, setRefVolume] = useState(1_200);
 
   const results = useMemo(() => {
-    const creator = creatorEarningsForVolume(vsCount * vsVolume);
+    const creator = vsCount * creatorEarningsForVolume(vsVolume);
     const referral = refCount * refVolume * 0.01 * 0.1;
     return { creator, referral, total: creator + referral };
   }, [refCount, refVolume, vsCount, vsVolume]);

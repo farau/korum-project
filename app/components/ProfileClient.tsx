@@ -12,6 +12,7 @@ import type { ProfileHoldings } from "../lib/profile-holdings";
 import ProfileAvatar from "./ProfileAvatar";
 import AvatarUpload from "./AvatarUpload";
 import ProfileFeeClaim from "./ProfileFeeClaim";
+import EarningsSimulator from "./EarningsSimulator";
 import { TokenImage, VsTableView } from "./explore/VsTable";
 import { shortenAddress, useWallet } from "./WalletProvider";
 
@@ -457,9 +458,13 @@ function ActivityPanel({ stats }: { stats: UserProfileStats }) {
   );
 }
 
-function ReferralsPanel({ code }: { code: string }) {
-  const [referredVolume, setReferredVolume] = useState(10000);
+function ReferralsPanel({ code, stats }: { code: string; stats: UserProfileStats }) {
+  const [referredVolumeInput, setReferredVolumeInput] = useState("10000");
+  const referredVolume = Number(referredVolumeInput);
   const estimatedReward = referredVolume * 0.001;
+  const referredTradingVolume = stats.referredVolumeUsd === null
+    ? formatMarketValue(stats.referredVolumeEth, "ETH", 4)
+    : formatMarketValue(stats.referredVolumeUsd, "USD", 2);
 
   return (
     <div className="profile-tab-panel" role="tabpanel" id="profile-panel-referrals">
@@ -469,7 +474,7 @@ function ReferralsPanel({ code }: { code: string }) {
         <span className="profile-flow-arrow">→</span>
         <article><span>02</span><strong>Friends trade</strong><p>Their trading volume counts toward your referral activity.</p></article>
         <span className="profile-flow-arrow">→</span>
-        <article><span>03</span><strong>Earn rewards</strong><p>Your rewards will appear here when available.</p></article>
+        <article><span>03</span><strong>Earn rewards</strong><p>Claim your creator and referral fees together above.</p></article>
       </div>
       <section className="profile-content-card profile-referral-address">
         <div><span className="profile-eyebrow">Your referral code</span><strong>{code}</strong></div>
@@ -478,13 +483,30 @@ function ReferralsPanel({ code }: { code: string }) {
       <div className="profile-referral-layout">
         <section className="profile-content-card">
           <div className="profile-section-title"><div><span className="profile-eyebrow">Performance</span><h2>Referral overview</h2></div></div>
-          <div className="profile-metric-row"><span><small>Referrals</small><strong>0</strong></span><span><small>Active</small><strong>0</strong></span><span><small>Rewards</small><strong>$0.00</strong></span></div>
-          <div className="profile-empty-state compact"><Icon name="users" /><p>Referral history will appear here when available.</p></div>
+          <div className="profile-metric-row">
+            <span><small>Referrals</small><strong>{stats.referralCount}</strong></span>
+            <span><small>Active</small><strong>{stats.activeReferralCount}</strong></span>
+            <span><small>Referred volume</small><strong>{referredTradingVolume}</strong></span>
+          </div>
+          <p className="profile-referral-summary">Confirmed referrals and their all-time trading volume. Active referrals have made at least one trade.</p>
+          {stats.referralCount === 0 ? <div className="profile-empty-state compact"><Icon name="users" /><p>No confirmed referrals yet. Share your referral link to get started.</p></div> : null}
         </section>
         <section className="profile-content-card profile-simulator-card">
           <span className="profile-eyebrow">Reward simulator</span><h2>Estimate referral rewards</h2>
-          <label htmlFor="referral-volume">Monthly referred volume <strong>{compactMoney(referredVolume)}</strong></label>
-          <input id="referral-volume" type="range" min="0" max="250000" step="5000" value={referredVolume} onChange={(event) => setReferredVolume(Number(event.target.value))} />
+          <label htmlFor="referral-volume">Monthly referred volume (USD) <strong>{compactMoney(referredVolume)}</strong></label>
+          <input
+            id="referral-volume"
+            type="number"
+            min="0"
+            step="any"
+            inputMode="decimal"
+            value={referredVolumeInput}
+            onChange={(event) => {
+              const value = event.target.value;
+              const volume = Number(value);
+              if (Number.isFinite(volume) && volume >= 0) setReferredVolumeInput(value);
+            }}
+          />
           <div className="profile-simulator-result"><span>Illustrative reward</span><strong>{compactMoney(estimatedReward)}</strong></div>
           <small>Illustrative only. Final reward rules will be announced later.</small>
         </section>
@@ -560,23 +582,12 @@ function WatchlistPanel() {
 }
 
 function SimulatorPanel() {
-  const [monthlyVolume, setMonthlyVolume] = useState(25000);
-  const [winRate, setWinRate] = useState(55);
-  const [averageReturn, setAverageReturn] = useState(8);
-  const estimate = monthlyVolume * ((winRate / 100) * (averageReturn / 100) - ((100 - winRate) / 100) * 0.05);
-
   return (
     <div className="profile-tab-panel" role="tabpanel" id="profile-panel-simulator">
-      <section className="profile-content-card profile-global-simulator">
+      <section className="profile-global-simulator">
         <div className="profile-section-title"><div><span className="profile-eyebrow">Scenario tool</span><h2>Global simulator</h2></div></div>
-        <div className="profile-global-sim-grid">
-          <div className="profile-sim-controls">
-            <label htmlFor="sim-volume">Monthly volume <strong>{compactMoney(monthlyVolume)}</strong></label><input id="sim-volume" type="range" min="1000" max="250000" step="1000" value={monthlyVolume} onChange={(event) => setMonthlyVolume(Number(event.target.value))} />
-            <label htmlFor="sim-winrate">Winning positions <strong>{winRate}%</strong></label><input id="sim-winrate" type="range" min="0" max="100" value={winRate} onChange={(event) => setWinRate(Number(event.target.value))} />
-            <label htmlFor="sim-return">Average winning return <strong>{averageReturn}%</strong></label><input id="sim-return" type="range" min="1" max="30" value={averageReturn} onChange={(event) => setAverageReturn(Number(event.target.value))} />
-          </div>
-          <div className="profile-sim-output"><span>Illustrative monthly result</span><strong className={estimate >= 0 ? "positive" : "negative"}>{estimate >= 0 ? "+" : ""}{compactMoney(estimate)}</strong><p>This simulation is not financial advice and does not use live account data.</p></div>
-        </div>
+        <p className="profile-panel-intro">Project what you could earn by combining the VS you create with your referral network. Both revenue sources add up.</p>
+        <EarningsSimulator />
       </section>
     </div>
   );
@@ -698,7 +709,7 @@ function WalletProfile({ profile, stats, sessionAddress, sessionChainId, referra
     holdings: <HoldingsPanel holdings={holdings} loading={holdingsLoading} error={holdingsError} retry={() => { setHoldingsLoading(true); setHoldingsRetry((count) => count + 1); }} />,
     managed: <ManagedVersusPanel />,
     activity: <ActivityPanel stats={stats} />,
-    referrals: <ReferralsPanel code={currentProfile.referralCode} />,
+    referrals: <ReferralsPanel code={currentProfile.referralCode} stats={stats} />,
     badges: <BadgesPanel stats={stats} />,
     watchlist: <WatchlistPanel />,
     simulator: <SimulatorPanel />,
