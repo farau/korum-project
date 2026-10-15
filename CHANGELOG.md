@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-10-15
+
 ### Added
 
 - Global navbar search for Versus names, token names/symbols and contract addresses, with debounced results, keyboard navigation, mobile search and links to Versus detail pages.
