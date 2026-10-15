@@ -118,6 +118,7 @@ const live = await load('app/lib/live/server.ts', {
   '../markets/venue': venueModel,
   './chart-cache': { prepareChartMutations: async (...args) => { mutations = args; return { mutations: [], revisions: [] }; }, publishChartScript: '' },
   './debate-cache': { prepareDebateMutations: async () => ({ mutations: [], revisions: [], mappings: [] }) },
+  './profile-cache': { prepareProfileInvalidations: async () => ({ revisions: [], mappings: [] }) },
   '../db/debates': { loadIndexedDebateRowsByIds: async () => [] },
 });
 const notice = { event_id: 'pool-trade', chain_id: 4663, token_address: token, block_hash: 'hash', operation: 'i' };

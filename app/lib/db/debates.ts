@@ -60,6 +60,7 @@ export type IndexedDebateRow = {
   tokenAProjectedResidual: string;
   tokenACurveStatus: number;
   tokenAPoolId: string | null;
+  tokenAPoolSqrtPriceX96: string | null;
   tokenAGraduationDisabled: boolean;
   tokenATraderCount: number;
   tokenAHolderCount: number;
@@ -78,6 +79,7 @@ export type IndexedDebateRow = {
   tokenBProjectedResidual: string;
   tokenBCurveStatus: number;
   tokenBPoolId: string | null;
+  tokenBPoolSqrtPriceX96: string | null;
   tokenBGraduationDisabled: boolean;
   tokenBTraderCount: number;
   tokenBHolderCount: number;
@@ -459,6 +461,7 @@ async function readIndexedDebateRows({ limit = DEFAULT_LIMIT, versusId, watchlis
       market_a.projected_token_residual::TEXT AS "tokenAProjectedResidual",
       market_a.curve_status::INTEGER AS "tokenACurveStatus",
       graduation_a.pool_id AS "tokenAPoolId",
+      COALESCE(pool_a.sqrt_price_x96_after, graduation_a.sqrt_price_x96)::TEXT AS "tokenAPoolSqrtPriceX96",
       market_a.graduation_disabled AS "tokenAGraduationDisabled",
       stats_a.trader_count AS "tokenATraderCount",
       stats_a.prior_price AS "tokenAPriorPrice",
@@ -476,6 +479,7 @@ async function readIndexedDebateRows({ limit = DEFAULT_LIMIT, versusId, watchlis
       market_b.projected_token_residual::TEXT AS "tokenBProjectedResidual",
       market_b.curve_status::INTEGER AS "tokenBCurveStatus",
       graduation_b.pool_id AS "tokenBPoolId",
+      COALESCE(pool_b.sqrt_price_x96_after, graduation_b.sqrt_price_x96)::TEXT AS "tokenBPoolSqrtPriceX96",
       market_b.graduation_disabled AS "tokenBGraduationDisabled",
       stats_b.trader_count AS "tokenBTraderCount",
       stats_b.prior_price AS "tokenBPriorPrice",
@@ -544,6 +548,18 @@ async function readIndexedDebateRows({ limit = DEFAULT_LIMIT, versusId, watchlis
       ON graduation_a.chain_id = camp_a.chain_id AND graduation_a.token_address = camp_a.token_address
     LEFT JOIN ${INDEXER_SCHEMA}.camp_graduations graduation_b
       ON graduation_b.chain_id = camp_b.chain_id AND graduation_b.token_address = camp_b.token_address
+    LEFT JOIN LATERAL (
+      SELECT trade.sqrt_price_x96_after FROM ${INDEXER_SCHEMA}.camp_trades trade
+      WHERE trade.chain_id = camp_a.chain_id AND trade.token_address = camp_a.token_address
+        AND market_a.curve_status = 3 AND trade.venue = 1
+      ORDER BY trade.block_number DESC, trade.log_index DESC LIMIT 1
+    ) pool_a ON TRUE
+    LEFT JOIN LATERAL (
+      SELECT trade.sqrt_price_x96_after FROM ${INDEXER_SCHEMA}.camp_trades trade
+      WHERE trade.chain_id = camp_b.chain_id AND trade.token_address = camp_b.token_address
+        AND market_b.curve_status = 3 AND trade.venue = 1
+      ORDER BY trade.block_number DESC, trade.log_index DESC LIMIT 1
+    ) pool_b ON TRUE
     LEFT JOIN LATERAL (
       SELECT
         COUNT(DISTINCT NULLIF(trade.trader_address, '0x0000000000000000000000000000000000000000'))::INTEGER AS trader_count,
@@ -645,6 +661,8 @@ export async function indexedDebateMetadataFingerprint() {
         FROM ${INDEXER_SCHEMA}.camp_graduations g WHERE g.chain_id = $1),
       (SELECT STRING_AGG(MD5(TO_JSONB(f)::TEXT), '' ORDER BY f.token_address, f.block_number, f.log_index)
         FROM ${INDEXER_SCHEMA}.creator_fee_recipient_events f WHERE f.chain_id = $1),
+      (SELECT STRING_AGG(MD5(TO_JSONB(b)::TEXT), '' ORDER BY b.user_wallet)
+        FROM ${INDEXER_SCHEMA}.referral_bindings b WHERE b.chain_id = $1),
       (SELECT STRING_AGG(MD5(CONCAT(u.id, u.display_name)), '' ORDER BY u.id)
         FROM users u WHERE EXISTS (SELECT 1 FROM ${INDEXER_SCHEMA}.versuses v
           WHERE v.chain_id = $1 AND LOWER(v.creator_wallet) = LOWER(u.evm_wallet)))
@@ -682,6 +700,32 @@ async function sharedRows(ids?: string[], diagnostic?: CacheDiagnostic) {
     if (values[0]) byId.set(id, values[0]);
   }));
   return ids.flatMap(id => byId.has(id) ? [byId.get(id)!] : []);
+}
+
+const valuationFallback = new Map<string, { until: number; pending: Promise<IndexedDebateRow[]> }>();
+function fallbackValuationRows(resource: string, load: () => Promise<IndexedDebateRow[]>) {
+  const cached = valuationFallback.get(resource);
+  if (cached && cached.until > Date.now()) return cached.pending;
+  if (valuationFallback.size >= 1000) valuationFallback.delete(valuationFallback.keys().next().value!);
+  const pending = rememberJson(redisCacheKey("debates", "valuation-fallback-v1", resource), 15, load)
+    .catch(error => { valuationFallback.delete(resource); throw error; });
+  valuationFallback.set(resource, { until: Date.now() + 15_000, pending });
+  return pending;
+}
+
+// Profile valuation consumes exact cached integers, not rounded public DTOs.
+export async function getIndexedDebateRowsForValuation(ids: string[]) {
+  const normalized = [...new Set(ids.filter(id => /^\d{1,78}$/.test(id)))].slice(0, MAX_LIMIT);
+  if (!normalized.length) return [];
+  const shared = await sharedRows(normalized);
+  if (shared) return shared;
+  const catalog = await fallbackValuationRows("catalog", () => readIndexedDebateRows({ limit: MAX_LIMIT }));
+  const byId = new Map(catalog.map(row => [row.versusId, row]));
+  await Promise.all(normalized.filter(id => !byId.has(id)).map(async id => {
+    const [row] = await fallbackValuationRows(id, () => readIndexedDebateRows({ versusId: id, limit: 1 }));
+    if (row) byId.set(id, row);
+  }));
+  return normalized.flatMap(id => byId.has(id) ? [byId.get(id)!] : []);
 }
 
 async function getCachedIndexedDebates(limit: number, diagnostic?: CacheDiagnostic) {

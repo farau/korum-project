@@ -255,6 +255,7 @@ try {
     '../db/client': { getDatabase: () => ({ unsafe: async () => assert.fail('A deletion does not read chart trades') }) },
     '../markets/math': math, '../markets/venue': { usesKorumCandles: () => true },
     './chart-cache': chart, './debate-cache': debate,
+    './profile-cache': await import(await moduleFile('profile-cache', 'app/lib/live/profile-cache.ts')),
     '../db/debates': { loadIndexedDebateRowsByIds: async () => { publicationsLoaded++; return [rows[0]]; } },
   };
   const serverSource = await readFile(new URL('../app/lib/live/server.ts', import.meta.url), 'utf8');

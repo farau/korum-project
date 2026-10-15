@@ -27,7 +27,7 @@ export async function GET() {
     response.headers.set("X-Korum-Cache", cache.status);
     response.headers.set(
       "X-Korum-Cache-Layer",
-      cache.status === "HIT" ? "redis" : cache.status === "DEDUPED" ? "memory" : "postgres",
+      cache.status === "HIT" ? "redis" : cache.status === "DEDUPED" ? "shared" : "postgres",
     );
     return response;
   } catch (error) {

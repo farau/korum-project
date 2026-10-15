@@ -4,6 +4,7 @@ import Link from "next/link";
 import React, { useEffect, useMemo, useState } from "react";
 import { KORUM_CHAIN } from "../config/korum-network";
 import { useWatchlist } from "../hooks/useWatchlist";
+import { useProfileStats } from "../hooks/useProfileStats";
 import { BADGE_TIERS, calculateBadgeProgress, type BadgeTier } from "../lib/badges";
 import type { Debate } from "../lib/debates";
 import { formatMarketValue, formatTokenAmount } from "../lib/markets/format";
@@ -37,6 +38,8 @@ const PROFILE_TABS: Array<{ id: ProfileTab; label: string; icon: DesignIconName 
   { id: "watchlist", label: "Watchlist", icon: "star" },
   { id: "simulator", label: "Global simulator", icon: "simulator" },
 ];
+
+const POOL_PNL_VALUATION_NOTE = "Pool tokens valued at current price, excluding selling fees and price impact.";
 
 function chainName(chainId: number | null) {
   if (chainId === 4663) return "Robinhood Chain";
@@ -238,7 +241,7 @@ function InformationPanel({ profile, stats, referral, holdings, holdingsLoading,
         <article className="profile-stat-block" data-illustration="pnl">
           <div className="profile-stat-heading"><span>Estimated PNL</span></div>
           <strong className={`profile-stat-value ${pnlClass(stats)}`}>{formatEstimatedPnl(stats)}</strong>
-          <IndexedData>Mark-to-market · gas excluded</IndexedData>
+          <IndexedData>{stats.estimatedPnlUsesPoolPrice ? POOL_PNL_VALUATION_NOTE : "After selling fees."} Gas excluded.</IndexedData>
         </article>
         <article className="profile-stat-block" data-illustration="holdings">
           <div className="profile-stat-heading"><span className="profile-stat-icon"><Icon name="wallet" /></span><span>My Holdings</span></div>
@@ -416,7 +419,9 @@ function ActivityPanel({ stats }: { stats: UserProfileStats }) {
     <div className="profile-tab-panel" role="tabpanel" id="profile-panel-activity">
       <section className="profile-content-card profile-pnl-card">
         <div className="profile-panel-heading"><div><span>Estimated all-time PNL</span><strong className={pnlClass(stats)}>{formatEstimatedPnl(stats)}</strong></div><div className="profile-win-loss"><span>{stats.winningVersus} wins</span><span>{stats.losingVersus} losses</span></div></div>
-        <div className="profile-empty-chart"><span>{stats.estimatedPnlEth === null ? "PNL cannot be estimated until every open position has an executable liquidation quote." : "Sales received + executable liquidation value − purchases paid. Gas and external ERC-20 transfers are excluded."}</span></div>
+        <div className="profile-empty-chart"><span>{stats.estimatedPnlEth === null
+          ? "PNL is unavailable. An estimate requires valid balances and valuation data for all open positions, up to 25."
+          : `Sales received + estimated value of remaining tokens − purchases paid. Curve values include protocol selling fees and price impact.${stats.estimatedPnlUsesPoolPrice ? ` ${POOL_PNL_VALUATION_NOTE} Actual sale proceeds may be lower.` : ""} Gas and external ERC-20 transfers are excluded.`}</span></div>
       </section>
       <section className="profile-content-card">
         <div className="profile-section-title"><div><span className="profile-eyebrow">Transactions</span><h2>Trading activity</h2></div><IndexedData>{stats.tradeCount} {stats.tradeCount === 1 ? "trade" : "trades"} · {formatTradedVolume(stats)}</IndexedData></div>
@@ -666,8 +671,12 @@ export default function ProfileClient(props: ProfileClientProps) {
   return <WalletProfile key={`${owner ?? "anonymous"}:${props.profile?.id ?? "none"}`} {...props} />;
 }
 
-function WalletProfile({ profile, stats, sessionAddress, sessionChainId, referral }: ProfileClientProps) {
+function WalletProfile({ profile, stats: initialStats, sessionAddress, sessionChainId, referral }: ProfileClientProps) {
   const { address, connected, authenticated, authenticating, connect, hydrated, authError } = useWallet();
+  const statsAddress = authenticated && address && sessionAddress
+    && address.toLowerCase() === sessionAddress.toLowerCase()
+    && profile?.evmWallet.toLowerCase() === address.toLowerCase() ? sessionAddress : null;
+  const { data: stats } = useProfileStats(statsAddress, initialStats);
   const [activeTab, setActiveTab] = useState<ProfileTab>("information");
   const [currentProfile, setCurrentProfile] = useState(profile);
   const [holdings, setHoldings] = useState<ProfileHoldings | null>(null);

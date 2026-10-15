@@ -6,6 +6,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+
+- Regression checks for migrated-token PNL, mixed and unpriced positions, consistency with Holdings, cross-replica wallet-cache reuse, targeted invalidation/correction recovery, and live Profile refresh coalescing, reconnect recovery and wallet isolation.
+
+### Changed
+
+- Replace Profile's fixed 20-second SQL statistics cache with maintained private wallet counters/positions and shared market valuation data. Renew ten-minute idle retention on reads, coalesce cold loads across replicas, invalidate only affected trader/creator/referrer sources after trades, recover indexed corrections and reuse the same sources for Holdings; retain bounded fallbacks without live Redis.
+- Clarify Profile's PNL valuation in Overview and Activity: remaining pool tokens use current prices excluding selling fees and price impact, so actual sale proceeds may be lower.
+
+### Fixed
+
+- Include migrated tokens in Profile's estimated PNL using the same indexed pool spot valuation as Holdings, alongside curve sale values after protocol fees and recorded trade cash flows. Disclose omitted pool selling fees/price impact and keep the total unavailable when an open position cannot be valued; version shared market snapshots and Holdings caches for the updated valuation data.
+- Refresh Profile's displayed PNL and counters through the existing shared trade-notification stream and an authenticated statistics-only endpoint while the authenticated Profile is mounted and visible. Coalesce notifications over one second, reconcile on reconnect/window focus, and use a one-minute foreground fallback when live delivery is unavailable without reloading profile identity or referrer data.
+
 ## [0.3.0] - 2026-10-15
 
 ### Added

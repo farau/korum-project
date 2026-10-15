@@ -113,6 +113,33 @@ local/test Redis (unique temporary namespace, no PostgreSQL writes), and
 `node --env-file=.env.local scripts/check-market-price-changes.mjs --live` for
 SELECT-only schema/calculation verification.
 
+Profile also separates maintained private wallet counters/positions from public
+market values. A personal trade invalidates only the trader, original creator and
+bound referrer's sources; another holder's price change reuses personal sources
+and hydrates updated prices from shared market snapshots. Event-to-wallet hashes
+retain former actors for correction/deletion recovery. Unmapped old corrections
+conservatively advance metadata. The active-source signal limits the bounded
+wallet-target lookup to batches while private sources are in use. Private sources
+have ten-minute idle retention, renewed by reads, and cross-replica cold-load
+leases. Referral bindings join the shared metadata fingerprint. Holdings also
+reuses these sources for candidate tokens and pricing; refreshing on-chain
+balances retains its short response cache. PNL uses curve sale values after fees
+and disclosed pool spot estimates for migrated tokens, without extra pool RPCs.
+Without live Redis configuration, bounded fallbacks still reconcile periodically.
+
+Profile's displayed statistics subscribe to the same browser SSE connection via
+`useProfileStats`. Trade notifications coalesce over one second before an
+authenticated `GET /api/profile/stats` reads cached positions and shared market
+prices; it does not load identity/referrer records or fetch Holdings balances.
+Only mounted statistics queries refresh, requests never overlap, and trades
+arriving during a request schedule a follow-up. Reconnection and window focus
+reconcile missed updates. While SSE is unavailable, a one-minute foreground
+interval provides recovery. The global feed also catches a wallet's first trade
+in a new token; unrelated trades reuse its maintained private source rather than
+rebuilding it. Browser query keys include the wallet and deployment, private
+responses are `no-store`, and inactive private statistics are removed from the
+browser cache. Verify with `node scripts/check-profile-live.mjs`.
+
 `GET /api/markets/live?tokens=0x...&feed=1` uses SSE. Token subscriptions are limited
 to 20; `feed=1` requests all trade notifications for the Explore ticker. There is
 one Redis subscriber per process and one browser connection shared by both token

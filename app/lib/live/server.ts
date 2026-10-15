@@ -11,6 +11,7 @@ import type { MarketNotice, TradeNotice } from "./protocol";
 import { usesKorumCandles } from "../markets/venue";
 import { prepareDebateMutations } from "./debate-cache";
 import { loadIndexedDebateRowsByIds } from "../db/debates";
+import { prepareProfileInvalidations } from "./profile-cache";
 
 const channel = redisCacheKey("live", "markets");
 export const marketRevisionKey = redisCacheKey("live", "revision");
@@ -89,6 +90,30 @@ async function readChartTrades(notices: TradeNotice[]): Promise<{ trades: ChartT
   return { trades, disabledTokens: [...new Set(disabledTokens)] };
 }
 
+async function readAffectedProfileWallets(notices: TradeNotice[]) {
+  const rows = await getDatabase().unsafe<{
+    eventId: string; blockHash: string; trader: string; creator: string; referrer: string | null;
+  }[]>(`
+    SELECT trade.event_id AS "eventId", trade.block_hash AS "blockHash",
+      trade.trader_address AS trader, versus.creator_wallet AS creator,
+      binding.referrer_wallet AS referrer
+    FROM ${INDEXER_SCHEMA}.camp_trades trade
+    JOIN ${INDEXER_SCHEMA}.versus_camps camp
+      ON camp.chain_id = trade.chain_id AND camp.token_address = trade.token_address
+    JOIN ${INDEXER_SCHEMA}.versuses versus
+      ON versus.chain_id = camp.chain_id AND versus.versus_id = camp.versus_id
+    LEFT JOIN ${INDEXER_SCHEMA}.referral_bindings binding
+      ON binding.chain_id = trade.chain_id AND binding.user_wallet = trade.trader_address
+    WHERE trade.chain_id = $1 AND trade.event_id = ANY($2::text[])
+  `, [notices[0].chain_id, notices.map(notice => notice.event_id)]);
+  const expected = new Map(notices.map(notice => [notice.event_id, notice.block_hash]));
+  if (rows.length !== notices.length || rows.some(row => expected.get(row.eventId) !== row.blockHash)) {
+    throw new Error("Profile projection changed while loading");
+  }
+  return rows.map(row => ({ eventId: row.eventId, wallets: [row.trader, row.creator, row.referrer]
+    .filter((wallet): wallet is string => Boolean(wallet)) }));
+}
+
 export async function publishMarketNotice(notices: TradeNotice[]) {
   const redis = await connectedRedis();
   if (!redis || redis.status !== "ready") throw new Error("Live Redis unavailable");
@@ -107,10 +132,11 @@ export async function publishMarketNotice(notices: TradeNotice[]) {
     const previous = await redis.get(marketRevisionKey) ?? "0";
     const { mutations, revisions } = await prepareChartMutations(redis, redisCacheKey, notice.tokens, notice.revision, trades ?? [], reset, chartUpdates?.disabledTokens);
     const snapshots = await prepareDebateMutations(redis, redisCacheKey, notice.tokens, notice.revision, loadIndexedDebateRowsByIds);
+    const profiles = await prepareProfileInvalidations(redis, redisCacheKey, notices, readAffectedProfileWallets);
     const published = await redis.eval(publishChartScript, 2 + keys.length, marketRevisionKey, channel, ...keys,
       notice.revision, JSON.stringify(notice), previous, notices.length,
-      ...signatures, JSON.stringify([...revisions, ...snapshots.revisions]),
-      JSON.stringify([...mutations, ...snapshots.mutations]), JSON.stringify(snapshots.mappings));
+      ...signatures, JSON.stringify([...revisions, ...snapshots.revisions, ...profiles.revisions]),
+      JSON.stringify([...mutations, ...snapshots.mutations]), JSON.stringify([...snapshots.mappings, ...profiles.mappings]));
     if (published !== -1) return published;
   }
   throw new Error("Concurrent live publications; retry the batch");

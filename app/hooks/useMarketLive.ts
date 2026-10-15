@@ -2,7 +2,7 @@
 
 import { useEffect, useSyncExternalStore } from "react";
 import { useQueryClient, type QueryClient, type InfiniteData } from "@tanstack/react-query";
-import { INDEXED_DEBATES_QUERY_KEY, INDEXED_DEBATE_QUERY_KEY, TOKEN_CHART_QUERY_KEY, TOKEN_TRADES_QUERY_KEY, RECENT_MARKET_TRADES_QUERY_KEY } from "./useIndexedMarkets";
+import { INDEXED_DEBATES_QUERY_KEY, INDEXED_DEBATE_QUERY_KEY, TOKEN_CHART_QUERY_KEY, TOKEN_TRADES_QUERY_KEY, RECENT_MARKET_TRADES_QUERY_KEY, PROFILE_STATS_QUERY_KEY } from "./useIndexedMarkets";
 import { mergeChartTrades, replaceChartHead, type ChartSnapshot } from "../lib/live/chart";
 import type { MarketNotice } from "../lib/live/protocol";
 
@@ -13,6 +13,9 @@ let source: EventSource | null = null;
 let connected = false;
 let reconnectTimer: ReturnType<typeof setTimeout> | undefined;
 let refreshTimer: ReturnType<typeof setTimeout> | undefined;
+let profileTimer: ReturnType<typeof setTimeout> | undefined;
+let profileRefreshing = false;
+let profileDirty = false;
 let refreshAll = false;
 const changedTokens = new Set<string>();
 const chartRecoveryTokens = new Set<string>();
@@ -27,7 +30,27 @@ function setConnected(value: boolean) {
   connected = value;
   listeners.forEach(listener => listener());
 }
+function scheduleProfileRefresh() {
+  if (document.visibilityState === "hidden") return;
+  if (!activeClient?.getQueryCache().findAll({ queryKey: [PROFILE_STATS_QUERY_KEY], type: "active" }).length) return;
+  profileDirty = true;
+  if (profileTimer || profileRefreshing) return;
+  profileTimer = setTimeout(async () => {
+    profileTimer = undefined;
+    profileDirty = false;
+    if (document.visibilityState === "hidden") return;
+    profileRefreshing = true;
+    try {
+      await activeClient?.invalidateQueries({ queryKey: [PROFILE_STATS_QUERY_KEY], refetchType: "active" });
+    } finally {
+      profileRefreshing = false;
+      // Trades arriving during a request must be reflected by a subsequent read.
+      if (profileDirty) scheduleProfileRefresh();
+    }
+  }, 1_000);
+}
 function scheduleRefresh(tokens: string[], reset = false, recoverCharts: string[] = []) {
+  scheduleProfileRefresh();
   recoverCharts.forEach(token => chartRecoveryTokens.add(token));
   tokens.forEach(token => changedTokens.add(token));
   refreshAll ||= reset;
@@ -130,6 +153,8 @@ export function useMarketLive(token: string | null = "feed") {
       if (!interests.size) {
         document.removeEventListener("visibilitychange", reconnect);
         if (refreshTimer) clearTimeout(refreshTimer);
+        if (profileTimer) clearTimeout(profileTimer);
+        profileTimer = undefined; profileDirty = false;
         refreshTimer = undefined; refreshAll = false; changedTokens.clear(); chartRecoveryTokens.clear();
       }
       reconnect();

@@ -12,6 +12,7 @@ export const INDEXED_DEBATE_QUERY_KEY = `indexed-debate:${DEPLOYMENT_CACHE_SCOPE
 export const TOKEN_CHART_QUERY_KEY = `token-chart:${DEPLOYMENT_CACHE_SCOPE}`;
 export const TOKEN_TRADES_QUERY_KEY = `token-trades:${DEPLOYMENT_CACHE_SCOPE}`;
 export const RECENT_MARKET_TRADES_QUERY_KEY = `recent-market-trades:${DEPLOYMENT_CACHE_SCOPE}`;
+export const PROFILE_STATS_QUERY_KEY = `profile-stats:${DEPLOYMENT_CACHE_SCOPE}`;
 
 const DEBATES_REFRESH_MS = 15_000;
 const DETAIL_REFRESH_MS = 15_000;

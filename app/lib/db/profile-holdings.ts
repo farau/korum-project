@@ -2,8 +2,6 @@ import "server-only";
 
 import { createHash } from "node:crypto";
 import { formatEther, formatUnits, getAddress } from "viem";
-import { INDEXER_SCHEMA } from "../../config/deployment";
-import { KORUM_CHAIN_ID } from "../../config/korum-network";
 import { redisCacheKey, rememberJson } from "../cache/redis";
 import { sellFeeBps } from "../contracts/economics";
 import { VERSUS_TOKEN_ABI } from "../contracts/korum";
@@ -12,7 +10,8 @@ import { marketValueWei } from "../markets/math";
 import { getLaunchConfig } from "../markets/pnl";
 import { getEthUsdQuote } from "../markets/quote-usd";
 import type { ProfileHolding, ProfileHoldings } from "../profile-holdings";
-import { getDatabase } from "./client";
+import { getProfileSource } from "./profile-source";
+import { getProfileMarkets } from "./profile-markets";
 
 type Candidate = {
   versusId: string;
@@ -62,44 +61,19 @@ async function readTokenBalances(wallet: `0x${string}`, rows: Candidate[]) {
 
 async function loadProfileHoldings(wallet: `0x${string}`): Promise<ProfileHoldings> {
   const client = getKorumServerPublicClient();
-  const [rows, ethBalance, quote] = await Promise.all([
-    getDatabase().unsafe<Candidate[]>(`
-      SELECT camp.versus_id::TEXT AS "versusId",
-        position.token_address AS "tokenAddress",
-        camp.name AS "tokenName", camp.symbol AS "tokenSymbol",
-        versus.config_id AS "configId",
-        market.virtual_eth::TEXT AS "virtualEth",
-        market.graduation_eth::TEXT AS "graduationEth",
-        market.real_eth_after::TEXT AS "realEthAfter",
-        market.token_reserve_after::TEXT AS "tokenReserveAfter",
-        market.cumulative_volume_after::TEXT AS "cumulativeVolumeAfter",
-        market.curve_status AS "curveStatus",
-        COALESCE(pool_trade.sqrt_price_x96_after, graduation.sqrt_price_x96)::TEXT AS "poolSqrtPriceX96"
-      FROM ${INDEXER_SCHEMA}.trader_positions position
-      JOIN ${INDEXER_SCHEMA}.versus_camps camp
-        ON camp.chain_id = position.chain_id AND camp.token_address = position.token_address
-      JOIN ${INDEXER_SCHEMA}.versuses versus
-        ON versus.chain_id = camp.chain_id AND versus.versus_id = camp.versus_id
-      LEFT JOIN ${INDEXER_SCHEMA}.camp_market_state market
-        ON market.chain_id = position.chain_id AND market.token_address = position.token_address
-      LEFT JOIN ${INDEXER_SCHEMA}.camp_graduations graduation
-        ON graduation.chain_id = position.chain_id AND graduation.token_address = position.token_address
-      LEFT JOIN LATERAL (
-        SELECT trade.sqrt_price_x96_after
-        FROM ${INDEXER_SCHEMA}.camp_trades trade
-        WHERE trade.chain_id = position.chain_id
-          AND trade.token_address = position.token_address
-          AND trade.venue = 1
-        ORDER BY trade.block_number DESC, trade.log_index DESC
-        LIMIT 1
-      ) pool_trade ON TRUE
-      WHERE position.chain_id = $1 AND position.trader_address = $2
-      ORDER BY camp.versus_id DESC, camp.side ASC
-      LIMIT $3
-    `, [KORUM_CHAIN_ID, wallet.toLowerCase(), MAX_CANDIDATES + 1]),
+  const [source, ethBalance, quote] = await Promise.all([
+    getProfileSource(wallet),
     client.getBalance({ address: wallet }),
     getEthUsdQuote(),
   ]);
+  const selected = source.positions.slice(0, MAX_CANDIDATES);
+  const markets = await getProfileMarkets(selected);
+  const rows: Candidate[] = source.positions.map(position => ({
+    ...position,
+    virtualEth: null, graduationEth: null, realEthAfter: null, tokenReserveAfter: null,
+    cumulativeVolumeAfter: null, curveStatus: null, poolSqrtPriceX96: null,
+    ...markets.get(position.tokenAddress.toLowerCase()),
+  }));
 
   const limited = rows.length > MAX_CANDIDATES;
   const held = await readTokenBalances(wallet, rows.slice(0, MAX_CANDIDATES));
@@ -153,7 +127,7 @@ export function getProfileHoldings(address: `0x${string}`) {
   const wallet = getAddress(address);
   const walletKey = createHash("sha256").update(wallet.toLowerCase()).digest("hex");
   return rememberJson(
-    redisCacheKey("private", "profile-holdings-v2", walletKey),
+    redisCacheKey("private", "profile-holdings-v3", walletKey),
     CACHE_SECONDS,
     () => loadProfileHoldings(wallet),
   );

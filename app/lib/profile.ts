@@ -39,6 +39,7 @@ export type UserProfileStats = {
   referredVolumeUsd: number | null;
   estimatedPnlEth: number | null;
   estimatedPnlUsd: number | null;
+  estimatedPnlUsesPoolPrice: boolean;
   winningVersus: number;
   losingVersus: number;
 };
