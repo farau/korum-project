@@ -6,7 +6,7 @@ import Link from "next/link";
 import type { Debate, DebateToken } from "../../lib/debates";
 import { formatMarketValue } from "../../lib/markets/format";
 import { useWatchlist } from "../../hooks/useWatchlist";
-import ProfileAvatar from "../ProfileAvatar";
+import DesignIcon from "../DesignIcon";
 import styles from "./ExploreVsCard.module.css";
 
 function fmtAgeFromMinutes(minutes: number) {
@@ -80,14 +80,25 @@ export default function ExploreVsCard({ debate, index = 0 }: { debate: Debate; i
     ?? timestampMs(debate.launchTimestamp ?? debate.createdAtTimestamp);
   const launchTimestamp = Math.max(...tokens.map((token) => timestampMs(token.launchedAt) ?? timestampMs(token.launchTimestamp) ?? debateTimestamp ?? 0)) || debateTimestamp;
   const age = relativeAge(launchTimestamp, now, debate.createdMinutesAgo);
-  const creator = debate.creatorName || (debate.creatorAddress ? `${debate.creatorAddress.slice(0, 6)}…${debate.creatorAddress.slice(-4)}` : "Unknown");
   const href = `/vs/${debate.id}`;
 
   return (
     <article className={styles.card}>
+      <div className={styles.meterRow}>
+        <span>{share}%</span>
+        <div className={styles.meter} role="img" aria-label={`${tokens[0].name} ${share}%, ${tokens[1].name} ${100 - share}%`}>
+          <span style={{ width: `${share}%` }} />
+        </div>
+        <span>{100 - share}%</span>
+      </div>
       <div className={styles.header}>
         <span className={styles.category}>{debate.category}</span>
-        <span className={styles.age}>{age}</span>
+        <div className={styles.headerMeta}>
+          <span className={styles.age}>{age}</span>
+          <button type="button" className={styles.watchlist} aria-label={starred ? "Remove from watchlist" : "Add to watchlist"} aria-pressed={starred} onClick={() => toggle(debate.id, `${debate.sideA} vs ${debate.sideB}`)}>
+            <svg viewBox="0 0 24 24" fill={starred ? "currentColor" : "none"} stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" aria-hidden="true"><path d="m12 3 2.8 5.7 6.3.9-4.6 4.5 1.1 6.3-5.6-3-5.6 3 1.1-6.3L3 9.6l6.2-.9L12 3Z" /></svg>
+          </button>
+        </div>
       </div>
       <Link href={href} className={styles.visuals} aria-label={`${tokens[0].name} vs ${tokens[1].name}`}>
         {tokens.map((token, side) => {
@@ -100,53 +111,32 @@ export default function ExploreVsCard({ debate, index = 0 }: { debate: Debate; i
                   loading={index === 0 ? "eager" : "lazy"}
                   onError={() => setFailedImages((images) => [...images, source])} />
               ) : <span className={styles.initial}>{token.name.charAt(0).toUpperCase()}</span>}
-              <span className={styles.tokenName}>{token.name}</span>
             </div>
           );
         })}
         <span className={styles.vs}>VS</span>
       </Link>
       <div className={styles.body}>
-        <div className={styles.creator}>
-          <ProfileAvatar address={debate.creatorAddress || ""} className={styles.avatar} />
-          <span>by <span className={styles.creatorName}>{creator}</span></span>
-        </div>
-        <div className={styles.values}>
-          {tokens.map((token, side) => {
-            const change = token.change24h ?? 0;
-            return <div className={styles.value} key={side}>
-              <span className={styles.price}>{formatMarketValue(token.marketCap ?? 0, currency, 1)}</span>
-              <span className={change >= 0 ? styles.up : styles.down}>{change >= 0 ? "+" : ""}{change.toFixed(1)}%</span>
-            </div>;
-          })}
-        </div>
-        <div className={styles.meterRow}>
-          <span>{share}%</span>
-          <div className={styles.meter} role="img" aria-label={`${tokens[0].name} ${share}%, ${tokens[1].name} ${100 - share}%`}>
-            <span style={{ width: `${Math.max(share, 100 - share)}%`, marginLeft: 0 }} />
-          </div>
-          <span>{100 - share}%</span>
-        </div>
+        <Link href={href} className={styles.names}>
+          <strong>{tokens[0].name}</strong><span>vs</span><strong>{tokens[1].name}</strong>
+        </Link>
         <div className={styles.stats}>
-          <div className={styles.stat}>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path d="M3 13h4v8H3zM10 8h4v13h-4zM17 3h4v18h-4z" /></svg>
-            <span><span className={styles.label}>Mkt Cap</span><strong>{formatMarketValue(totalCap, currency, 1)}</strong></span>
-          </div>
-          <div className={styles.stat}>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="4" /><path d="M2 21v-2a7 7 0 0 1 14 0v2H2ZM16 4a4 4 0 0 1 0 8M18 15a6 6 0 0 1 4 6h-3" /></svg>
-            <span><span className={styles.label}>Holders</span><strong>{debate.holderCount?.toLocaleString("en-US") ?? "—"}</strong></span>
-          </div>
-          <div className={styles.stat}>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m2 18 7-8 5 5 8-12M16 3h6v6" /></svg>
-            <span><span className={styles.label}>24h Vol</span><strong>{formatMarketValue(debate.volume24h, currency, 1)}</strong></span>
-          </div>
-          <button type="button" className={styles.watchlist} aria-label={starred ? "Remove from watchlist" : "Add to watchlist"} aria-pressed={starred} onClick={() => toggle(debate.id, `${debate.sideA} vs ${debate.sideB}`)}>
-            <svg viewBox="0 0 24 24" fill={starred ? "currentColor" : "none"} stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" aria-hidden="true"><path d="m12 3 2.8 5.7 6.3.9-4.6 4.5 1.1 6.3-5.6-3-5.6 3 1.1-6.3L3 9.6l6.2-.9L12 3Z" /></svg>
-          </button>
+          {tokens.map((token, side) => (
+            <div className={styles.tokenStats} role="group" aria-label={`${token.name} statistics`} key={side}>
+              <div className={styles.stat}>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path d="M3 13h4v8H3zM10 8h4v13h-4zM17 3h4v18h-4z" /></svg>
+                <span><span className={styles.label}>MCAP</span><strong title={token.marketCap === undefined ? undefined : `${token.marketCap.toLocaleString("en-US")} ${currency}`}>{formatMarketValue(token.marketCap, currency, 1)}</strong></span>
+              </div>
+              <div className={styles.stat}>
+                <DesignIcon name="user" />
+                <span><span className={styles.label}>Holders</span><strong title={token.holders?.toLocaleString("en-US")}>{token.holders === undefined ? "—" : Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 1 }).format(token.holders)}</strong></span>
+              </div>
+            </div>
+          ))}
         </div>
         <Link href={href} className={styles.cta}>
-          <span className={styles.arrow}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M5 12h14m-6-6 6 6-6 6" /></svg></span>
           <span>View versus</span>
+          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="m14 2-11 12h8l-1 8 11-12h-8l1-8Z" /></svg>
         </Link>
       </div>
     </article>

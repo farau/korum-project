@@ -1,3 +1,12 @@
+export function formatCardMarketCap(value: number | null | undefined, currency: "USD" | "ETH" = "USD") {
+  if (value === null || value === undefined || !Number.isFinite(value)) return "—";
+  const formatted = Intl.NumberFormat("en-US", {
+    notation: Math.abs(value) >= 100_000 ? "compact" : "standard",
+    maximumFractionDigits: 1,
+  }).format(value).replace("K", "k");
+  return currency === "USD" ? `$${formatted}` : `${formatted} ETH`;
+}
+
 export function formatMarketValue(
   value: number | null | undefined,
   currency: "USD" | "ETH" = "USD",

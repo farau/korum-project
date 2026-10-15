@@ -1,29 +1,15 @@
 "use client";
-import React from 'react';
-import { useExploreSearch } from './ExploreSearchProvider';
+import { useExploreCategory } from './ExploreCategoryProvider';
 
 export default function MiniHero() {
-  const { query, setQuery } = useExploreSearch();
-
+  const { category } = useExploreCategory();
   return (
-    <div className="mini-hero">
+    <section className="mini-hero">
       <div className="mini-hero-inner">
-        <div className="hero-search-wrap">
-          <span className="icon">⌕</span>
-          <input
-            type="text"
-            id="searchInput"
-            placeholder="Search for a debate, token, or category…"
-            className="korum-search-input"
-            maxLength={100}
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-          />
-        </div>
-        <span className="tagline">
-          Each side has <b>its own token.</b> Buy or sell the one you believe in, at any time.
-        </span>
+        <span className="explore-eyebrow">Hot takes</span>
+        <h1>{category === "HotTake" ? "Versus of the week" : "Explore Versus"}</h1>
+        <p>Two sides. One question. What do you think?</p>
       </div>
-    </div>
+    </section>
   );
 }

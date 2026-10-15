@@ -97,7 +97,9 @@ export function redisCacheKey(...parts: Array<string | number>) {
 
 export async function invalidateIndexedDebateCaches() {
   // The shared revision isolates in-flight cache fills from later metadata edits.
-  await runRedis(client => client.set(redisCacheKey("live", "revision"), randomUUID()));
+  const revision = randomUUID();
+  await runRedis(client => client.mset(redisCacheKey("live", "revision"), revision,
+    redisCacheKey("live", "snapshot-metadata"), revision));
 }
 
 export async function readJson<T>(key: string) {

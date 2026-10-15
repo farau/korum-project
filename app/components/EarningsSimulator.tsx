@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useMemo, useState } from "react";
+import DesignIcon from "./DesignIcon";
 
 const feeTiers = [
   { min: 0, max: 50_000, feeRate: 0.0125, creatorShare: 0.5 },
@@ -27,24 +28,6 @@ function formatMoney(value: number) {
   return `$${value.toLocaleString("en-US", { maximumFractionDigits: 2 })}`;
 }
 
-function BoltIcon() {
-  return (
-    <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-      <path d="M13 2 3 14h6.5L8 22l13-12h-6.5L13 2Z" />
-    </svg>
-  );
-}
-
-function UsersIcon() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
-      <circle cx="9" cy="7" r="4" />
-      <path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" />
-    </svg>
-  );
-}
-
 export default function EarningsSimulator() {
   const [vsCount, setVsCount] = useState(3);
   const [vsVolume, setVsVolume] = useState(10_000);
@@ -62,7 +45,7 @@ export default function EarningsSimulator() {
       <div className="global-sim-grid">
         <div className="global-sim-col">
           <h3 className="gsim-col-head">
-            <span className="gsim-icon"><BoltIcon /></span>
+            <span className="gsim-icon"><DesignIcon name="bolt" /></span>
             <span>
               <span className="gsim-col-title">Creation</span>
               <span className="gsim-col-sub">VS you plan to create</span>
@@ -77,7 +60,7 @@ export default function EarningsSimulator() {
 
         <div className="global-sim-col">
           <h3 className="gsim-col-head">
-            <span className="gsim-icon"><UsersIcon /></span>
+            <span className="gsim-icon"><DesignIcon name="users" /></span>
             <span>
               <span className="gsim-col-title">Referrals</span>
               <span className="gsim-col-sub">Active referrals</span>

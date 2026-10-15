@@ -19,18 +19,19 @@ export function TokenImage({ src, name }: { src?: string; name: string }) {
 type VsTableViewProps = {
   debates: Debate[];
   ageLabel: (debate: Debate) => string;
-  isWatched: (id: number) => boolean;
-  onWatchlistToggle: (id: number, label: string) => void;
+  isWatched?: (id: number) => boolean;
+  onWatchlistToggle?: (id: number, label: string) => void;
 };
 
 export function VsTableView({ debates, ageLabel, isWatched, onWatchlistToggle }: VsTableViewProps) {
+  const showWatchlist = Boolean(isWatched && onWatchlistToggle);
   return (
     <div className="vs-table-wrap" tabIndex={0} role="region" aria-label="Versus token market data">
         <table className="vs-table">
           <thead><tr>
             <th scope="col">VS</th><th scope="col">Token</th><th scope="col">Graph</th>
             {["MCap", "Age", "Vol 24h", "Traders", "5m", "1h", "6h", "24h"].map(label => <th scope="col" className="num" key={label}>{label}</th>)}
-            <th scope="col"><span className="sr-only">Watchlist</span></th>
+            {showWatchlist && <th scope="col"><span className="sr-only">Watchlist</span></th>}
           </tr></thead>
           {debates.map(debate => (
             <tbody key={debate.id} className="table-matchup-group">
@@ -41,6 +42,7 @@ export function VsTableView({ debates, ageLabel, isWatched, onWatchlistToggle }:
               const change = token?.change24h ?? (side === "A" ? debate.changeA24h : debate.changeB24h);
               const series = token?.priceHistory;
               const currency = debate.marketCurrency ?? "USD";
+              const watched = isWatched?.(debate.id) ?? false;
               const min = series?.length ? Math.min(...series) : 0;
               const range = series?.length ? Math.max(...series) - min || 1 : 1;
               return <tr className="table-token-row" key={side}>
@@ -60,7 +62,7 @@ export function VsTableView({ debates, ageLabel, isWatched, onWatchlistToggle }:
                 <td className="num">{formatMarketValue(token?.volume24h, currency, 1)}</td>
                 <td className="num">{token?.traderCount?.toLocaleString("en-US") ?? "—"}</td>
                 <td className="num"><Change value={token?.change5m} /></td><td className="num"><Change value={token?.change1h} /></td><td className="num"><Change value={token?.change6h} /></td><td className="num"><Change value={change} /></td>
-                {index === 0 && <td rowSpan={2} className="col-star"><button type="button" className={`table-star ${isWatched(debate.id) ? "active" : ""}`} aria-label={`${isWatched(debate.id) ? "Remove from" : "Add to"} watchlist: ${debate.sideA} vs ${debate.sideB}`} aria-pressed={isWatched(debate.id)} onClick={() => onWatchlistToggle(debate.id, `${debate.sideA} vs ${debate.sideB}`)}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="m12 2.5 3 6.5 7 .9-5.2 4.9 1.4 7-6.2-3.5-6.2 3.5 1.4-7L2 9.9l7-.9z" /></svg></button></td>}
+                {showWatchlist && index === 0 && <td rowSpan={2} className="col-star"><button type="button" className={`table-star ${watched ? "active" : ""}`} aria-label={`${watched ? "Remove from" : "Add to"} watchlist: ${debate.sideA} vs ${debate.sideB}`} aria-pressed={watched} onClick={() => onWatchlistToggle?.(debate.id, `${debate.sideA} vs ${debate.sideB}`)}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="m12 2.5 3 6.5 7 .9-5.2 4.9 1.4 7-6.2-3.5-6.2 3.5 1.4-7L2 9.9l7-.9z" /></svg></button></td>}
               </tr>;
               })}
             </tbody>

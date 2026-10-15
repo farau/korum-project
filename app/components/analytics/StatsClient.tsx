@@ -1,35 +1,38 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useId, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useIndexedDebates } from "../../hooks/useIndexedMarkets";
 import MetricGlyph from "./MetricGlyph";
+import DesignIcon from "../DesignIcon";
+import { VsTableView } from "../explore/VsTable";
 import type { Debate } from "../../lib/debates";
+import type { AnalyticsPeriod, AnalyticsSnapshot } from "../../lib/analytics";
 
-const chartAll = [42, 58, 36, 74, 64, 88, 53, 70, 96, 82, 68, 91];
 const chartWeek = [32, 48, 41, 59, 73, 67, 86];
-const labelsAll = ["J", "F", "M", "A", "M", "J", "J", "A", "S", "O", "N", "D"];
 const labelsWeek = ["M", "T", "W", "T", "F", "S", "S"];
 const categoryColors = ["#00A1FD", "#D794F3", "#F3D8AD", "#9DDA72", "#07CCC3", "#58E877", "#FF453A"];
 const emptyDebates: Debate[] = [];
 const ANALYTICS_REFRESH_MS = 5 * 60 * 1_000;
 const ANALYTICS_CACHE_MS = 10 * 60 * 1_000;
-type AnalyticsPeriod = "day" | "week" | "month";
-type AnalyticsSnapshot = {
-  period: AnalyticsPeriod;
-  trades: number;
-  volumeEth: number;
-  volumeUsd: number | null;
-  averageTradeEth: number;
-  averageTradeUsd: number | null;
-  traders: number;
-  activeVersus: number;
-  feesEth: number;
-  feesUsd: number | null;
-  creatorFeesEth: number;
-  creatorFeesUsd: number | null;
-  buckets: Array<{ timestamp: number; volumeEth: number; volumeUsd: number | null; trades: number }>;
-};
+
+function combinedMarketCap(debate: Debate) {
+  return (debate.tokenA?.marketCap ?? debate.marketCapA ?? 0)
+    + (debate.tokenB?.marketCap ?? debate.marketCapB ?? 0);
+}
+
+function versusAgeLabel(debate: Debate) {
+  const minutes = Math.max(0, Math.floor(debate.createdMinutesAgo));
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  return hours < 24 ? `${hours}h ago` : `${Math.floor(hours / 24)}d ago`;
+}
+
+function annualRefreshInterval() {
+  const now = new Date();
+  const nextMonth = Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1);
+  return Math.min(ANALYTICS_REFRESH_MS, nextMonth - now.getTime() + 100);
+}
 
 function useCountUp(value: number) {
   const [display, setDisplay] = useState(0);
@@ -78,6 +81,8 @@ function bucketLabel(timestamp: number, period: AnalyticsPeriod) {
   const date = new Date(timestamp * 1_000);
   return period === "day"
     ? new Intl.DateTimeFormat("en-US", { hour: "numeric", timeZone: "UTC" }).format(date)
+    : period === "year"
+    ? new Intl.DateTimeFormat("en-US", { month: "short", timeZone: "UTC" }).format(date)
     : new Intl.DateTimeFormat("en-US", { weekday: "short", day: "numeric", timeZone: "UTC" }).format(date);
 }
 
@@ -111,40 +116,63 @@ function AnalyticsIcon({ type = "trend" }: { type?: "trades" | "trend" | "bars" 
     <span className="analytics-stat-icon">
       <span className="spark spark1" />
       <span className="spark spark2" />
-      {type === "cash" ? (
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12 1v22" /><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" /></svg>
-      ) : type === "trades" || type === "bars" ? <MetricGlyph type={type} /> : (
+      {type === "cash" ? <DesignIcon name="cashout" /> : type === "wallet" ? <MetricGlyph type="cash" /> : type === "users" ? <DesignIcon name="users" /> : type === "bolt" ? <DesignIcon name="bolt" /> : type === "trades" || type === "bars" ? <MetricGlyph type={type} /> : (
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">{paths[type]}</svg>
       )}
     </span>
   );
 }
 
-function BarChart({ values, labels, maxValue }: { values: number[]; labels: string[]; maxValue?: number }) {
+function BarChart({ values, labels, maxValue, currency = "USD" }: { values: number[]; labels: string[]; maxValue?: number; currency?: "USD" | "ETH" }) {
+  const [activeIndex, setActiveIndex] = useState<number | null>(null);
+  const tooltipId = useId();
   const max = Math.max(...values, 0);
   const chartMax = maxValue ?? max;
   const axisMax = maxValue ?? max * 12000;
+  const formatValue = (value: number) => formatAnalyticsMoney(currency === "USD" ? value : null, value);
+  const formatAmount = (value: number) => currency === "USD"
+    ? new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value)
+    : `${value.toLocaleString("en-US", { maximumFractionDigits: 8 })} ETH`;
+  const active = activeIndex !== null && values[activeIndex] !== undefined ? activeIndex : null;
   return (
     <>
       <div className="analytics-chart-body">
         <div className="analytics-chart-bars">
           {values.map((value, index) => (
-            <span
-              className={`analytics-chart-bar ${value === max ? "peak" : ""}`}
+            <button
+              type="button"
+              className="analytics-chart-slot"
               key={`${value}-${index}`}
-              style={{ height: `${Math.max(8, maxValue ? (value / chartMax) * 100 : value)}%`, transitionDelay: `${index * 45}ms` }}
-            />
+              aria-label={`${labels[index]}: ${formatAmount(value)}`}
+              aria-describedby={active === index ? tooltipId : undefined}
+              data-active={active === index}
+              onPointerEnter={() => setActiveIndex(index)}
+              onPointerLeave={() => setActiveIndex(null)}
+              onFocus={() => setActiveIndex(index)}
+              onBlur={() => setActiveIndex(null)}
+              onClick={() => setActiveIndex(index)}
+              onKeyDown={(event) => { if (event.key === "Escape") setActiveIndex(null); }}
+            >
+              <span
+                className={`analytics-chart-bar ${value > 0 && value === max ? "peak" : ""}`}
+                style={{ height: `${maxValue === undefined ? Math.max(8, value) : chartMax > 0 ? (value / chartMax) * 100 : 0}%`, transitionDelay: `${index * 45}ms` }}
+              />
+            </button>
           ))}
         </div>
+        {active !== null ? <div id={tooltipId} role="tooltip" className="analytics-chart-tooltip" style={{ left: `clamp(75px, calc(${((active + 0.5) / values.length) * 100}% - ${((active + 0.5) / values.length) * 42}px), calc(100% - 75px))` }}>
+          <span>{labels[active]}</span>
+          <strong>{formatAmount(values[active])}</strong>
+        </div> : null}
         <div className="analytics-chart-yaxis">
-          <span>{formatMoney(axisMax)}</span>
-          <span>{formatMoney(axisMax * 0.5)}</span>
-          <span>$0</span>
+          <span>{formatValue(axisMax)}</span>
+          <span>{formatValue(axisMax * 0.5)}</span>
+          <span>{formatValue(0)}</span>
         </div>
       </div>
       <div className="analytics-chart-xaxis">
         {labels.map((label, index) => (
-          <span key={`${label}-${index}`}>{label}</span>
+          <span key={`${label}-${index}`} data-active={active === index} onPointerEnter={() => setActiveIndex(index)} onPointerLeave={() => setActiveIndex(null)}>{label}</span>
         ))}
       </div>
     </>
@@ -153,7 +181,7 @@ function BarChart({ values, labels, maxValue }: { values: number[]; labels: stri
 
 function StatCard({ value, label, icon }: { value: string; label: string; icon: React.ComponentProps<typeof AnalyticsIcon>["type"] }) {
   return (
-    <div className="analytics-stat-card">
+    <div className="analytics-stat-card" data-metric={icon}>
       <AnalyticsIcon type={icon} />
       <span className="analytics-stat-text">
         <b>{value}</b>
@@ -164,7 +192,7 @@ function StatCard({ value, label, icon }: { value: string; label: string; icon: 
 }
 
 export default function StatsClient() {
-  const liveDebates = useIndexedDebates(undefined, true, ANALYTICS_REFRESH_MS);
+  const liveDebates = useIndexedDebates();
   const [period, setPeriod] = useState<AnalyticsPeriod>("day");
   const analyticsQuery = useQuery({
     queryKey: ["analytics", period],
@@ -192,17 +220,30 @@ export default function StatsClient() {
     refetchOnWindowFocus: true,
     retry: 1,
   });
+  const annualAnalyticsQuery = useQuery({
+    queryKey: ["analytics", "year"],
+    queryFn: async () => {
+      const response = await fetch("/api/analytics?period=year", { cache: "no-store" });
+      if (!response.ok) throw new Error("Annual analytics request failed.");
+      return response.json() as Promise<AnalyticsSnapshot>;
+    },
+    staleTime: 0,
+    refetchInterval: annualRefreshInterval,
+    refetchIntervalInBackground: false,
+    refetchOnWindowFocus: true,
+    retry: 1,
+  });
 
   const src = liveDebates.data ?? emptyDebates;
   const totalVolume = src.reduce((sum, debate) => sum + debate.volume24h, 0);
-  const participantCount = src.reduce((sum, debate) => sum + debate.participantCount, 0);
   const trades = src.reduce((sum, debate) => sum + (debate.trades24h ?? 0), 0);
   const avgTrade = trades ? totalVolume / trades : 0;
-  const annualVolume = totalVolume * 18;
-  const fees = totalVolume * 0.025;
-  const creatorFees = fees * 0.32;
   const analytics = analyticsQuery.data;
   const weeklyAnalytics = weeklyAnalyticsQuery.data;
+  const annualAnalytics = annualAnalyticsQuery.data;
+  const annualChartValues = annualAnalytics?.buckets.map((bucket) => bucket.volumeUsd ?? bucket.volumeEth) ?? [];
+  const annualChartLabels = annualAnalytics?.buckets.map((bucket) => bucketLabel(bucket.timestamp, "year")) ?? [];
+  const annualYear = annualAnalytics ? new Date(annualAnalytics.asOf * 1_000).getUTCFullYear() : null;
   const periodTrades = analytics?.trades ?? trades;
   const periodVolumeUsd = analytics?.volumeUsd ?? totalVolume;
   const periodAverageTradeUsd = analytics?.averageTradeUsd ?? avgTrade;
@@ -230,7 +271,7 @@ export default function StatsClient() {
   const topVs = useMemo(
     () =>
       [...src]
-        .sort((a, b) => (b.marketCapA || 0) + (b.marketCapB || 0) - ((a.marketCapA || 0) + (a.marketCapB || 0)))
+        .sort((a, b) => combinedMarketCap(b) - combinedMarketCap(a) || a.id - b.id)
         .slice(0, 8),
     [src],
   );
@@ -243,10 +284,7 @@ export default function StatsClient() {
             <div className="tac-head">
               <div className="tac-head-left">
                 <span className="tac-logo">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <polyline points="3 17 9 11 13 15 21 7" />
-                    <polyline points="14 7 21 7 21 14" />
-                  </svg>
+                  <DesignIcon name="trade" />
                 </span>
                 <div>
                   <h3>Trading analytics</h3>
@@ -298,11 +336,11 @@ export default function StatsClient() {
           <div className="analytics-panel">
             <div className="analytics-gauges">
               <div className="analytics-half">
-                <div className="analytics-half-title">Annual</div>
+                <div className="analytics-half-title">Annual{annualYear ? ` · ${annualYear}` : ""}</div>
                 <div className="analytics-gauge-block">
                   <div className="analytics-chart-col">
                     <div className="analytics-chart-head">
-                      <span className="gauge-value">{formatMoney(annualVolume)}</span>
+                      <span className="gauge-value">{annualAnalytics ? formatAnalyticsMoney(annualAnalytics.volumeUsd, annualAnalytics.volumeEth) : "—"}</span>
                       <div className="analytics-vol24h">
                         <span className="vol24h-icon" aria-hidden="true"><MetricGlyph type="bars" /></span>
                         <span className="vol24h-text">
@@ -311,13 +349,14 @@ export default function StatsClient() {
                         </span>
                       </div>
                     </div>
-                    <BarChart values={chartAll} labels={labelsAll} />
+                    <BarChart values={annualChartValues} labels={annualChartLabels} maxValue={Math.max(...annualChartValues, 0)} currency={annualAnalytics?.volumeUsd == null ? "ETH" : "USD"} />
+                    {annualAnalyticsQuery.isError ? <p role="status">Annual data is temporarily unavailable.</p> : annualAnalyticsQuery.isPending ? <p role="status">Loading annual data…</p> : null}
                   </div>
                   <div className="analytics-stat-cards">
-                    <StatCard icon="bolt" value={src.length.toString()} label="Active VS" />
-                    <StatCard icon="users" value={formatCompact(participantCount)} label="Traders" />
-                    <StatCard icon="wallet" value={formatMoney(fees)} label="Fees collected (est.)" />
-                    <StatCard icon="cash" value={formatMoney(creatorFees)} label="Creator Fees" />
+                    <StatCard icon="bolt" value={annualAnalytics ? annualAnalytics.activeVersus.toString() : "—"} label="Active VS" />
+                    <StatCard icon="users" value={annualAnalytics ? formatCompact(annualAnalytics.traders) : "—"} label="Traders" />
+                    <StatCard icon="wallet" value={annualAnalytics ? formatAnalyticsMoney(annualAnalytics.feesUsd, annualAnalytics.feesEth) : "—"} label="Fees collected" />
+                    <StatCard icon="cash" value={annualAnalytics ? formatAnalyticsMoney(annualAnalytics.creatorFeesUsd, annualAnalytics.creatorFeesEth) : "—"} label="Creator Fees" />
                   </div>
                 </div>
               </div>
@@ -336,7 +375,7 @@ export default function StatsClient() {
                         </span>
                       </div>
                     </div>
-                    <BarChart values={weeklyChartValues} labels={weeklyChartLabels} maxValue={weeklyChartMax} />
+                    <BarChart values={weeklyChartValues} labels={weeklyChartLabels} maxValue={weeklyChartMax} currency={weeklyAnalytics && weeklyAnalytics.volumeUsd === null ? "ETH" : "USD"} />
                   </div>
                   <div className="analytics-stat-cards">
                     <StatCard icon="bolt" value={weeklyAnalytics ? weeklyAnalytics.activeVersus.toString() : "—"} label="Active VS" />
@@ -383,32 +422,13 @@ export default function StatsClient() {
             <span className="eyebrow">Top VS</span>
             <h2>Largest market caps</h2>
           </div>
-          <div className="topvs-table">
-            <div className="topvs-row topvs-head">
-              <span>#</span>
-              <span>VS</span>
-              <span className="topvs-cap-head">Market cap</span>
-              <span className="topvs-chart-head" />
-              <span className="topvs-traders-head">Traders</span>
+          {topVs.length ? (
+            <VsTableView debates={topVs} ageLabel={versusAgeLabel} />
+          ) : (
+            <div className="explore-empty-versus" role="status">
+              <p>{liveDebates.isPending ? "Loading top versus..." : liveDebates.isError ? "Top versus are temporarily unavailable." : "No versus available yet."}</p>
             </div>
-            {topVs.map((debate, index) => {
-              const marketCap = (debate.marketCapA || 0) + (debate.marketCapB || 0);
-              const spark = [16, 22, 14, 26, 20, 32, 28].map((y, pointIndex) => `${pointIndex * 10},${36 - y}`).join(" ");
-              return (
-                <div className={`topvs-row ${index < 3 ? "top3" : ""}`} key={debate.id}>
-                  <span className="topvs-rank">#{index + 1}</span>
-                  <span className="topvs-name">{debate.sideA} vs {debate.sideB}</span>
-                  <span className="topvs-cap">{formatMoney(marketCap)}</span>
-                  <svg className="topvs-chart" viewBox="0 0 64 24" fill="none">
-                    <polyline points={spark} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                  </svg>
-                  <span className="topvs-traders">
-                    <AnalyticsIcon type="users" /> {formatCompact(debate.participantCount)}
-                  </span>
-                </div>
-              );
-            })}
-          </div>
+          )}
         </div>
       </section>
     </>

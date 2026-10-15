@@ -22,7 +22,7 @@ import { normalizeSocialLinks, socialLinksFromJson } from "../lib/versus-socials
 import { formatMarketValue, formatTokenAmount } from "../lib/markets/format";
 import MarketCandlestickChart from "./MarketCandlestickChart";
 import GraduatedPoolChart from "./GraduatedPoolChart";
-import { GRADUATING_MESSAGE, usesKorumCandles } from "../lib/markets/venue";
+import { GRADUATING_MESSAGE, resolveCurveStatus, usesKorumCandles } from "../lib/markets/venue";
 import TokenTradePanel from "./TokenTradePanel";
 import ProfileAvatar from "./ProfileAvatar";
 import CreatorFeeTransfer from "./CreatorFeeTransfer";
@@ -176,6 +176,17 @@ async function copyText(value: string) {
   await navigator.clipboard.writeText(value);
 }
 
+function HeroTokenArtwork({ source, side }: { source?: string; side: "a" | "b" }) {
+  const [failedSource, setFailedSource] = useState<string | null>(null);
+  return (
+    <div className={`${styles.heroTokenArtwork} ${side === "a" ? styles.heroTokenArtworkA : styles.heroTokenArtworkB}`}>
+      {source && failedSource !== source ? (
+        <Image src={source} alt="" fill sizes="60vw" unoptimized loading="eager" onError={() => setFailedSource(source)} />
+      ) : null}
+    </div>
+  );
+}
+
 function TokenAvatar({ token, side }: { token: DebateToken; side: "a" | "b" }) {
   const [failed, setFailed] = useState(false);
   const source = token.image || token.imageRef;
@@ -190,9 +201,10 @@ function TokenPanel({ token, side, marketShare, marketAvailable, onMarketUpdate,
   const [chartMetric, setChartMetric] = useState<ChartMetric>("price");
   const [chartCurrency, setChartCurrency] = useState<"USD" | "ETH">(() => currency === "USD" && !token.quoteUsd ? "ETH" : currency);
   const [observedVenue, setObservedVenue] = useState<{ address: string; status: number } | null>(null);
-  const curveStatus = token.curveStatus === 3 ? 3
-    : token.curveStatus === 2 && observedVenue?.status !== 3 ? 2
-    : observedVenue && observedVenue.address === token.address?.toLowerCase() ? observedVenue.status : token.curveStatus;
+  const [onChainVenue, setOnChainVenue] = useState<{ address: string; status: number } | null>(null);
+  const tokenAddress = token.address?.toLowerCase();
+  const indexedStatus = resolveCurveStatus(token.curveStatus, observedVenue?.address === tokenAddress ? observedVenue?.status : undefined);
+  const curveStatus = resolveCurveStatus(indexedStatus, onChainVenue?.address === tokenAddress ? onChainVenue?.status : undefined);
   const chartEnabled = marketAvailable && usesKorumCandles(curveStatus);
   const chartRanges = BONDING_CURVE_RANGES;
   const isRangeAvailable = chartRanges.some((period) => period.value === range);
@@ -203,14 +215,17 @@ function TokenPanel({ token, side, marketShare, marketAvailable, onMarketUpdate,
     : null;
   const live = useMarketLive(validTokenAddress);
   const queryClient = useQueryClient();
-  const handleCurveStatus = useCallback((address: string, status: number) => {
+  const handleIndexedCurveStatus = useCallback((address: string, status: number) => {
     setObservedVenue(previous => previous?.address === address && previous.status === status ? previous : { address, status });
+  }, []);
+  const handleCurveStatus = useCallback((address: string, status: number) => {
+    setOnChainVenue(previous => previous?.address === address && previous.status === status ? previous : { address, status });
   }, []);
   const chartKey = useMemo(() => [TOKEN_CHART_QUERY_KEY, validTokenAddress, activeRange], [validTokenAddress, activeRange]);
   const readChart = async (response: Response, signal: AbortSignal) => {
     if (response.status === 409) {
       const venue = await response.json() as { curveStatus: number };
-      if (!signal.aborted && validTokenAddress) handleCurveStatus(validTokenAddress, venue.curveStatus);
+      if (!signal.aborted && validTokenAddress) handleIndexedCurveStatus(validTokenAddress, venue.curveStatus);
     }
     if (!response.ok) throw new Error("Market chart request failed.");
     return response.json() as Promise<ChartResponse>;
@@ -251,7 +266,7 @@ function TokenPanel({ token, side, marketShare, marketAvailable, onMarketUpdate,
         });
         if (response.status === 409) {
           const venue = await response.json() as { curveStatus: number };
-          if (!request.signal.aborted) handleCurveStatus(validTokenAddress, venue.curveStatus);
+          if (!request.signal.aborted) handleIndexedCurveStatus(validTokenAddress, venue.curveStatus);
           return;
         }
         if (!response.ok) return;
@@ -270,7 +285,7 @@ function TokenPanel({ token, side, marketShare, marketAvailable, onMarketUpdate,
       finally { controller = undefined; }
     }, live ? Math.max(60_000, CHART_REFRESH_MS[activeRange]) : Math.max(5_000, CHART_REFRESH_MS[activeRange]));
     return () => { window.clearInterval(timer); controller?.abort(); };
-  }, [activeRange, chartKey, live, chartEnabled, queryClient, validTokenAddress, handleCurveStatus]);
+  }, [activeRange, chartKey, live, chartEnabled, queryClient, validTokenAddress, handleIndexedCurveStatus]);
 
   useEffect(() => {
     if (!chartEnabled || activeRange !== "1s") return;
@@ -353,7 +368,7 @@ function TokenPanel({ token, side, marketShare, marketAvailable, onMarketUpdate,
       </div>
 
       <div className={`${styles.chartCard} ${isLeading ? styles.leadingCard : ""}`}>
-        {curveStatus === 3 ? <GraduatedPoolChart tokenAddress={validTokenAddress} symbol={symbol} /> : curveStatus === 2 ? <div className={styles.poolChartPending} role="status"><strong>{GRADUATING_MESSAGE}</strong><span>Trading resumes when liquidity is available on Uniswap.</span></div> : <>
+        {curveStatus === 3 ? <GraduatedPoolChart tokenAddress={validTokenAddress} symbol={symbol} /> : curveStatus === 2 ? <div className={styles.poolChartPending} role="status"><strong>{GRADUATING_MESSAGE}</strong><span>Trading is paused until the smart contract completes migration.</span></div> : <>
         <div className={styles.chartToolbar}>
           <div className={styles.periodRow} aria-label="Candle intervals">{chartRanges.map((period) => <button className={period.value === activeRange ? styles.selectedControl : ""} type="button" key={period.value} title={period.value === "1s" ? "1-second candles · last 5 minutes" : undefined} aria-pressed={period.value === activeRange} disabled={!marketAvailable} onClick={() => setRange(period.value)}>{period.label}</button>)}</div>
           <div className={styles.chartToolbarOptions}>
@@ -378,7 +393,7 @@ function TokenPanel({ token, side, marketShare, marketAvailable, onMarketUpdate,
           </>}
         </p>
       ) : null}
-      <TokenTradePanel token={token} onStatus={onStatus} onCurveStatus={handleCurveStatus} />
+      <TokenTradePanel token={{ ...token, curveStatus }} onStatus={onStatus} onCurveStatus={handleCurveStatus} />
     </article>
   );
 }
@@ -581,6 +596,11 @@ export default function VsDetailClient({ indexedDebate, indexedReadFailed }: VsD
   return (
     <div className={styles.page}>
       <section className={styles.hero}>
+        <div className={styles.heroBanner}>
+        <div className={styles.heroArtwork} aria-hidden="true">
+          <HeroTokenArtwork side="a" source={tokenA.image || tokenA.imageRef || debate.imageA || debate.imageRefA} />
+          <HeroTokenArtwork side="b" source={tokenB.image || tokenB.imageRef || debate.imageB || debate.imageRefB} />
+        </div>
         <div className={styles.wrap}>
           <Link href="/explore" className={styles.backLink}>← Back to Explore</Link>
           <div className={styles.titleRow}>
@@ -608,15 +628,18 @@ export default function VsDetailClient({ indexedDebate, indexedReadFailed }: VsD
             <span>·</span>
             <span className={styles.creatorMeta}><span>Created by</span><b>{debate.creatorName || shortAddress(debate.creatorAddress)}</b>{debate.creatorRankLabel ? <small>{debate.creatorRankLabel}</small> : null}{debate.creatorIsNew ? <small>New creator</small> : null}</span>
           </div>
-          {debate.description?.trim() ? <p className={styles.description}>{debate.description}</p> : null}
-
           <PendingCreatorFeeNotice camps={[{ name: debate.sideA, token: debate.tokenA?.address }, { name: debate.sideB, token: debate.tokenB?.address }]} />
 
           <div className={styles.overview}>
             <div className={styles.meter} aria-label={`${sideAPercentage}% ${debate.sideA}, ${sideBPercentage}% ${debate.sideB}`}><span className={sideAPercentage > 50 && marketAvailable ? styles.meterLeading : ""} style={{ width: `${sideAPercentage}%` }} /><span className={sideBPercentage > 50 && marketAvailable ? styles.meterLeading : ""} style={{ width: `${sideBPercentage}%` }} /></div>
             <div className={styles.overviewLabels}><span className={sideAPercentage > 50 && marketAvailable ? styles.leadingPill : ""}>{debate.sideA} · {sideAPercentage}%</span><span className={sideBPercentage > 50 && marketAvailable ? styles.leadingPill : ""}>{debate.sideB} · {sideBPercentage}%</span></div>
           </div>
-
+        </div>
+        </div>
+        <div className={styles.wrap}>
+          {debate.description?.trim() ? (
+            <p className={styles.description}>{debate.description}</p>
+          ) : null}
           <div className={styles.debateCopy}><h2>{marketPreferenceLabel(tokenA, tokenB, sideAPercentage, marketAvailable)}</h2></div>
           {!marketAvailable ? <div className={styles.dataNotice}><span /> Market activity will appear as trades are recorded.</div> : null}
         </div>

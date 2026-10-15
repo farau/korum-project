@@ -3,12 +3,15 @@ import "server-only";
 import { INDEXER_SCHEMA, WATCHLIST_TABLE } from "../../config/deployment";
 
 import { getDatabase } from "./client";
+import { randomUUID } from "node:crypto";
+import { connectedRedis, redisCacheKey } from "../cache/redis";
+import { readMaintained } from "../cache/maintained";
 
 type WatchlistRow = {
   versusId: string;
 };
 
-export async function getUserWatchlist(userId: string, chainId: number) {
+async function readUserWatchlist(userId: string, chainId: number) {
   const database = getDatabase();
   const rows = await database.unsafe<WatchlistRow[]>(`
     SELECT versus_id AS "versusId"
@@ -20,6 +23,27 @@ export async function getUserWatchlist(userId: string, chainId: number) {
   return rows
     .map((row) => Number(row.versusId))
     .filter((versusId) => Number.isSafeInteger(versusId) && versusId >= 0);
+}
+
+function watchlistKeys(userId: string, chainId: number) {
+  const value = redisCacheKey("private", "watchlist-ids-v1", chainId, userId);
+  const revision = `${value}:revision`;
+  return { value, revision, metadata: revision, guard: revision };
+}
+
+export async function getUserWatchlist(userId: string, chainId: number) {
+  let redis;
+  try { redis = await connectedRedis(); } catch { return readUserWatchlist(userId, chainId); }
+  if (!redis || redis.status !== "ready") return readUserWatchlist(userId, chainId);
+  return readMaintained(redis, watchlistKeys(userId, chainId), () => readUserWatchlist(userId, chainId));
+}
+
+async function invalidateWatchlist(userId: string, chainId: number) {
+  const redis = await connectedRedis();
+  if (!redis || redis.status !== "ready") return;
+  const keys = watchlistKeys(userId, chainId);
+  await redis.eval(`redis.call('SET', KEYS[1], ARGV[1], 'EX', 86400); redis.call('DEL', KEYS[2]); return 1`,
+    2, keys.revision, keys.value, randomUUID());
 }
 
 export async function addUserWatchlistItem(userId: string, chainId: number, versusId: number) {
@@ -39,7 +63,9 @@ export async function addUserWatchlistItem(userId: string, chainId: number, vers
     SELECT EXISTS (SELECT 1 FROM indexed_versus) AS "exists"
   `, [userId, chainId, versusId]);
 
-  return rows[0]?.exists === true;
+  const exists = rows[0]?.exists === true;
+  if (exists) await invalidateWatchlist(userId, chainId);
+  return exists;
 }
 
 export async function removeUserWatchlistItem(userId: string, chainId: number, versusId: number) {
@@ -48,4 +74,5 @@ export async function removeUserWatchlistItem(userId: string, chainId: number, v
     DELETE FROM ${WATCHLIST_TABLE}
     WHERE user_id = $1 AND chain_id = $2 AND versus_id = $3
   `, [userId, chainId, versusId]);
+  await invalidateWatchlist(userId, chainId);
 }

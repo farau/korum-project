@@ -9,6 +9,8 @@ import { prepareChartMutations, publishChartScript } from "./chart-cache";
 import type { ChartTrade } from "./chart";
 import type { MarketNotice, TradeNotice } from "./protocol";
 import { usesKorumCandles } from "../markets/venue";
+import { prepareDebateMutations } from "./debate-cache";
+import { loadIndexedDebateRowsByIds } from "../db/debates";
 
 const channel = redisCacheKey("live", "markets");
 export const marketRevisionKey = redisCacheKey("live", "revision");
@@ -90,6 +92,10 @@ async function readChartTrades(notices: TradeNotice[]): Promise<{ trades: ChartT
 export async function publishMarketNotice(notices: TradeNotice[]) {
   const redis = await connectedRedis();
   if (!redis || redis.status !== "ready") throw new Error("Live Redis unavailable");
+  const keys = notices.map(row => redisCacheKey("live", "event", createHash("sha256").update(row.event_id).digest("hex")));
+  const signatures = notices.map(row => `${row.block_hash}:${row.operation}`);
+  const delivered = await redis.mget(...keys);
+  if (delivered.every((signature, index) => signature === signatures[index])) return 0;
   const reset = notices.some(row => row.operation !== "i");
   const chartUpdates = reset ? undefined : await readChartTrades(notices);
   const trades = chartUpdates?.trades;
@@ -97,13 +103,14 @@ export async function publishMarketNotice(notices: TradeNotice[]) {
     revision: randomUUID(), tokens: [...new Set(notices.map(row => row.token_address))],
     reset, trades,
   };
-  const keys = notices.map(row => redisCacheKey("live", "event", createHash("sha256").update(row.event_id).digest("hex")));
   for (let attempt = 0; attempt < 8; attempt++) {
     const previous = await redis.get(marketRevisionKey) ?? "0";
     const { mutations, revisions } = await prepareChartMutations(redis, redisCacheKey, notice.tokens, notice.revision, trades ?? [], reset, chartUpdates?.disabledTokens);
+    const snapshots = await prepareDebateMutations(redis, redisCacheKey, notice.tokens, notice.revision, loadIndexedDebateRowsByIds);
     const published = await redis.eval(publishChartScript, 2 + keys.length, marketRevisionKey, channel, ...keys,
       notice.revision, JSON.stringify(notice), previous, notices.length,
-      ...notices.map(row => `${row.block_hash}:${row.operation}`), JSON.stringify(revisions), JSON.stringify(mutations));
+      ...signatures, JSON.stringify([...revisions, ...snapshots.revisions]),
+      JSON.stringify([...mutations, ...snapshots.mutations]), JSON.stringify(snapshots.mappings));
     if (published !== -1) return published;
   }
   throw new Error("Concurrent live publications; retry the batch");

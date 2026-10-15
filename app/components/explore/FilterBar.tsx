@@ -1,6 +1,7 @@
 "use client";
 import React from 'react';
-import { type ExploreCategory, useExploreSearch } from './ExploreSearchProvider';
+import HorizontalRail from './HorizontalRail';
+import { type ExploreCategory, useExploreCategory } from './ExploreCategoryProvider';
 
 const categories: Array<{ value: ExploreCategory; label: string }> = [
   { value: 'HotTake', label: 'Hot Take' },
@@ -18,11 +19,10 @@ const categories: Array<{ value: ExploreCategory; label: string }> = [
 ];
 
 export default function FilterBar() {
-  const { category, setCategory } = useExploreSearch();
+  const { category, setCategory } = useExploreCategory();
 
   return (
-    <div className="filter-bar">
-      <div className="filter-inner" id="pillRow">
+    <HorizontalRail className="filter-bar" viewportClassName="filter-inner" viewportId="pillRow" label="Categories">
         {categories.map((item) => (
           <button
             key={item.value}
@@ -46,7 +46,6 @@ export default function FilterBar() {
             </span>
           </button>
         ))}
-      </div>
-    </div>
+    </HorizontalRail>
   );
 }

@@ -11,8 +11,6 @@ import { cookieToInitialState, WagmiProvider } from "wagmi";
 import { defaultChain, wagmiConfig } from "../config/rainbowkit";
 import { WalletAuthenticationProvider, WalletProvider } from "./WalletProvider";
 
-const queryClient = new QueryClient();
-
 function ThemedRainbowKitProvider({ children }: { children: ReactNode }) {
   const [themeMode, setThemeMode] = useState<"dark" | "light">("dark");
 
@@ -43,6 +41,8 @@ function ThemedRainbowKitProvider({ children }: { children: ReactNode }) {
 }
 
 export default function RainbowKitProvider({ children, cookies }: { children: ReactNode; cookies: string | null }) {
+  // Each render tree owns its cache so server requests cannot share changing market quotes.
+  const [queryClient] = useState(() => new QueryClient());
   const initialState = cookieToInitialState(wagmiConfig, cookies);
 
   return (

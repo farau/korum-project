@@ -17,6 +17,14 @@ export function usesKorumCandles(status: number | undefined) {
   return status !== 2 && status !== 3;
 }
 
+// Contract observations of migration/graduation override the indexed snapshot.
+// An older curve read must not reopen trading after the indexer observed migration.
+export function resolveCurveStatus(indexedStatus: number | undefined, observedStatus: number | undefined) {
+  if (observedStatus === 2 || observedStatus === 3) return observedStatus;
+  if (indexedStatus === 2 || indexedStatus === 3) return indexedStatus;
+  return observedStatus ?? indexedStatus;
+}
+
 // Only the pool emitted by Korum's graduation may become the embedded market.
 // Never select another pool for the token or trust a URL returned by the API.
 export function verifiedDexscreenerChart(data: unknown, venue: TokenVenue): PoolChart | null {

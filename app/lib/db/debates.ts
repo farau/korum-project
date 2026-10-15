@@ -6,11 +6,16 @@ import { cache } from "react";
 import { calculateBadgeProgress } from "../badges";
 import { KORUM_CHAIN, KORUM_CHAIN_ID } from "../../config/korum-network";
 import type { Debate } from "../debates";
-import { redisCacheKey, rememberJson, type CacheDiagnostic } from "../cache/redis";
+import { connectedRedis, redisCacheKey, rememberJson, type CacheDiagnostic } from "../cache/redis";
 import { getEthUsdQuote } from "../markets/quote-usd";
-import { marketValueWei, percentageChange, tokenPriceWad, unitsNumber } from "../markets/math";
+import { marketValueWei, tokenPriceChange, tokenPriceWad, unitsNumber } from "../markets/math";
 import { getDatabase } from "./client";
 import { publicAssetUrl } from "../public-asset-url";
+import { maintainedHit, readMaintained } from "../cache/maintained";
+import { debateCatalogKey, debateRowKey, debateMappings, snapshotKeys } from "../live/debate-cache";
+import { slideDebateRow, type WindowTrade, type WindowedDebateRow } from "../live/debate-snapshot";
+import { getUserWatchlist } from "./watchlist";
+import { reconcileDebateMetadata } from "../live/debate-reconcile";
 export { publicAssetUrl } from "../public-asset-url";
 
 const DEFAULT_LIMIT = 100;
@@ -19,7 +24,7 @@ export const INDEXED_DEBATES_CACHE_SECONDS = 15;
 export const INDEXED_DEBATE_SEARCH_CACHE_SECONDS = 45;
 export const INDEXED_DEBATE_SEARCH_LIMIT = 24;
 
-type IndexedDebateRow = {
+export type IndexedDebateRow = {
   chainId: number;
   versusId: string;
   title: string;
@@ -30,7 +35,7 @@ type IndexedDebateRow = {
   feeRecipientA: string;
   feeRecipientB: string;
   creatorDisplayName: string | null;
-  creatorIsNew: boolean;
+  creatorCreatedAt: Date | string | null;
   creatorVersusCreated: number;
   creatorVolumeWei: string;
   createdAt: Date | string;
@@ -43,6 +48,7 @@ type IndexedDebateRow = {
   tokenBSymbol: string;
   tokenBUri: string;
   tokenATotalSupply: string;
+  tokenAVirtualEth: string;
   tokenACirculatingSupply: string;
   tokenAAdjustedFdvSupply: string;
   tokenAGraduationEth: string;
@@ -55,11 +61,12 @@ type IndexedDebateRow = {
   tokenACurveStatus: number;
   tokenAPoolId: string | null;
   tokenAGraduationDisabled: boolean;
-  tokenAVolume24h: string;
-  tokenATrades24h: number;
   tokenATraderCount: number;
-  tokenAPriceHistory: string[] | null;
+  tokenAHolderCount: number;
+  tokenAPriorPrice: string | null;
+  tokenAWindowTrades: WindowTrade[];
   tokenBTotalSupply: string;
+  tokenBVirtualEth: string;
   tokenBCirculatingSupply: string;
   tokenBAdjustedFdvSupply: string;
   tokenBGraduationEth: string;
@@ -72,10 +79,10 @@ type IndexedDebateRow = {
   tokenBCurveStatus: number;
   tokenBPoolId: string | null;
   tokenBGraduationDisabled: boolean;
-  tokenBVolume24h: string;
-  tokenBTrades24h: number;
   tokenBTraderCount: number;
-  tokenBPriceHistory: string[] | null;
+  tokenBHolderCount: number;
+  tokenBPriorPrice: string | null;
+  tokenBWindowTrades: WindowTrade[];
   versusTraderCount: number;
   versusHolderCount: number;
 };
@@ -103,6 +110,8 @@ function creatorLabel(wallet: string) {
 
 type IndexedCampMarket = {
   totalSupply: string;
+  virtualEth: string;
+  referencePrices: Array<string | null>;
   circulatingSupply: string;
   adjustedFdvSupply: string;
   graduationEth: string;
@@ -167,11 +176,14 @@ function campMarket(input: IndexedCampMarket, quoteUsd: number | null) {
     trades24h: input.trades24h,
     traderCount: input.traderCount,
     priceHistory: displayedHistory,
-    change24h: percentageChange(displayedHistory),
+    change5m: tokenPriceChange(input.sqrtPriceX96, input.referencePrices[0], input.virtualEth, input.totalSupply),
+    change1h: tokenPriceChange(input.sqrtPriceX96, input.referencePrices[1], input.virtualEth, input.totalSupply),
+    change6h: tokenPriceChange(input.sqrtPriceX96, input.referencePrices[2], input.virtualEth, input.totalSupply),
+    change24h: tokenPriceChange(input.sqrtPriceX96, input.referencePrices[3], input.virtualEth, input.totalSupply),
   };
 }
 
-function toDebate(row: IndexedDebateRow, quoteUsd: number | null): Debate | null {
+function toDebate(row: WindowedDebateRow, quoteUsd: number | null): Debate | null {
   const id = Number(row.versusId);
   if (!Number.isSafeInteger(id) || id < 0) {
     console.error(`Indexed versus ${row.versusId} cannot be represented safely by the current frontend ID contract.`);
@@ -185,6 +197,8 @@ function toDebate(row: IndexedDebateRow, quoteUsd: number | null): Debate | null
   const imageB = publicAssetUrl(row.tokenBUri);
   const marketA = campMarket({
     totalSupply: row.tokenATotalSupply,
+    virtualEth: row.tokenAVirtualEth,
+    referencePrices: row.tokenAReferencePrices,
     circulatingSupply: row.tokenACirculatingSupply,
     adjustedFdvSupply: row.tokenAAdjustedFdvSupply,
     graduationEth: row.tokenAGraduationEth,
@@ -203,6 +217,8 @@ function toDebate(row: IndexedDebateRow, quoteUsd: number | null): Debate | null
   }, quoteUsd);
   const marketB = campMarket({
     totalSupply: row.tokenBTotalSupply,
+    virtualEth: row.tokenBVirtualEth,
+    referencePrices: row.tokenBReferencePrices,
     circulatingSupply: row.tokenBCirculatingSupply,
     adjustedFdvSupply: row.tokenBAdjustedFdvSupply,
     graduationEth: row.tokenBGraduationEth,
@@ -268,7 +284,7 @@ function toDebate(row: IndexedDebateRow, quoteUsd: number | null): Debate | null
     creatorAddress: row.creatorWallet,
     feeRecipientA: row.feeRecipientA,
     feeRecipientB: row.feeRecipientB,
-    creatorIsNew: row.creatorIsNew,
+    creatorIsNew: row.creatorCreatedAt !== null && new Date(row.creatorCreatedAt).getTime() > Date.now() - 7 * 86400_000,
     creatorRankLabel: creatorBadge?.name,
     creatorRankClass: creatorBadge?.className,
     tokenA: {
@@ -314,13 +330,14 @@ function toDebate(row: IndexedDebateRow, quoteUsd: number | null): Debate | null
       volume24h: marketA.volume24h,
       volume24hEth: marketA.volume24hEth,
       traderCount: marketA.traderCount,
+      holders: row.tokenAHolderCount,
       trades24h: marketA.trades24h,
       buys24h: 0,
       sells24h: 0,
       change24h: marketA.change24h,
-      change5m: 0,
-      change1h: 0,
-      change6h: 0,
+      change5m: marketA.change5m,
+      change1h: marketA.change1h,
+      change6h: marketA.change6h,
       priceHistory: marketA.priceHistory,
     },
     tokenB: {
@@ -366,19 +383,20 @@ function toDebate(row: IndexedDebateRow, quoteUsd: number | null): Debate | null
       volume24h: marketB.volume24h,
       volume24hEth: marketB.volume24hEth,
       traderCount: marketB.traderCount,
+      holders: row.tokenBHolderCount,
       trades24h: marketB.trades24h,
       buys24h: 0,
       sells24h: 0,
       change24h: marketB.change24h,
-      change5m: 0,
-      change1h: 0,
-      change6h: 0,
+      change5m: marketB.change5m,
+      change1h: marketB.change1h,
+      change6h: marketB.change6h,
       priceHistory: marketB.priceHistory,
     },
   };
 }
 
-async function readIndexedDebates({ limit = DEFAULT_LIMIT, versusId, watchlistUserId, versusIds }: IndexedDebateOptions = {}) {
+async function readIndexedDebateRows({ limit = DEFAULT_LIMIT, versusId, watchlistUserId, versusIds }: IndexedDebateOptions = {}) {
   const database = getDatabase();
   const safeLimit = Math.min(MAX_LIMIT, Math.max(1, Math.trunc(limit)));
   const normalizedVersusIds = versusIds?.filter((id) => /^\d{1,78}$/.test(id)).slice(0, MAX_LIMIT);
@@ -416,7 +434,7 @@ async function readIndexedDebates({ limit = DEFAULT_LIMIT, versusId, watchlistUs
       fee_a.current_recipient AS "feeRecipientA",
       fee_b.current_recipient AS "feeRecipientB",
       NULLIF(BTRIM(creator.display_name), '') AS "creatorDisplayName",
-      COALESCE(creator.created_at > NOW() - INTERVAL '7 days', FALSE) AS "creatorIsNew",
+      creator.created_at AS "creatorCreatedAt",
       COALESCE(creator_stats.versus_created, 0)::INTEGER AS "creatorVersusCreated",
       COALESCE(creator_stats.generated_volume_wei, 0)::TEXT AS "creatorVolumeWei",
       v.created_at AS "createdAt",
@@ -429,6 +447,7 @@ async function readIndexedDebates({ limit = DEFAULT_LIMIT, versusId, watchlistUs
       camp_b.symbol AS "tokenBSymbol",
       camp_b.uri AS "tokenBUri",
       market_a.total_supply::TEXT AS "tokenATotalSupply",
+      market_a.virtual_eth::TEXT AS "tokenAVirtualEth",
       market_a.circulating_supply::TEXT AS "tokenACirculatingSupply",
       market_a.adjusted_fdv_supply::TEXT AS "tokenAAdjustedFdvSupply",
       market_a.graduation_eth::TEXT AS "tokenAGraduationEth",
@@ -441,11 +460,11 @@ async function readIndexedDebates({ limit = DEFAULT_LIMIT, versusId, watchlistUs
       market_a.curve_status::INTEGER AS "tokenACurveStatus",
       graduation_a.pool_id AS "tokenAPoolId",
       market_a.graduation_disabled AS "tokenAGraduationDisabled",
-      stats_a.volume_24h AS "tokenAVolume24h",
-      stats_a.trades_24h AS "tokenATrades24h",
       stats_a.trader_count AS "tokenATraderCount",
-      stats_a.price_history AS "tokenAPriceHistory",
+      stats_a.prior_price AS "tokenAPriorPrice",
+      stats_a.window_trades AS "tokenAWindowTrades",
       market_b.total_supply::TEXT AS "tokenBTotalSupply",
+      market_b.virtual_eth::TEXT AS "tokenBVirtualEth",
       market_b.circulating_supply::TEXT AS "tokenBCirculatingSupply",
       market_b.adjusted_fdv_supply::TEXT AS "tokenBAdjustedFdvSupply",
       market_b.graduation_eth::TEXT AS "tokenBGraduationEth",
@@ -458,11 +477,26 @@ async function readIndexedDebates({ limit = DEFAULT_LIMIT, versusId, watchlistUs
       market_b.curve_status::INTEGER AS "tokenBCurveStatus",
       graduation_b.pool_id AS "tokenBPoolId",
       market_b.graduation_disabled AS "tokenBGraduationDisabled",
-      stats_b.volume_24h AS "tokenBVolume24h",
-      stats_b.trades_24h AS "tokenBTrades24h",
       stats_b.trader_count AS "tokenBTraderCount",
-      stats_b.price_history AS "tokenBPriceHistory",
+      stats_b.prior_price AS "tokenBPriorPrice",
+      stats_b.window_trades AS "tokenBWindowTrades",
       stats_versus.trader_count AS "versusTraderCount",
+      (
+        SELECT COUNT(DISTINCT position.trader_address)::INTEGER
+        FROM ${INDEXER_SCHEMA}.trader_positions position
+        WHERE position.chain_id = v.chain_id
+          AND position.token_address = camp_a.token_address
+          AND position.net_token_amount > 0
+          AND position.trader_address <> '0x0000000000000000000000000000000000000000'
+      ) AS "tokenAHolderCount",
+      (
+        SELECT COUNT(DISTINCT position.trader_address)::INTEGER
+        FROM ${INDEXER_SCHEMA}.trader_positions position
+        WHERE position.chain_id = v.chain_id
+          AND position.token_address = camp_b.token_address
+          AND position.net_token_amount > 0
+          AND position.trader_address <> '0x0000000000000000000000000000000000000000'
+      ) AS "tokenBHolderCount",
       (
         SELECT COUNT(DISTINCT position.trader_address)::INTEGER
         FROM ${INDEXER_SCHEMA}.trader_positions position
@@ -512,44 +546,54 @@ async function readIndexedDebates({ limit = DEFAULT_LIMIT, versusId, watchlistUs
       ON graduation_b.chain_id = camp_b.chain_id AND graduation_b.token_address = camp_b.token_address
     LEFT JOIN LATERAL (
       SELECT
-        COALESCE(SUM(trade.eth_gross) FILTER (
-          WHERE trade.traded_at >= NOW() - INTERVAL '24 hours'
-        ), 0)::TEXT AS volume_24h,
-        COUNT(*) FILTER (
-          WHERE trade.traded_at >= NOW() - INTERVAL '24 hours'
-        )::INTEGER AS trades_24h,
         COUNT(DISTINCT NULLIF(trade.trader_address, '0x0000000000000000000000000000000000000000'))::INTEGER AS trader_count,
-        ARRAY(
+        (
           SELECT history.sqrt_price_x96_after::TEXT
           FROM ${INDEXER_SCHEMA}.camp_trades history
           WHERE history.chain_id = camp_a.chain_id
             AND history.token_address = camp_a.token_address
+            AND history.traded_at <= NOW() - INTERVAL '24 hours'
+          ORDER BY history.traded_at DESC, history.block_number DESC, history.log_index DESC
+          LIMIT 1
+        ) AS prior_price,
+        (
+          SELECT COALESCE(JSONB_AGG(JSONB_BUILD_OBJECT(
+            'time', EXTRACT(EPOCH FROM history.traded_at)::DOUBLE PRECISION,
+            'sqrtPrice', history.sqrt_price_x96_after::TEXT,
+            'volume', history.eth_gross::TEXT
+          ) ORDER BY history.traded_at, history.block_number, history.log_index), '[]'::JSONB)
+          FROM ${INDEXER_SCHEMA}.camp_trades history
+          WHERE history.chain_id = camp_a.chain_id
+            AND history.token_address = camp_a.token_address
             AND history.traded_at >= NOW() - INTERVAL '24 hours'
-          ORDER BY history.block_number DESC, history.log_index DESC
-          LIMIT 96
-        ) AS price_history
+        ) AS window_trades
       FROM ${INDEXER_SCHEMA}.camp_trades trade
       WHERE trade.chain_id = camp_a.chain_id
         AND trade.token_address = camp_a.token_address
     ) stats_a ON TRUE
     LEFT JOIN LATERAL (
       SELECT
-        COALESCE(SUM(trade.eth_gross) FILTER (
-          WHERE trade.traded_at >= NOW() - INTERVAL '24 hours'
-        ), 0)::TEXT AS volume_24h,
-        COUNT(*) FILTER (
-          WHERE trade.traded_at >= NOW() - INTERVAL '24 hours'
-        )::INTEGER AS trades_24h,
         COUNT(DISTINCT NULLIF(trade.trader_address, '0x0000000000000000000000000000000000000000'))::INTEGER AS trader_count,
-        ARRAY(
+        (
           SELECT history.sqrt_price_x96_after::TEXT
           FROM ${INDEXER_SCHEMA}.camp_trades history
           WHERE history.chain_id = camp_b.chain_id
             AND history.token_address = camp_b.token_address
+            AND history.traded_at <= NOW() - INTERVAL '24 hours'
+          ORDER BY history.traded_at DESC, history.block_number DESC, history.log_index DESC
+          LIMIT 1
+        ) AS prior_price,
+        (
+          SELECT COALESCE(JSONB_AGG(JSONB_BUILD_OBJECT(
+            'time', EXTRACT(EPOCH FROM history.traded_at)::DOUBLE PRECISION,
+            'sqrtPrice', history.sqrt_price_x96_after::TEXT,
+            'volume', history.eth_gross::TEXT
+          ) ORDER BY history.traded_at, history.block_number, history.log_index), '[]'::JSONB)
+          FROM ${INDEXER_SCHEMA}.camp_trades history
+          WHERE history.chain_id = camp_b.chain_id
+            AND history.token_address = camp_b.token_address
             AND history.traded_at >= NOW() - INTERVAL '24 hours'
-          ORDER BY history.block_number DESC, history.log_index DESC
-          LIMIT 96
-        ) AS price_history
+        ) AS window_trades
       FROM ${INDEXER_SCHEMA}.camp_trades trade
       WHERE trade.chain_id = camp_b.chain_id
         AND trade.token_address = camp_b.token_address
@@ -567,17 +611,85 @@ async function readIndexedDebates({ limit = DEFAULT_LIMIT, versusId, watchlistUs
     LIMIT ${limitParameter}
   `, parameters);
 
-  const [rows, quote] = await Promise.all([rowsPromise, getEthUsdQuote()]);
+  return rowsPromise;
+}
 
-  return rows
-    .map((row) => toDebate(row, quote?.value ?? null))
+async function mapRows(rows: IndexedDebateRow[]) {
+  const quote = await getEthUsdQuote();
+  return rows.map(row => toDebate(slideDebateRow(row, Date.now() / 1000), quote?.value ?? null))
     .filter((debate): debate is Debate => debate !== null);
+}
+
+async function readIndexedDebates(options: IndexedDebateOptions = {}) {
+  return mapRows(await readIndexedDebateRows(options));
+}
+
+export function loadIndexedDebateRowsByIds(ids: string[]) {
+  const normalized = ids.filter(id => /^\d{1,78}$/.test(id)).slice(0, MAX_LIMIT);
+  if (!normalized.length) return Promise.resolve([]);
+  return readIndexedDebateRows({ versusIds: normalized, limit: normalized.length });
+}
+
+// Hash control-plane rows only: no trade history, holder counts or OHLC scans.
+// Fingerprints detect updates/deletions as well as newly indexed Versus.
+export async function indexedDebateMetadataFingerprint() {
+  const [row] = await getDatabase().unsafe<{ fingerprint: string }[]>(`
+    SELECT MD5(CONCAT(
+      (SELECT STRING_AGG(MD5(TO_JSONB(v)::TEXT), '' ORDER BY v.versus_id)
+        FROM ${INDEXER_SCHEMA}.versuses v WHERE v.chain_id = $1),
+      (SELECT STRING_AGG(MD5(TO_JSONB(c)::TEXT), '' ORDER BY c.token_address)
+        FROM ${INDEXER_SCHEMA}.versus_camps c WHERE c.chain_id = $1),
+      (SELECT STRING_AGG(MD5(TO_JSONB(l)::TEXT), '' ORDER BY l.token_address, l.block_number, l.log_index)
+        FROM ${INDEXER_SCHEMA}.camp_curve_lifecycle l WHERE l.chain_id = $1),
+      (SELECT STRING_AGG(MD5(TO_JSONB(g)::TEXT), '' ORDER BY g.token_address)
+        FROM ${INDEXER_SCHEMA}.camp_graduations g WHERE g.chain_id = $1),
+      (SELECT STRING_AGG(MD5(TO_JSONB(f)::TEXT), '' ORDER BY f.token_address, f.block_number, f.log_index)
+        FROM ${INDEXER_SCHEMA}.creator_fee_recipient_events f WHERE f.chain_id = $1),
+      (SELECT STRING_AGG(MD5(CONCAT(u.id, u.display_name)), '' ORDER BY u.id)
+        FROM users u WHERE EXISTS (SELECT 1 FROM ${INDEXER_SCHEMA}.versuses v
+          WHERE v.chain_id = $1 AND LOWER(v.creator_wallet) = LOWER(u.evm_wallet)))
+    )) AS fingerprint
+  `, [KORUM_CHAIN_ID]);
+  return row.fingerprint;
+}
+
+// Stable market keys are maintained by the webhook; only idle keys expire.
+// The quote is refreshed separately, without reconstructing the SQL snapshot.
+async function sharedRows(ids?: string[], diagnostic?: CacheDiagnostic) {
+  if ((process.env.KORUM_GOLDSKY_WEBHOOK_SECRET?.length ?? 0) < 32 || !process.env.REDIS_URL) return null;
+  let redis;
+  try { redis = await connectedRedis(); } catch { return null; }
+  if (!redis || redis.status !== "ready") return null;
+  await reconcileDebateMetadata(redis, redisCacheKey, indexedDebateMetadataFingerprint);
+  const catalog = snapshotKeys(redisCacheKey, debateCatalogKey(redisCacheKey));
+  const rows = await readMaintained(redis, catalog, () => readIndexedDebateRows({ limit: MAX_LIMIT }), diagnostic,
+    value => debateMappings(redisCacheKey, value));
+  if (ids === undefined) return rows;
+  const byId = new Map(rows.map(row => [String(row.versusId), row]));
+  await Promise.all(ids.filter(id => !byId.has(id)).map(async id => {
+    const detail = snapshotKeys(redisCacheKey, debateRowKey(redisCacheKey, id));
+    const hit = await maintainedHit<IndexedDebateRow[]>(redis, detail);
+    const values = hit.entry?.value ?? await readMaintained(redis, detail,
+      () => readIndexedDebateRows({ versusId: id, limit: 1 }), diagnostic, value => debateMappings(redisCacheKey, value));
+    // Older active details are outside the catalog. Keep their token mappings
+    // alive too, so a later webhook can find and refresh these warm records.
+    if (hit.entry && values.length) {
+      const mappings = debateMappings(redisCacheKey, values);
+      const pipeline = redis.pipeline();
+      for (const mapping of mappings) pipeline.set(mapping.key, mapping.value, "EX", 86400);
+      await pipeline.exec();
+    }
+    if (values[0]) byId.set(id, values[0]);
+  }));
+  return ids.flatMap(id => byId.has(id) ? [byId.get(id)!] : []);
 }
 
 async function getCachedIndexedDebates(limit: number, diagnostic?: CacheDiagnostic) {
   const safeLimit = Math.min(MAX_LIMIT, Math.max(1, Math.trunc(limit)));
+  const rows = await sharedRows(undefined, diagnostic);
+  if (rows) return mapRows(rows.slice(0, safeLimit));
   return rememberJson(
-    redisCacheKey("debates", "list", safeLimit),
+    redisCacheKey("debates", "list", "price-windows-v1", safeLimit),
     INDEXED_DEBATES_CACHE_SECONDS,
     () => readIndexedDebates({ limit: safeLimit }),
     diagnostic,
@@ -613,9 +725,12 @@ async function searchIndexedDebateIds(searchQuery: string, limit: number) {
         OR STRPOS(LOWER(camp_a.symbol), $2) > 0
         OR STRPOS(LOWER(camp_b.name), $2) > 0
         OR STRPOS(LOWER(camp_b.symbol), $2) > 0
+        OR STRPOS(LOWER(camp_a.token_address), $2) > 0
+        OR STRPOS(LOWER(camp_b.token_address), $2) > 0
       )
     ORDER BY
       CASE
+        WHEN LOWER(camp_a.token_address) = $2 OR LOWER(camp_b.token_address) = $2 THEN -1
         WHEN LOWER(v.title) = $2 THEN 0
         WHEN LOWER(camp_a.symbol) = $2 OR LOWER(camp_b.symbol) = $2 THEN 1
         WHEN LOWER(camp_a.name) = $2 OR LOWER(camp_b.name) = $2 THEN 2
@@ -627,7 +742,7 @@ async function searchIndexedDebateIds(searchQuery: string, limit: number) {
   `, [KORUM_CHAIN_ID, searchQuery, limit]);
 }
 
-export function searchIndexedDebatesWithDiagnostic(
+export async function searchIndexedDebatesWithDiagnostic(
   searchQuery: string,
   diagnostic?: CacheDiagnostic,
   limit = INDEXED_DEBATE_SEARCH_LIMIT,
@@ -636,29 +751,26 @@ export function searchIndexedDebatesWithDiagnostic(
   if (normalizedSearch.length < 2) return Promise.resolve([]);
   const safeLimit = Math.min(INDEXED_DEBATE_SEARCH_LIMIT, Math.max(1, Math.trunc(limit)));
 
-  return rememberJson(
-    redisCacheKey("debates", "search-v2", normalizedSearch, safeLimit),
+  const matches = await rememberJson(
+    redisCacheKey("search-ids-v1", normalizedSearch, safeLimit),
     INDEXED_DEBATE_SEARCH_CACHE_SECONDS,
-    async () => {
-      const matches = await searchIndexedDebateIds(normalizedSearch, safeLimit);
-      const versusIds = matches.map((match) => match.versusId);
-      if (versusIds.length === 0) return [];
-
-      const debates = await readIndexedDebates({ limit: versusIds.length, versusIds });
-      const debateById = new Map(debates.map((debate) => [String(debate.id), debate]));
-      return versusIds.flatMap((versusId) => {
-        const debate = debateById.get(versusId);
-        return debate ? [debate] : [];
-      });
-    },
+    () => searchIndexedDebateIds(normalizedSearch, safeLimit),
     diagnostic,
   );
+  const versusIds = matches.map(match => match.versusId);
+  if (!versusIds.length) return [];
+  const rows = await sharedRows(versusIds);
+  const debates = rows ? await mapRows(rows) : await readIndexedDebates({ limit: versusIds.length, versusIds });
+  const debateById = new Map(debates.map(debate => [String(debate.id), debate]));
+  return versusIds.flatMap(id => debateById.has(id) ? [debateById.get(id)!] : []);
 }
 
 async function getCachedIndexedDebateById(versusId: string, diagnostic?: CacheDiagnostic) {
   if (!/^\d{1,78}$/.test(versusId)) return null;
+  const rows = await sharedRows([versusId], diagnostic);
+  if (rows) return (await mapRows(rows))[0] ?? null;
   return rememberJson(
-    redisCacheKey("debates", "detail", versusId),
+    redisCacheKey("debates", "detail", "price-windows-v1", versusId),
     INDEXED_DEBATES_CACHE_SECONDS,
     async () => {
       const debates = await readIndexedDebates({ limit: 1, versusId });
@@ -674,6 +786,9 @@ export function getIndexedDebateByIdWithDiagnostic(versusId: string, diagnostic:
   return getCachedIndexedDebateById(versusId, diagnostic);
 }
 
-export async function getIndexedWatchlistDebates(userId: string) {
-  return readIndexedDebates({ limit: MAX_LIMIT, watchlistUserId: userId });
+export async function getIndexedWatchlistDebates(userId: string, watchedIds?: number[]) {
+  const ids = (watchedIds ?? await getUserWatchlist(userId, KORUM_CHAIN_ID)).slice(0, MAX_LIMIT).map(String);
+  if (!ids.length) return [];
+  const rows = await sharedRows(ids);
+  return rows ? mapRows(rows) : readIndexedDebates({ limit: MAX_LIMIT, watchlistUserId: userId });
 }

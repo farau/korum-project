@@ -29,11 +29,9 @@ export async function GET() {
   if (!session) return unauthorized();
 
   try {
-    const [ids, debates] = await Promise.all([
-      getUserWatchlist(session.userId, KORUM_CHAIN_ID),
-      getIndexedWatchlistDebates(session.userId),
-    ]);
-    return NextResponse.json({ ids, debates });
+    const ids = await getUserWatchlist(session.userId, KORUM_CHAIN_ID);
+    const debates = await getIndexedWatchlistDebates(session.userId, ids);
+    return NextResponse.json({ ids, debates }, { headers: { "Cache-Control": "private, no-store" } });
   } catch (error) {
     console.error("Unable to read the user watchlist.", error);
     return NextResponse.json({ error: "The watchlist is temporarily unavailable." }, { status: 503 });

@@ -3,6 +3,7 @@
 import { useQuery } from "@tanstack/react-query";
 import React, { useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import HorizontalRail from "./HorizontalRail";
 import { useMarketLive } from "../../hooks/useMarketLive";
 
 import { RECENT_MARKET_TRADES_QUERY_KEY } from "../../hooks/useIndexedMarkets";
@@ -120,8 +121,7 @@ export default function TickerClient() {
   if (!items.length) return null;
 
   return (
-    <div className="ticker live-ticker" aria-label="Recent market activity">
-      <div className="ticker-inner" role="list" aria-live="polite" aria-atomic="false">
+    <HorizontalRail className="ticker live-ticker" viewportClassName="ticker-inner" label="Recent market activity" list>
         {items.map((item) => (
           <span
             key={item.id}
@@ -136,7 +136,6 @@ export default function TickerClient() {
             </Link>
           </span>
         ))}
-      </div>
-    </div>
+    </HorizontalRail>
   );
 }

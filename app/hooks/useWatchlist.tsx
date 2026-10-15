@@ -41,7 +41,7 @@ function notifyOtherTabs() {
   channel.close();
 }
 
-export function useWatchlist() {
+export function useWatchlist(refreshInterval = 0) {
   const { address, authenticated, connect, hydrated } = useWallet();
   const [ids, setIds] = useState<number[]>([]);
   const [debates, setDebates] = useState<Debate[]>([]);
@@ -77,6 +77,19 @@ export function useWatchlist() {
     const timer = window.setTimeout(() => void load(), 0);
     return () => window.clearTimeout(timer);
   }, [load]);
+
+  useEffect(() => {
+    if (!hydrated || !authenticated || !address || refreshInterval <= 0) return;
+    const refreshVisible = () => { if (!document.hidden) void load(); };
+    const timer = window.setInterval(refreshVisible, refreshInterval);
+    document.addEventListener("visibilitychange", refreshVisible);
+    window.addEventListener("focus", refreshVisible);
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", refreshVisible);
+      window.removeEventListener("focus", refreshVisible);
+    };
+  }, [address, authenticated, hydrated, load, refreshInterval]);
 
   useEffect(() => {
     function syncWatchlist(event: Event) {

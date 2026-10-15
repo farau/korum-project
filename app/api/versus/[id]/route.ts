@@ -15,7 +15,7 @@ export async function GET(
           headers: {
             "Cache-Control": "no-store",
             "X-Korum-Cache": cache.status,
-            "X-Korum-Cache-Layer": cache.status === "HIT" ? "redis" : cache.status === "DEDUPED" ? "memory" : "postgres",
+            "X-Korum-Cache-Layer": cache.status === "HIT" ? "redis" : cache.status === "DEDUPED" ? "shared" : "postgres",
           },
         })
       : Response.json({ error: "Versus not found." }, { status: 404 });

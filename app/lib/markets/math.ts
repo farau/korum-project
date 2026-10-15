@@ -36,3 +36,22 @@ export function percentageChange(values: number[]) {
   if (values.length < 2 || values[0] === 0) return 0;
   return ((values.at(-1)! - values[0]) / values[0]) * 100;
 }
+
+// The price at a window's start is the last indexed trade at or before it.
+// Before the first trade, the bonding curve starts at virtual ETH / total supply.
+export function tokenPriceChange(
+  currentSqrtPriceX96: string | null | undefined,
+  referenceSqrtPriceX96: string | null | undefined,
+  virtualEth: string,
+  totalSupply: string,
+) {
+  const current = tokenPriceWad(currentSqrtPriceX96);
+  const virtual = positiveBigInt(virtualEth);
+  const supply = positiveBigInt(totalSupply);
+  const reference = referenceSqrtPriceX96 == null
+    ? virtual && supply ? virtual * WAD / supply : null
+    : tokenPriceWad(referenceSqrtPriceX96);
+  if (current === null || reference === null || reference <= BigInt(0)) return undefined;
+  const change = (Number(current - reference) / Number(reference)) * 100;
+  return Number.isFinite(change) ? change : undefined;
+}

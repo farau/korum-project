@@ -22,6 +22,15 @@ The secret is server-only, at least 32 characters, and must match Goldsky's
 `secretValue: Bearer <token>`). `REDIS_URL` must be configured on the app service.
 The pipeline targets the existing staging app's public domain.
 
+Goldsky decodes `Graduated.poolId` (`bytes32`) as hex without `0x`. The graduation
+transform adds exactly one prefix and lowercases the result, preserving all 32
+bytes for PostgreSQL's `camp_graduations_pool_id_format` constraint. Numeric event
+parameters use exact `DECIMAL(78, 0)` casts; current Turbo versions removed
+`to_u256`. Check changes with `goldsky turbo validate` and
+`node --env-file=.env.local scripts/check-goldsky-graduations.mjs` (SELECT-only
+PostgreSQL checks). Apply updates under the existing pipeline and source names
+to preserve their checkpoints.
+
 The endpoint validates the chain, addresses, hashes, operation and event ID,
 accepts at most 100 rows/128 KiB, and waits up to eight PostgreSQL readiness checks.
 It returns 503 if indexing or Redis is unavailable so Goldsky retries. It never
@@ -42,6 +51,67 @@ cannot refill the new revision's cache. Live snapshot routes use `no-store` for
 HTTP caching; shared Redis caching and request deduplication remain enabled.
 `KORUM_CACHE_NAMESPACE` optionally isolates integration-test cache/broadcast keys;
 leave it unset for the normal deployment.
+
+The indexed Versus snapshots shared by Explore Table, Analytics Top VS and Profile
+Watchlist calculate 5m, 1h, 6h and 24h changes independently. Each compares the
+current indexed token price to the final trade price at or before the window's
+start, ordered by trade time and then block/log position. Before the first trade,
+the reference is the initial curve price (`virtual_eth / total_supply`). Missing
+or invalid prices remain unavailable rather than becoming a fabricated zero.
+The calculation uses ETH prices, so a refreshed ETH/USD quote cannot introduce
+a spurious token return. The 24h change is independent of the 96-trade sparkline
+limit. Explore and Top VS refresh these snapshots every 15
+seconds; the visible authenticated Watchlist does the same and refreshes on
+focus/return to the tab, without adding polling to each star button.
+
+With Redis and authenticated live delivery configured, these requests reuse a
+maintained catalog of the latest 250 indexed Versus, shared across list limits,
+Top VS, detail pages and users' watchlists. Older requested IDs use maintained
+per-Versus entries. The ten-minute TTL measures inactivity: a read renews it,
+so a quiet market stays cached beyond 15 seconds and does not periodically
+reload PostgreSQL. A snapshot keeps each token's last 24 hours of trade times,
+exact price/volume values and the price preceding that history. The server slides
+5m/1h/6h/24h references, 24h volume/trade counts and sparklines from this timeline
+without another SQL read. The separately cached ETH/USD quote can refresh without
+rebuilding market data.
+
+Before publishing a trade batch, the webhook refreshes only affected warm Versus
+rows from PostgreSQL, including holder/trader counts and market state. It replaces
+them in the catalog and any warm detail entries atomically with chart updates,
+event deduplication and SSE publication. Other Versus remain reusable; duplicate
+deliveries skip those market reads. Unknown token addresses invalidate catalog
+discovery. Updates/deletions use the authoritative projection rather than adding
+the same trade twice. Publications preserve idle TTLs. One Redis lease per
+snapshot coalesces cold loads across replicas, and revision checks fence off
+fills started before a trade or metadata edit. Waiting requests do not start
+parallel SQL reconstructions when another replica owns the lease.
+
+Creation, lifecycle, graduation, recipient and creator-name changes also need
+detection without a trade. A Redis lease limits their metadata fingerprint probe
+to once per minute across all replicas, while the site receives requests. This
+reads control-plane rows, not trade history, holder counts or OHLC aggregates.
+Unchanged metadata leaves market snapshots intact; a changed fingerprint
+invalidates them for one shared reconstruction. Metadata API edits advance the
+same guard immediately. This check's SQL frequency is independent of visitor
+count, though its work grows with metadata size. Trade freshness still relies on
+webhook delivery: this metadata probe does not scan for missed trades.
+
+Watchlist membership is a separate private maintained cache keyed by deployment,
+chain and authenticated user. A first/idle-expired visit loads that user's IDs;
+adding/removing a favorite invalidates only those IDs. Trades do not invalidate
+membership, and repeated watchlist polling hydrates markets from the public
+catalog rather than repeating a heavy per-user market query. HTTP responses
+remain `private, no-store`. Search caches matching IDs separately for 45 seconds
+and hydrates their current market data from maintained snapshots.
+
+Without Redis/live configuration, or if Redis cannot connect, list/detail reads
+retain the existing short request-cache/database fallback. The shared guarantees
+therefore require Redis and live delivery. During a shared reconstruction,
+contention or repeated revision races return a retryable route error instead of
+multiplying SQL loads. Tests: `node scripts/check-debate-cache.mjs` against a
+local/test Redis (unique temporary namespace, no PostgreSQL writes), and
+`node --env-file=.env.local scripts/check-market-price-changes.mjs --live` for
+SELECT-only schema/calculation verification.
 
 `GET /api/markets/live?tokens=0x...&feed=1` uses SSE. Token subscriptions are limited
 to 20; `feed=1` requests all trade notifications for the Explore ticker. There is
@@ -112,7 +182,10 @@ The transition is handled independently for each token of a Versus:
 
 The shared `TokenTradePanel` applies the graduation pause on Explore and Versus,
 including when the wallet is disconnected. Its existing on-chain `getCurve`
-polling runs every 15 seconds and reports status changes to the Versus chart.
+polling runs every 15 seconds and reports status changes to the Versus chart. Contract observations of statuses 2/3 take precedence over indexed chart responses.
+
+While migrating, `GraduateTokenButton` offers a separate permissionless action. It connects the user's wallet or switches networks as needed, rereads `getCurve`, estimates gas with a reserve above `MIN_GRADUATION_GAS`, simulates `KorumCore.graduate(token)`, and asks the wallet to confirm the transaction. No ETH value, token approval or trade amount is attached. Buy/sell remain paused throughout status 2. Receipt monitoring tracks replacements and keeps a pending hash after an RPC timeout so a retry checks confirmation rather than submitting again. A successful receipt is followed by a fresh contract-status read before the chart and trading UI are refreshed. Once status 3 is confirmed, trading and indexed metrics remain available while the Dexscreener chart is pending.
+
 Each attempted trade rechecks that status before approval or a wallet prompt;
 a venue change requires a fresh quote. A chart API `409` also updates the chart's
 lifecycle state. Once graduation is observed, the old chart is removed even if
@@ -241,6 +314,7 @@ snapshots, not replayed from a durable message log.
 ## Checks
 
 - `node scripts/check-graduated-markets.mjs` (isolated API/cache/adapter and component checks; no external writes)
+- `node scripts/check-graduation-button.mjs` (mocked RPC/wallet checks for manual graduation, gas reserve, failures, pending confirmations and duplicate clicks; no external writes)
 - `node --experimental-strip-types scripts/check-market-live-protocol.mjs`
 - `node --experimental-strip-types scripts/check-market-live-chart.mjs`
 - `REDIS_URL=redis://127.0.0.1:16379 node scripts/check-market-chart-cache.mjs`

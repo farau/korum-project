@@ -7,35 +7,9 @@ import { getEthUsdQuote } from "../markets/quote-usd";
 import { unitsNumber } from "../markets/math";
 import { KORUM_CHAIN_ID } from "../../config/korum-network";
 import { getDatabase } from "./client";
+import { analyticsWindow, annualBuckets, type AnalyticsPeriod, type AnalyticsSnapshot } from "../analytics";
 
-export type AnalyticsPeriod = "day" | "week" | "month";
-
-export type AnalyticsSnapshot = {
-  period: AnalyticsPeriod;
-  trades: number;
-  volumeEth: number;
-  volumeUsd: number | null;
-  averageTradeEth: number;
-  averageTradeUsd: number | null;
-  traders: number;
-  activeVersus: number;
-  feesEth: number;
-  feesUsd: number | null;
-  creatorFeesEth: number;
-  creatorFeesUsd: number | null;
-  buckets: Array<{
-    timestamp: number;
-    volumeEth: number;
-    volumeUsd: number | null;
-    trades: number;
-  }>;
-};
-
-const PERIOD_CONFIG: Record<AnalyticsPeriod, { seconds: number; bucketSeconds: number }> = {
-  day: { seconds: 24 * 60 * 60, bucketSeconds: 60 * 60 },
-  week: { seconds: 7 * 24 * 60 * 60, bucketSeconds: 24 * 60 * 60 },
-  month: { seconds: 30 * 24 * 60 * 60, bucketSeconds: 24 * 60 * 60 },
-};
+export type { AnalyticsPeriod, AnalyticsSnapshot } from "../analytics";
 export const ANALYTICS_CACHE_SECONDS = 10 * 60;
 
 type AggregateRow = {
@@ -53,10 +27,12 @@ type BucketRow = {
   trades: number;
 };
 
-async function loadAnalytics(period: AnalyticsPeriod): Promise<AnalyticsSnapshot> {
+async function loadAnalytics(period: AnalyticsPeriod, now: Date): Promise<AnalyticsSnapshot> {
   const database = getDatabase();
-  const config = PERIOD_CONFIG[period];
-  const startSeconds = Math.floor(Date.now() / 1_000) - config.seconds;
+  const { startSeconds, endSeconds, bucketSeconds } = analyticsWindow(period, now);
+  const bucketExpression = period === "year"
+    ? "EXTRACT(EPOCH FROM (DATE_TRUNC('month', trade.traded_at AT TIME ZONE 'UTC') AT TIME ZONE 'UTC'))"
+    : "FLOOR(EXTRACT(EPOCH FROM trade.traded_at) / $4) * $4";
   const [aggregateRows, bucketRows, quote] = await Promise.all([
     database.unsafe<AggregateRow[]>(`
       SELECT
@@ -72,18 +48,20 @@ async function loadAnalytics(period: AnalyticsPeriod): Promise<AnalyticsSnapshot
         AND camp.token_address = trade.token_address
       WHERE trade.chain_id = $1
         AND trade.traded_at >= TO_TIMESTAMP($2::DOUBLE PRECISION)
-    `, [KORUM_CHAIN_ID, startSeconds]),
+        AND trade.traded_at < TO_TIMESTAMP($3::DOUBLE PRECISION)
+    `, [KORUM_CHAIN_ID, startSeconds, endSeconds]),
     database.unsafe<BucketRow[]>(`
       SELECT
-        FLOOR(EXTRACT(EPOCH FROM trade.traded_at) / $3) * $3 AS timestamp,
+        ${bucketExpression} AS timestamp,
         COALESCE(SUM(trade.eth_gross), 0)::TEXT AS "volumeEth",
         COUNT(*)::INTEGER AS trades
       FROM ${INDEXER_SCHEMA}.camp_trades trade
       WHERE trade.chain_id = $1
         AND trade.traded_at >= TO_TIMESTAMP($2::DOUBLE PRECISION)
-      GROUP BY FLOOR(EXTRACT(EPOCH FROM trade.traded_at) / $3)
+        AND trade.traded_at < TO_TIMESTAMP($3::DOUBLE PRECISION)
+      GROUP BY ${bucketExpression}
       ORDER BY timestamp ASC
-    `, [KORUM_CHAIN_ID, startSeconds, config.bucketSeconds]),
+    `, period === "year" ? [KORUM_CHAIN_ID, startSeconds, endSeconds] : [KORUM_CHAIN_ID, startSeconds, endSeconds, bucketSeconds]),
     getEthUsdQuote(),
   ]);
 
@@ -94,9 +72,14 @@ async function loadAnalytics(period: AnalyticsPeriod): Promise<AnalyticsSnapshot
   const creatorFeesEth = unitsNumber(aggregate?.creatorFeesEth ?? "0") ?? 0;
   const averageTradeEth = trades > 0 ? volumeEth / trades : 0;
   const toUsd = (value: number) => quote ? value * quote.value : null;
+  const buckets = bucketRows.map((row) => {
+    const volumeEthInBucket = unitsNumber(row.volumeEth) ?? 0;
+    return { timestamp: Number(row.timestamp), volumeEth: volumeEthInBucket, volumeUsd: toUsd(volumeEthInBucket), trades: row.trades };
+  });
 
   return {
     period,
+    asOf: endSeconds,
     trades,
     volumeEth,
     volumeUsd: toUsd(volumeEth),
@@ -108,23 +91,18 @@ async function loadAnalytics(period: AnalyticsPeriod): Promise<AnalyticsSnapshot
     feesUsd: toUsd(feesEth),
     creatorFeesEth,
     creatorFeesUsd: toUsd(creatorFeesEth),
-    buckets: bucketRows.map((row) => {
-      const volumeEthInBucket = unitsNumber(row.volumeEth) ?? 0;
-      return {
-        timestamp: Number(row.timestamp),
-        volumeEth: volumeEthInBucket,
-        volumeUsd: toUsd(volumeEthInBucket),
-        trades: row.trades,
-      };
-    }),
+    buckets: period === "year" ? annualBuckets(buckets, now, quote !== null) : buckets,
   };
 }
 
 export function getAnalytics(period: AnalyticsPeriod, diagnostic?: CacheDiagnostic) {
+  const now = new Date();
+  // A month/year rollover must never reuse the previous annual snapshot.
+  const calendarScope = period === "year" ? [now.getUTCFullYear(), now.getUTCMonth() + 1] : [];
   return rememberJson(
-    redisCacheKey("analytics", "snapshot-v1", period),
+    redisCacheKey("analytics", "snapshot-v2", period, ...calendarScope),
     ANALYTICS_CACHE_SECONDS,
-    () => loadAnalytics(period),
+    () => loadAnalytics(period, now),
     diagnostic,
   );
 }

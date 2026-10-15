@@ -17,7 +17,7 @@ const revealSelectors = [
   ".analytics-panel",
   ".tac-card",
   ".analytics-chart-col",
-  ".topvs-table",
+  ".vs-table-wrap",
 ].join(",");
 
 export default function ScrollReveal({ rootSelector }: { rootSelector: string }) {

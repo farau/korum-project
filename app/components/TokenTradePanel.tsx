@@ -1,6 +1,6 @@
 "use client";
 
-import { GRADUATING_MESSAGE } from "../lib/markets/venue";
+import { GRADUATING_MESSAGE, resolveCurveStatus } from "../lib/markets/venue";
 
 import { usePendingReferral } from "../hooks/usePendingReferral";
 import { fetchPendingReferral } from "../lib/referrals/client";
@@ -50,6 +50,7 @@ import {
   VERSUS_TOKEN_ABI,
 } from "../lib/contracts/korum";
 import { useWallet } from "./WalletProvider";
+import GraduateTokenButton from "./GraduateTokenButton";
 import styles from "./VsDetailClient.module.css";
 
 type TradeMode = "buy" | "sell";
@@ -156,7 +157,7 @@ export default function TokenTradePanel({
   const { writeContractAsync, isPending: isWalletPromptOpen, reset: resetWrite } = useWriteContract();
 
   const [mode, setMode] = useState<TradeMode>("buy");
-  const [amount, setAmount] = useState("0.01");
+  const [amount, setAmount] = useState("");
   const [quote, setQuote] = useState<Quote | null>(null);
   const [quoteError, setQuoteError] = useState<string | null>(null);
   const [isQuoting, setIsQuoting] = useState(false);
@@ -256,7 +257,7 @@ export default function TokenTradePanel({
     query: { enabled: Boolean(tokenAddress), refetchInterval: 15_000 },
   });
   const curve = curveData as CurveState | undefined;
-  const graduating = curve?.status === 2 || (token.curveStatus === 2 && curve?.status !== 3);
+  const graduating = resolveCurveStatus(token.curveStatus, curve?.status) === 2;
   useEffect(() => {
     if (tokenAddress && curve) onCurveStatus?.(tokenAddress.toLowerCase(), curve.status);
   }, [curve, onCurveStatus, tokenAddress]);
@@ -583,7 +584,7 @@ export default function TokenTradePanel({
 
   function selectMode(nextMode: TradeMode) {
     setMode(nextMode);
-    setAmount(nextMode === "buy" ? "0.01" : "");
+    setAmount("");
     setQuote(null);
     setQuoteError(null);
     setIsQuoting(false);
@@ -658,6 +659,9 @@ export default function TokenTradePanel({
   } else if (curve?.status === 0 || curveError || !tokenAddress) {
     buttonLabel = "TRADING UNAVAILABLE";
     buttonHint = !tokenAddress ? "No deployed token address" : "This is not an active Korum token";
+  } else if (amountRaw === null) {
+    buttonLabel = "ENTER AMOUNT";
+    buttonHint = `Enter a positive amount in ${inputUnit}`;
   } else if (insufficientBalance) {
     buttonLabel = `INSUFFICIENT ${inputUnit}`;
     buttonHint = "Choose a smaller amount";
@@ -681,6 +685,7 @@ export default function TokenTradePanel({
   return (
     <form className={`${styles.tradeCard} ${mode === "sell" ? styles.sellMode : ""}`} onSubmit={handleTrade}>
       {graduating ? <p className={styles.tradeNotice} role="status">{GRADUATING_MESSAGE}</p> : null}
+      <GraduateTokenButton key={tokenAddress ?? "unknown"} tokenAddress={tokenAddress} migrating={graduating} disabled={transactionBusy} onStatus={onStatus} onCurveStatus={onCurveStatus} />
       <div className={styles.tradeTabs}>
         <button type="button" disabled={graduating} aria-pressed={mode === "buy"} className={mode === "buy" ? styles.activeBuy : ""} onClick={() => selectMode("buy")}>BUY</button>
         <button type="button" disabled={graduating} aria-pressed={mode === "sell"} className={mode === "sell" ? styles.activeSell : ""} onClick={() => selectMode("sell")}>SELL</button>
@@ -698,6 +703,7 @@ export default function TokenTradePanel({
             min="0"
             step="any"
             inputMode="decimal"
+            placeholder="0.00"
             disabled={graduating}
             value={amount}
             onChange={(event) => {

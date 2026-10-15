@@ -2,6 +2,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import GlobalSearch from "./GlobalSearch";
 import {
   NOTIFICATION_EVENT,
   isAppNotification,
@@ -32,9 +33,20 @@ function notificationTime(createdAt: string) {
 }
 
 function LogoMark() {
+  const gradientId = React.useId();
   return (
     <svg className="logo-mark" viewBox="0 0 114.96 126.62" fill="currentColor" aria-hidden="true">
-      <path d="M106.96,126.34l-97.85.28C3.65,126.63,0,123.35,0,117.77L.05,7.97C.52,4.24,3.02.04,7.13.03l107.83-.03L39.41,62.58l67.55,63.76Z" />
+      <defs>
+        <linearGradient id={gradientId} x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stopColor="var(--logo-metal-light)" />
+          <stop offset="30%" stopColor="var(--logo-metal-mid)" />
+          <stop offset="45%" stopColor="var(--logo-metal-light)" />
+          <stop offset="50%" stopColor="var(--logo-metal-light)" />
+          <stop offset="58%" stopColor="var(--logo-metal-shadow)" />
+          <stop offset="100%" stopColor="var(--logo-metal-light)" />
+        </linearGradient>
+      </defs>
+      <path fill={`url(#${gradientId})`} d="M106.96,126.34l-97.85.28C3.65,126.63,0,123.35,0,117.77L.05,7.97C.52,4.24,3.02.04,7.13.03l107.83-.03L39.41,62.58l67.55,63.76Z" />
     </svg>
   );
 }
@@ -76,6 +88,19 @@ function HeaderContent({ notificationWallet }: { notificationWallet: string | nu
   const walletCenterRef = useRef<HTMLDivElement>(null);
   const headerRef = useRef<HTMLElement>(null);
   const { address, connected, authenticating, connect, disconnect, hydrated: walletHydrated } = useWallet();
+
+  useEffect(() => {
+    const header = headerRef.current;
+    if (!header || pathname !== "/explore") return;
+
+    const updateScrolled = () => header.toggleAttribute("data-scrolled", window.scrollY > 8);
+    updateScrolled();
+    window.addEventListener("scroll", updateScrolled, { passive: true });
+    return () => {
+      window.removeEventListener("scroll", updateScrolled);
+      header.removeAttribute("data-scrolled");
+    };
+  }, [pathname]);
 
   useEffect(() => {
     const header = headerRef.current;
@@ -263,6 +288,8 @@ function HeaderContent({ notificationWallet }: { notificationWallet: string | nu
           ))}
         </nav>
 
+        <GlobalSearch key={pathname} />
+
         <div className="topbar-right">
           <div className="notification-center" ref={notificationCenterRef}>
             <button
@@ -306,7 +333,7 @@ function HeaderContent({ notificationWallet }: { notificationWallet: string | nu
           </button>
 
           <Link href="/create" className="btn btn-create" aria-label="Create a VS">
-            <span className="btn-create-label-desktop">Create a VS</span>
+            <span className="btn-create-label-desktop">CREATE A VS</span>
             <span className="btn-create-label-mobile" aria-hidden="true">VS</span>
           </Link>
 

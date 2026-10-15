@@ -10,6 +10,7 @@ import { formatMarketValue, formatTokenAmount } from "../lib/markets/format";
 import type { UserProfile, UserProfileActivityPage, UserProfileStats, ProfileReferrer } from "../lib/profile";
 import type { ProfileHoldings } from "../lib/profile-holdings";
 import ProfileAvatar from "./ProfileAvatar";
+import DesignIcon, { type DesignIconName } from "./DesignIcon";
 import AvatarUpload from "./AvatarUpload";
 import ProfileFeeClaim from "./ProfileFeeClaim";
 import EarningsSimulator from "./EarningsSimulator";
@@ -26,15 +27,15 @@ type ProfileClientProps = {
   referral: ProfileReferrer;
 };
 
-const PROFILE_TABS: Array<{ id: ProfileTab; label: string }> = [
-  { id: "information", label: "Information" },
-  { id: "holdings", label: "My Holdings" },
-  { id: "managed", label: "Managed Versus" },
-  { id: "activity", label: "Activity" },
-  { id: "referrals", label: "Referrals" },
-  { id: "badges", label: "Badges" },
-  { id: "watchlist", label: "Watchlist" },
-  { id: "simulator", label: "Global simulator" },
+const PROFILE_TABS: Array<{ id: ProfileTab; label: string; icon: DesignIconName }> = [
+  { id: "information", label: "Overview", icon: "home" },
+  { id: "holdings", label: "My Holdings", icon: "holdings" },
+  { id: "managed", label: "Managed Versus", icon: "bolt" },
+  { id: "activity", label: "Activity", icon: "activity" },
+  { id: "referrals", label: "Referrals", icon: "users" },
+  { id: "badges", label: "Badges", icon: "badge" },
+  { id: "watchlist", label: "Watchlist", icon: "star" },
+  { id: "simulator", label: "Global simulator", icon: "simulator" },
 ];
 
 function chainName(chainId: number | null) {
@@ -63,6 +64,8 @@ function formatHoldingUsd(value: number | null | undefined) {
 }
 
 function Icon({ name }: { name: "copy" | "users" | "bolt" | "chart" | "wallet" | "trade" | "image" | "x" | "edit" | "external" }) {
+  const suppliedIcons = { users: "users", bolt: "bolt", wallet: "wallet", trade: "trade" } as const;
+  if (name in suppliedIcons) return <DesignIcon name={suppliedIcons[name as keyof typeof suppliedIcons]} />;
   const paths = {
     copy: <><rect x="8" y="8" width="10" height="10" rx="2" /><path d="M6 15H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v1" /></>,
     users: <><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" /></>,
@@ -193,27 +196,24 @@ function InformationPanel({ profile, stats, referral, holdings, holdingsLoading,
         <h2>Account information</h2>
         <p>Wallet identity and account access in one place.</p>
         <div className="profile-account-grid">
-          <div className={`profile-field profile-editable-field${editingDisplayName ? " editing" : ""}`}>
+          <div className={`profile-field profile-field-username profile-editable-field${editingDisplayName ? " editing" : ""}`}>
             <span><small>Username</small>{editingDisplayName ? <input aria-label="Username" autoComplete="nickname" maxLength={32} value={displayName} onChange={(event) => setDisplayName(event.target.value)} /> : <strong>{profile.displayName || "Choose a username"}</strong>}</span>
             {editingDisplayName ? <span className="profile-bio-actions"><button type="button" disabled={savingDisplayName} onClick={saveDisplayName}>{savingDisplayName ? "Saving..." : "Save"}</button><button type="button" disabled={savingDisplayName} onClick={() => { setDisplayName(profile.displayName ?? ""); setDisplayNameError(null); setEditingDisplayName(false); }}>Cancel</button></span> : <button type="button" className="profile-copy-button" onClick={() => setEditingDisplayName(true)} aria-label="Edit username" title="Edit username"><Icon name="edit" /></button>}
           </div>
           <AvatarUpload profile={profile} onChange={onProfileChange} />
-          <div className="profile-field">
-            <span><small>Member since</small><strong>{formatUtcDate(profile.createdAt)}</strong></span>
+          <div className="profile-field profile-field-address">
+            <span><small>Account address</small><strong className="profile-address-value" title={profile.evmWallet}>{profile.evmWallet.slice(0, 4)}…{profile.evmWallet.slice(-4)}</strong></span>
+            <CopyButton value={profile.evmWallet} label="Copy wallet address" />
           </div>
           <div className={`profile-field profile-editable-field profile-bio-field${editingBio ? " editing" : ""}`}>
             <span><small>Profile bio</small>{editingBio ? <input aria-label="Profile bio" maxLength={160} value={bio} onChange={(event) => setBio(event.target.value)} /> : <strong>{profile.bio || "No bio set"}</strong>}</span>
             {editingBio ? <span className="profile-bio-actions"><button type="button" disabled={savingBio} onClick={saveBio}>{savingBio ? "Saving..." : "Save"}</button><button type="button" disabled={savingBio} onClick={() => { setBio(profile.bio ?? ""); setBioError(null); setEditingBio(false); }}>Cancel</button></span> : <button type="button" className="profile-copy-button" onClick={() => setEditingBio(true)} aria-label="Edit profile bio" title="Edit profile bio"><Icon name="edit" /></button>}
           </div>
-          <div className="profile-field profile-field-disabled" aria-disabled="true">
+          <div className="profile-field profile-field-x profile-field-disabled" aria-disabled="true">
             <span><small className="profile-label-with-icon"><Icon name="x" /> X account</small><strong>{profile.xAccount ? `@${profile.xAccount.username}` : "Not linked"}</strong></span>
             <button type="button" className="profile-pill-button" disabled title="X account linking is not available yet">Link</button>
           </div>
-          <div className="profile-field">
-            <span><small>Account address</small><strong className="profile-address-value" title={profile.evmWallet}>{profile.evmWallet.slice(0, 4)}…{profile.evmWallet.slice(-4)}</strong></span>
-            <CopyButton value={profile.evmWallet} label="Copy wallet address" />
-          </div>
-          <div className="profile-field">
+          <div className="profile-field profile-field-referrer">
             <span><small>Referrer</small><strong title={referral.referrer?.address}>{referral.referrer ? referral.referrer.displayName || shortenAddress(referral.referrer.address) : referral.unavailable ? "Temporarily unavailable" : "No referrer"}</strong>{referral.referrer ? <small>{shortenAddress(referral.referrer.address)} · Confirmed on-chain</small> : null}</span>
             {referral.referrer ? <CopyButton value={referral.referrer.address} label="Copy referrer address" /> : null}
           </div>
@@ -223,29 +223,29 @@ function InformationPanel({ profile, stats, referral, holdings, holdingsLoading,
       </section>
 
       <div className="profile-stat-grid">
-        <article className="profile-stat-block">
+        <article className="profile-stat-block" data-illustration="referral-code">
           <div className="profile-stat-heading"><span className="profile-stat-icon"><Icon name="users" /></span><span>Referral</span></div>
           <div className="profile-referral-code"><span><small>Referral code</small><strong>{profile.referralCode}</strong></span><CopyButton value={() => getReferralLink(profile.referralCode)} label="Copy referral link" /></div>
         </article>
-        <article className="profile-stat-block">
+        <article className="profile-stat-block" data-illustration="referrals">
           <div className="profile-stat-heading"><span className="profile-stat-icon"><Icon name="users" /></span><span>Referrals</span></div>
           <strong className="profile-stat-value">{stats.referralCount}</strong><IndexedData />
         </article>
-        <article className="profile-stat-block">
+        <article className="profile-stat-block" data-illustration="versus">
           <div className="profile-stat-heading"><span className="profile-stat-icon"><Icon name="bolt" /></span><span>Versus</span></div>
           <div className="profile-versus-values"><span><strong>{stats.versusCreated}</strong><small>Created</small></span><span><strong>{stats.versusJoined}</strong><small>Joined</small></span></div>
         </article>
-        <article className="profile-stat-block">
-          <div className="profile-stat-heading profile-stat-split"><span><span className="profile-stat-icon"><Icon name="chart" /></span><span>Estimated PNL</span></span><strong className={pnlClass(stats)}>{formatEstimatedPnl(stats)}</strong></div>
-          <div className="profile-flat-chart" aria-label="Estimated mark-to-market PNL excluding gas"><span /></div>
+        <article className="profile-stat-block" data-illustration="pnl">
+          <div className="profile-stat-heading"><span>Estimated PNL</span></div>
+          <strong className={`profile-stat-value ${pnlClass(stats)}`}>{formatEstimatedPnl(stats)}</strong>
           <IndexedData>Mark-to-market · gas excluded</IndexedData>
         </article>
-        <article className="profile-stat-block">
+        <article className="profile-stat-block" data-illustration="holdings">
           <div className="profile-stat-heading"><span className="profile-stat-icon"><Icon name="wallet" /></span><span>My Holdings</span></div>
           <strong className="profile-stat-value">{formatHoldingUsd(holdings?.totalValueUsd)}</strong>
           <button type="button" className="profile-holdings-shortcut" onClick={onOpenHoldings}>{holdingsLoading ? "Loading balances…" : holdings?.partial ? "Partial valuation · View holdings →" : holdings?.quoteAvailable === false ? "USD quote unavailable · View holdings →" : "View holdings →"}</button>
         </article>
-        <article className="profile-stat-block">
+        <article className="profile-stat-block" data-illustration="volume">
           <div className="profile-stat-heading"><span className="profile-stat-icon"><Icon name="trade" /></span><span>Traded volume</span></div>
           <strong className="profile-stat-value">{formatTradedVolume(stats)}</strong><IndexedData>{stats.tradeCount} {stats.tradeCount === 1 ? "trade" : "trades"}</IndexedData>
         </article>
@@ -562,7 +562,7 @@ function watchlistAgeLabel(debate: Debate, now: number | null) {
 }
 
 function WatchlistPanel() {
-  const { ids, debates, ready, remove } = useWatchlist();
+  const { ids, debates, ready, remove } = useWatchlist(15_000);
   const [now, setNow] = useState<number | null>(null);
   const watched = useMemo(() => debates.filter((debate) => ids.includes(debate.id)), [debates, ids]);
 
@@ -718,11 +718,11 @@ function WalletProfile({ profile, stats, sessionAddress, sessionChainId, referra
   return (
     <div className="page profile-page">
       <section className="profile-reference-hero">
-        <div className="wrap"><div className="profile-reference-card"><ProfileAvatar address={address} className="profile-avatar-hex" /><div className="profile-reference-main"><h1>{currentProfile.displayName || shortenAddress(address)}</h1><p>{currentProfile.bio || "Profile linked to your connected EVM wallet."}</p><div className="profile-reference-badges"><span>Wallet verified</span><span>{chainName(sessionChainId)}</span></div></div></div></div>
+        <div className="wrap"><div className="profile-reference-card"><ProfileAvatar address={address} className="profile-avatar-hex" /><div className="profile-reference-main"><h1>{currentProfile.displayName || shortenAddress(address)}</h1><p>{currentProfile.bio || "Profile linked to your connected EVM wallet."}</p><div className="profile-reference-badges"><span>✓ Wallet verified</span><span>{chainName(sessionChainId)}</span></div></div><div className="profile-member-since"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2" /><path d="M7 2v6M17 2v6M3 11h18" /></svg><span><small>Member since</small><strong>{formatUtcDate(currentProfile.createdAt)}</strong></span></div></div></div>
       </section>
       <section className="profile-reference-content">
         <div className="wrap">
-          <div className="profile-tabs" role="tablist" aria-label="Profile sections">{PROFILE_TABS.map((tab) => <button type="button" role="tab" aria-selected={activeTab === tab.id} aria-controls={`profile-panel-${tab.id}`} className={activeTab === tab.id ? "active" : ""} onClick={() => setActiveTab(tab.id)} key={tab.id}>{tab.label}</button>)}</div>
+          <div className="profile-tabs" role="tablist" aria-label="Profile sections">{PROFILE_TABS.map((tab) => <button type="button" role="tab" aria-selected={activeTab === tab.id} aria-controls={`profile-panel-${tab.id}`} className={activeTab === tab.id ? "active" : ""} onClick={() => setActiveTab(tab.id)} key={tab.id}><DesignIcon name={tab.icon} />{tab.label}</button>)}</div>
           {panels[activeTab]}
         </div>
       </section>

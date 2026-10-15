@@ -10,7 +10,7 @@ function formatMoney(value: number) {
 }
 
 export default function WatchlistView() {
-  const { ids, debates, ready } = useWatchlist();
+  const { ids, debates, ready } = useWatchlist(15_000);
   const items = debates.filter((debate) => ids.includes(debate.id));
   const stats = useMemo(() => {
     const volume = items.reduce((sum, debate) => sum + debate.volume24h, 0);

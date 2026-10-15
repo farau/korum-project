@@ -22,7 +22,7 @@ async function load(path, dependencies = {}, globals = {}, append = '') {
       if (name === 'server-only') return {};
       if (name.startsWith('node:') || name === 'react' || name === 'react/jsx-runtime' || name === 'viem') return require(name);
       throw new Error(`Missing test dependency ${name} in ${path}`);
-    }, console, process: { env: {} }, AbortSignal, Map, Set, Date, ...globals,
+    }, console, process: { env: {} }, AbortSignal, Map, Set, Date, URL, ...globals,
   });
   return exports;
 }
@@ -45,6 +45,12 @@ for (const data of [null, {}, { pairs: null }, { pairs: [] }, { pairs: ['bad', n
   assert.equal(venueModel.verifiedDexscreenerChart(data, venue), null);
 }
 assert.equal(venueModel.verifiedDexscreenerChart({ pairs: [pair] }, { ...venue, chainId: 46630 }), null);
+assert.equal(venueModel.verifiedDexscreenerChart({ pairs: [pair] }, { ...venue, curveStatus: 2 }), null,
+  'An indexed Dexscreener pool never completes contract migration');
+assert.equal(venueModel.resolveCurveStatus(3, 2), 2);
+assert.equal(venueModel.resolveCurveStatus(2, 3), 3);
+assert.equal(venueModel.resolveCurveStatus(2, 1), 2);
+
 
 const cache = { redisCacheKey: (...parts) => parts.join(':'),
   connectedRedis: async () => null, consumeRateLimit: async () => ({ allowed: true }),
@@ -105,12 +111,14 @@ let mutations;
 let liveRows = [{ eventId: 'pool-trade', blockHash: 'hash', token, block: '5', log: 0,
   timestamp: '1000', previousBlock: null, previousLog: null, sqrtPrice: '1', supply: '1', volume: '1', curveStatus: 3, venue: 1 }];
 const live = await load('app/lib/live/server.ts', {
-  '../cache/redis': { ...cache, connectedRedis: async () => ({ status: 'ready', get: async () => null, eval: async () => 1 }) },
+  '../cache/redis': { ...cache, connectedRedis: async () => ({ status: 'ready', get: async () => null, mget: async () => [null], eval: async () => 1 }) },
   '../../config/deployment': { INDEXER_SCHEMA: 'indexer_v2' },
   '../db/client': { getDatabase: () => ({ unsafe: async () => liveRows }) },
   '../markets/math': { tokenPriceWad: value => value, unitsNumber: value => Number(value) },
   '../markets/venue': venueModel,
   './chart-cache': { prepareChartMutations: async (...args) => { mutations = args; return { mutations: [], revisions: [] }; }, publishChartScript: '' },
+  './debate-cache': { prepareDebateMutations: async () => ({ mutations: [], revisions: [], mappings: [] }) },
+  '../db/debates': { loadIndexedDebateRowsByIds: async () => [] },
 });
 const notice = { event_id: 'pool-trade', chain_id: 4663, token_address: token, block_hash: 'hash', operation: 'i' };
 await live.publishMarketNotice([notice]);
@@ -129,13 +137,34 @@ let chainStatus;
 let submitTrade;
 let statusChecks = 0;
 let walletRequests = 0;
+let renderMode = 'buy';
+let renderedQuote = null;
+let renderedAmount = '0.01';
+let renderedEthBalance;
+let nullTradeState = 0;
+function renderTrade(tokenProps, mode = 'buy', quote = null, amount = '0.01') {
+  renderMode = mode;
+  renderedQuote = quote;
+  renderedAmount = amount;
+  nullTradeState = 0;
+  return renderToStaticMarkup(React.createElement(tradePanel.default, {
+    token: { name: 'Token', symbol: 'TEST', address: token, ...tokenProps }, onStatus: () => {},
+  }));
+}
+
 const jsxRuntime = require('react/jsx-runtime');
 const captureForm = method => (type, props, ...rest) => {
   if (type === 'form') submitTrade = props.onSubmit;
   return jsxRuntime[method](type, props, ...rest);
 };
 const tradePanel = await load('app/components/TokenTradePanel.tsx', {
-  react: { ...React, useState: initial => [React.useState(initial?.loaded === false ? { ...initial, loaded: true } : initial)[0], () => {}] },
+  react: { ...React, useState: initial => {
+    let value = initial === 'buy' ? renderMode : initial;
+    if (initial === '') value = renderedAmount;
+    if (initial === null && nullTradeState++ === 0 && renderedQuote) value = renderedQuote;
+    if (initial?.loaded === false) value = { ...initial, loaded: true };
+    return [React.useState(value)[0], () => {}];
+  } },
   'react/jsx-runtime': { ...jsxRuntime, jsx: captureForm('jsx'), jsxs: captureForm('jsxs') },
   '../lib/markets/venue': venueModel,
   '../hooks/usePendingReferral': { usePendingReferral: () => ({ referral: null, clear: () => {} }) },
@@ -143,9 +172,10 @@ const tradePanel = await load('app/components/TokenTradePanel.tsx', {
   '@tanstack/react-query': { useQueryClient: () => ({}) },
   wagmi: {
     useAccount: () => ({ isConnected: connected, address: connected ? token : undefined }),
-    useBalance: () => ({}), useChainId: () => 4663, usePublicClient: () => ({}),
+    useBalance: () => ({ data: renderedEthBalance === undefined ? undefined : { value: renderedEthBalance, decimals: 18 } }), useChainId: () => 4663, usePublicClient: () => ({}),
     useReadContract: ({ functionName }) => ({
-      data: functionName === 'getCurve' && chainStatus !== undefined ? { status: chainStatus, quoteAsset: viem.zeroAddress } : undefined,
+      data: functionName === 'getCurve' && chainStatus !== undefined ? { status: chainStatus, quoteAsset: viem.zeroAddress }
+        : functionName === 'balanceOf' || functionName === 'allowance' ? viem.parseEther('100') : undefined,
       refetch: async () => { statusChecks++; return { data: { status: 2, quoteAsset: viem.zeroAddress } }; },
     }),
     useSwitchChain: () => ({ switchChainAsync: () => { walletRequests++; } }),
@@ -156,9 +186,10 @@ const tradePanel = await load('app/components/TokenTradePanel.tsx', {
   '../lib/contracts/korum': { KORUM_CHAIN: { id: 4663, name: 'Robinhood', blockExplorers: { default: { url: '' } } }, KORUM_CORE_ADDRESS: token },
   './WalletProvider': { useWallet: () => ({ authenticated: connected, connect: () => { walletRequests++; } }) },
   './VsDetailClient.module.css': styles,
+  './GraduateTokenButton': { __esModule: true, default: () => null },
 });
 for (connected of [false, true]) for (chainStatus of [undefined, 1, 2]) for (const mode of ['buy', 'sell']) {
-  const markup = renderToStaticMarkup(React.createElement(tradePanel.default, { token: { name: 'Token', symbol: 'TEST', address: token, curveStatus: 2 }, initialMode: mode, onStatus: () => {} }));
+  const markup = renderTrade({ curveStatus: 2 }, mode);
   assert.ok(markup.includes(venueModel.GRADUATING_MESSAGE));
   assert.match(markup, /<button[^>]*type="submit"[^>]*disabled=""/);
   assert.match(markup, /<input[^>]*disabled=""/);
@@ -166,43 +197,97 @@ for (connected of [false, true]) for (chainStatus of [undefined, 1, 2]) for (con
 }
 connected = false;
 chainStatus = 1;
-const availableMarkup = renderToStaticMarkup(React.createElement(tradePanel.default, {
-  token: { name: 'Token', symbol: 'TEST', address: token, curveStatus: 1 }, onStatus: () => {},
-}));
-assert.match(availableMarkup, /<button[^>]*type="submit"[^>]*>CONNECT WALLET/,
-  'The disconnected curve baseline is enabled, so graduation alone disables that same button');
+const availableMarkup = renderTrade({ curveStatus: 1 });
+assert.ok(availableMarkup.includes('CONNECT WALLET'));
+assert.doesNotMatch(availableMarkup, /<button[^>]*type="submit"[^>]*disabled=""/,
+  'The disconnected curve baseline is enabled, so migration alone disables that same button');
 connected = true;
 for (const mode of ['buy', 'sell']) {
-  renderToStaticMarkup(React.createElement(tradePanel.default, {
-    token: { name: 'Token', symbol: 'TEST', address: token, curveStatus: 1 }, initialMode: mode,
-    initialAmount: '0.01', onStatus: () => {},
-  }));
+  renderTrade({ curveStatus: 1 }, mode);
   await submitTrade({ preventDefault() {} });
 }
 assert.equal(statusChecks, 2, 'Each buy/sell checks fresh status before proceeding');
 assert.equal(walletRequests, 0, 'A token graduating since the quote never opens approval/trading prompts');
 
+// Trading resumes on contract status 3 even with a stale migrating snapshot or no Dexscreener pool.
+chainStatus = 3;
+for (const curveStatus of [2, 3]) for (const pool of [undefined, poolId]) for (const mode of ['buy', 'sell']) {
+  const markup = renderTrade({ curveStatus, poolId: pool }, mode, {
+    amountIn: viem.parseEther('0.01'), amountOut: viem.parseEther('1'), mode, venueStatus: 3,
+  });
+  assert.ok(!markup.includes(venueModel.GRADUATING_MESSAGE));
+  assert.ok(markup.includes('Pool quote simulated on-chain'));
+  assert.doesNotMatch(markup, /<button[^>]*type="submit"[^>]*disabled=""/,
+    'A confirmed migrated token with a valid on-chain quote can trade without Dexscreener');
+}
+chainStatus = 2;
+for (const mode of ['buy', 'sell']) {
+  const markup = renderTrade({ curveStatus: 3, poolId }, mode);
+  assert.match(markup, /<button[^>]*type="submit"[^>]*disabled=""/);
+  assert.ok(markup.includes(venueModel.GRADUATING_MESSAGE), 'An indexed pool cannot override contract migration');
+}
+assert.equal(walletRequests, 0, 'All checks run without wallet transactions');
+
+connected = true;
+renderedEthBalance = 0n;
+for (chainStatus of [1, 3]) for (const mode of ['buy', 'sell']) for (const amount of ['', '0', '-1', 'invalid']) {
+  const markup = renderTrade({ curveStatus: chainStatus }, mode, null, amount);
+  assert.match(markup, /ENTER AMOUNT/);
+  assert.match(markup, /Enter a positive amount in/);
+  assert.doesNotMatch(markup, /INSUFFICIENT/);
+  assert.match(markup, /<button[^>]*type="submit"[^>]*disabled=""/);
+}
+chainStatus = 1;
+assert.match(renderTrade({ curveStatus: 1 }, 'buy', null, '0.01'), /INSUFFICIENT ETH/,
+  'A positive amount exceeding the wallet balance still reports insufficient funds');
+renderedEthBalance = undefined;
+
 let poolData = { ...venue, chart: valid };
+let poolTheme = 'dark';
 const poolComponent = await load('app/components/GraduatedPoolChart.tsx', {
+  react: { ...React, useSyncExternalStore: () => poolTheme },
   '@tanstack/react-query': { useQuery: () => ({ data: poolData, isError: false }) },
   '../config/deployment': {}, './VsDetailClient.module.css': styles,
 });
 let markup = renderToStaticMarkup(React.createElement(poolComponent.default, { tokenAddress: token, symbol: 'TEST' }));
 assert.ok(markup.includes('<iframe') && markup.includes('dexscreener.com/robinhood/'));
 assert.ok(markup.includes('Open on DEX Screener'));
+for (poolTheme of ['light', 'dark']) {
+  markup = renderToStaticMarkup(React.createElement(poolComponent.default, { tokenAddress: token, symbol: 'TEST' }));
+  assert.ok(markup.includes(`theme=${poolTheme}`), 'The embedded chart follows the selected theme');
+}
 for (const state of ['pending', 'unsupported']) {
   poolData = { ...venue, chart: { status: state, url: null, embedUrl: null } };
   markup = renderToStaticMarkup(React.createElement(poolComponent.default, { tokenAddress: token, symbol: 'TEST' }));
   assert.ok(!markup.includes('<iframe'));
-  assert.ok(markup.includes(state === 'pending' ? 'Waiting for the Uniswap pool chart' : 'Pool chart unavailable on testnet'));
+  assert.ok(markup.includes(state === 'pending' ? 'Waiting for the DEX Screener chart' : 'Pool chart unavailable on testnet'));
+  assert.ok(markup.includes('Trading and market metrics remain available'));
+
 }
 
 let chartOptions;
 let observedStatus;
+let onChainStatus;
+let nullDetailState = 0;
+let observedAddress = token;
+function renderDetail(tokenProps) {
+  nullDetailState = 0;
+  return renderToStaticMarkup(React.createElement(detail.TokenPanelForCheck, {
+    token: { name: 'Token', symbol: 'TEST', address: token, ...tokenProps }, side: 'a', marketAvailable: true,
+    marketShare: 50, onMarketUpdate: () => {}, onStatus: () => {},
+  }));
+}
 const chartData = { pages: [{ points: [], windowStart: 1, windowEnd: 300, quoteUsd: null, hasMore: false,
   priorPrice: null, priorMarketCap: null, lastTradeTimestamp: null }], pageParams: [undefined] };
 const detail = await load('app/components/VsDetailClient.tsx', {
-  react: { ...React, useState: initial => React.useState(initial === null && observedStatus !== undefined ? { address: token, status: observedStatus } : initial) },
+  react: { ...React, useState: initial => {
+    let value = initial;
+    if (initial === null) {
+      const status = nullDetailState++ === 0 ? observedStatus : onChainStatus;
+      value = status === undefined ? null : { address: observedAddress, status };
+    }
+    return React.useState(value);
+  } },
   '../lib/live/chart': { slideChart: () => {}, replaceChartHead: () => {} },
   '../hooks/useMarketLive': { useMarketLive: () => false, marketNoticeVersion: () => 0 },
   'next/link': { __esModule: true, default: ({ children }) => React.createElement('a', null, children) },
@@ -216,7 +301,7 @@ const detail = await load('app/components/VsDetailClient.tsx', {
   '../config/korum-network': {},
   '../hooks/useIndexedMarkets': { TOKEN_CHART_QUERY_KEY: 'chart' },
   '../lib/versus-socials': {},
-  '../lib/markets/format': { formatMarketValue: () => '0', formatTokenAmount: () => '0' },
+  '../lib/markets/format': { formatMarketValue: value => String(value ?? 0), formatTokenAmount: () => '0' },
   './MarketCandlestickChart': { __esModule: true, default: () => React.createElement('div', { 'data-korum-candles': true }) },
   './GraduatedPoolChart': { __esModule: true, default: poolComponent.default },
   './TokenTradePanel': { __esModule: true, default: () => null },
@@ -226,22 +311,37 @@ const detail = await load('app/components/VsDetailClient.tsx', {
 }, {}, '\nexports.TokenPanelForCheck = TokenPanel;');
 for (const curveStatus of [1, 2, 3]) {
   poolData = { ...venue, chart: valid };
-  markup = renderToStaticMarkup(React.createElement(detail.TokenPanelForCheck, {
-    token: { name: 'Token', symbol: 'TEST', address: token, curveStatus }, side: 'a', marketAvailable: true,
-    marketShare: 50, onMarketUpdate: () => {}, onStatus: () => {},
-  }));
-  assert.equal(chartOptions.enabled, curveStatus === 1, 'Graduating/graduated panels disable all Korum chart requests');
+  markup = renderDetail({ curveStatus });
+  assert.equal(chartOptions.enabled, curveStatus === 1, 'Migrating/graduated panels disable all Korum chart requests');
   assert.equal(markup.includes('data-korum-candles'), curveStatus === 1, 'Even an old cached chart disappears after bonding');
   assert.equal(markup.includes('<iframe'), curveStatus === 3);
   if (curveStatus === 2) assert.ok(markup.includes(venueModel.GRADUATING_MESSAGE));
 }
 for (observedStatus of [2, 3]) {
-  markup = renderToStaticMarkup(React.createElement(detail.TokenPanelForCheck, {
-    token: { name: 'Token', symbol: 'TEST', address: token, curveStatus: 1 }, side: 'a', marketAvailable: true,
-    marketShare: 50, onMarketUpdate: () => {}, onStatus: () => {},
-  }));
+  markup = renderDetail({ curveStatus: 1 });
   assert.equal(chartOptions.enabled, false, 'Observed venue transitions stop charts even while indexed props are stale');
   assert.ok(!markup.includes('data-korum-candles'));
   assert.equal(markup.includes('<iframe'), observedStatus === 3);
 }
-console.log('Graduated market checks passed: verified pool identity, shared discovery, missing/API-offline/testnet states, zero bonded OHLC SQL/cache reads, curve charts, pool SSE/Redis exclusion, disabled graduation trading and embed rendering.');
+// The contract wins over both stale indexed statuses and cached Dexscreener embeds.
+observedStatus = 3;
+onChainStatus = 2;
+poolData = { ...venue, chart: valid };
+markup = renderDetail({ curveStatus: 3, poolId });
+assert.ok(markup.includes(venueModel.GRADUATING_MESSAGE));
+assert.ok(!markup.includes('<iframe') && !markup.includes('data-korum-candles'));
+assert.equal(chartOptions.enabled, false);
+observedStatus = 2;
+onChainStatus = 3;
+poolData = { ...venue, curveStatus: 2, poolId: null, chart: null };
+markup = renderDetail({ curveStatus: 2, marketCap: 100, volume24h: 5, traderCount: 2 });
+assert.ok(!markup.includes(venueModel.GRADUATING_MESSAGE));
+assert.ok(markup.includes('Waiting for the DEX Screener chart'));
+assert.ok(markup.includes('Trading and market metrics remain available'));
+assert.ok(markup.includes('Market cap<strong>100') && markup.includes('Vol 24h<strong>5'));
+assert.equal(chartOptions.enabled, false);
+// A status observation for another token cannot change this panel's lifecycle.
+observedAddress = `0x${'c'.repeat(40)}`;
+markup = renderDetail({ curveStatus: 2 });
+assert.ok(markup.includes(venueModel.GRADUATING_MESSAGE));
+console.log('Graduated market checks passed: migration locks buy/sell despite Dexscreener availability, contract graduation unlocks trading without a chart, fresh pre-trade status checks, stale indexer isolation, retained metrics and verified chart embeds.');

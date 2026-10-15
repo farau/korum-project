@@ -6,6 +6,36 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+
+- Global navbar search for Versus names, token names/symbols and contract addresses, with debounced results, keyboard navigation, mobile search and links to Versus detail pages.
+- Indexed calendar-year analytics with monthly volume bars, recorded annual trades, traders, active Versus and total/creator fees, USD values with an ETH fallback, and month/year-aware cache keys and refresh behavior.
+- Interactive volume-chart tooltips with exact amounts, pointer/touch interaction and keyboard focus support.
+- Permissionless migration completion from Versus trading panels: recheck contract status, switch networks, estimate and simulate graduation with a gas reserve, request wallet confirmation and monitor replacements or pending receipts before refreshing the market.
+- Regression checks for shared market-cache concurrency, rolling price windows, private watchlist invalidation, annual analytics and graduation controls, plus SELECT-only indexer diagnostics.
+
+### Changed
+
+- Refresh Explore and Profile with dark/light artwork, compact page layouts, shared icons, themed card surfaces and updated typography; move Profile's membership date into the hero and rename its information tab to Overview.
+- Restyle Explore Versus cards with split token artwork, stronger image gradients, market-share bars, per-token MCAP and holder values, compact spacing and a View versus action; expose indexed per-token holder counts alongside combined Versus holders.
+- Move Explore search into the global navbar, remove the former search provider and page-local search interface, and retain category filtering through a dedicated provider.
+- Add responsive horizontal scrolling controls to Explore categories and the live trade ticker.
+- Keep the navbar transparent over Explore's background at the top of the page, then apply the shared opaque navbar surface after scrolling; use the same surface on other pages and remove the extra search-input focus border.
+- Reuse the Watchlist/Explore table for Analytics Top VS, ranked by combined token market cap, with price-window controls and sparklines while omitting watchlist stars in that section.
+- Share maintained Redis Versus snapshots across Explore, Analytics Top VS, detail pages and Watchlist when Redis and live delivery are configured. Reads renew a ten-minute idle TTL, rolling price/volume windows advance without SQL, and cold reconstructions are coalesced across replicas.
+- Refresh affected warm Versus rows from PostgreSQL once per trade batch and publish their Redis replacements atomically with chart updates and live notifications; retain unrelated markets and skip repeated market reads for duplicate deliveries.
+- Cache private watchlist IDs separately, invalidating only the user's membership on add/remove, and hydrate market values from shared snapshots. Reconcile non-trade metadata through one shared minute probe; retain the short request-cache fallback when Redis/live configuration is absent or Redis cannot connect.
+- Cache search-result IDs separately from their market values so search results reuse current shared snapshots.
+- Start trading amount inputs empty and require a positive amount before quoting or submitting a trade.
+
+### Fixed
+
+- Calculate 5m, 1h, 6h and 24h token price changes from indexed prices at each window boundary for Analytics Top VS, Watchlist and Explore Table, replacing hardcoded short-window zeros and the truncated 24h sparkline calculation; refresh visible market tables every 15 seconds using maintained market snapshots when live delivery is configured.
+- Apply light-theme surfaces and text colors throughout Versus detail pages and synchronize graduated DEX Screener embeds with the selected theme.
+- Keep trading paused during on-chain migration even if an indexed pool chart is already available; prioritize confirmed contract migration/graduation status over stale indexed observations and resume trading after graduation independently of chart discovery.
+- Normalize Goldsky graduation PoolIds to lowercase hex with exactly one `0x` prefix and replace removed `to_u256` conversions with exact `DECIMAL(78, 0)` casts for indexed event amounts.
+- Give each wallet-provider render tree its own query client to prevent changing market-query data from being shared between server requests.
+
 ## [0.2.7] - 2026-10-08
 
 ### Added

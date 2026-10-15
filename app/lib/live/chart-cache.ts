@@ -157,6 +157,7 @@ if (redis.call('GET', KEYS[1]) or '0') ~= ARGV[3] then return -1 end
 local offset = 4 + tonumber(ARGV[4])
 local revisions = cjson.decode(ARGV[offset + 1])
 local mutations = cjson.decode(ARGV[offset + 2])
+local mappings = cjson.decode(ARGV[offset + 3] or '[]')
 for _, mutation in ipairs(mutations) do
   if mutation.value == '' then
     redis.call('DEL', mutation.key)
@@ -165,6 +166,7 @@ for _, mutation in ipairs(mutations) do
   end
 end
 for _, key in ipairs(revisions) do redis.call('SET', key, ARGV[1], 'EX', 86400) end
+for _, mapping in ipairs(mappings) do redis.call('SET', mapping.key, mapping.value, 'EX', 86400) end
 for i = 1, tonumber(ARGV[4]) do
   redis.call('SET', KEYS[2 + i], ARGV[4 + i], 'EX', 86400)
 end
