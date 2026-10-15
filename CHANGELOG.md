@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-10-15
+
 ### Added
 
 - Regression checks for migrated-token PNL, mixed and unpriced positions, consistency with Holdings, cross-replica wallet-cache reuse, targeted invalidation/correction recovery, and live Profile refresh coalescing, reconnect recovery and wallet isolation.
