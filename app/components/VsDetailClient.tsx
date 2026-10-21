@@ -5,6 +5,7 @@ import { useMarketLive, marketNoticeVersion } from "../hooks/useMarketLive";
 
 import Link from "next/link";
 import BellIcon from "./BellIcon";
+import MarketStatIcon from "./MarketStatIcon";
 import Image from "next/image";
 import { useInfiniteQuery, useQuery, useQueryClient, type InfiniteData } from "@tanstack/react-query";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
@@ -119,12 +120,6 @@ function ExternalIcon() {
 
 function ChartIcon() {
   return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m3 17 5-5 4 3 6-8 3 3" /><path d="M3 3v18h18" /></svg>;
-}
-
-function StatIcon({ kind }: { kind: "market" | "people" | "volume" }) {
-  if (kind === "people") return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true"><circle cx="9" cy="8" r="3" /><path d="M3 20v-2a6 6 0 0 1 12 0v2M17 5a3 3 0 0 1 0 6m1 4a5 5 0 0 1 3 5" /></svg>;
-  if (kind === "volume") return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M3 3v18h18M6 16l5-5 3 3 5-7" /><path d="M16 7h3v3" /></svg>;
-  return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true"><path d="M3 21h18M6 18v-6m4 6V7m4 11V4m4 14v-9" /></svg>;
 }
 
 function shortAddress(address?: string) {
@@ -364,7 +359,7 @@ function TokenPanel({ token, side, marketShare, marketAvailable, onMarketUpdate,
         <TokenAvatar token={token} side={side} />
         <div className={styles.tokenIdentity}><strong>{symbol}</strong><span>{token.name}</span><span className={styles.sideSignal} aria-hidden="true" /></div>
         {isLeading ? <span className={styles.leadingBadge}>LEADING</span> : null}
-        <button className={styles.addressButton} type="button" onClick={handleCopy} disabled={!token.address} title="Copy contract address"><span>{shortAddress(token.address)}</span><CopyIcon /></button>
+        <button className={styles.addressButton} type="button" onClick={handleCopy} disabled={!token.address} title="Copy contract address" aria-label="Copy contract address"><span className={styles.addressDesktop}>{shortAddress(token.address)}</span><span className={styles.addressMobile}>CA</span><CopyIcon /></button>
       </div>
 
       <div className={`${styles.chartCard} ${isLeading ? styles.leadingCard : ""}`}>
@@ -381,9 +376,9 @@ function TokenPanel({ token, side, marketShare, marketAvailable, onMarketUpdate,
         </>}
       </div>
       <div className={styles.marketStats}>
-        <div><StatIcon kind="market" /><span>Market cap<strong>{marketAvailable ? formatMarketValue(token.marketCap, currency) : "—"}</strong></span></div>
-        <div><StatIcon kind="people" /><span>{token.traderCount != null ? "Traders" : "Holders"}<strong>{formatCount(token.traderCount ?? token.holders, marketAvailable)}</strong></span></div>
-        <div><StatIcon kind="volume" /><span>Vol 24h<strong>{marketAvailable ? formatMarketValue(token.volume24h, currency) : "—"}</strong></span></div>
+        <div><MarketStatIcon kind="market" /><span>Market cap<strong>{marketAvailable ? formatMarketValue(token.marketCap, currency) : "—"}</strong></span></div>
+        <div><MarketStatIcon kind="people" /><span>{token.traderCount != null ? "Traders" : "Holders"}<strong>{formatCount(token.traderCount ?? token.holders, marketAvailable)}</strong></span></div>
+        <div><MarketStatIcon kind="volume" /><span>Vol 24h<strong>{marketAvailable ? formatMarketValue(token.volume24h, currency) : "—"}</strong></span></div>
       </div>
 
       {marketAvailable && curveStatus !== 3 && token.graduationTargetEth != null && token.graduationTargetEth > 0 ? (
@@ -637,9 +632,6 @@ export default function VsDetailClient({ indexedDebate, indexedReadFailed }: VsD
         </div>
         </div>
         <div className={styles.wrap}>
-          {debate.description?.trim() ? (
-            <p className={styles.description}>{debate.description}</p>
-          ) : null}
           <div className={styles.debateCopy}><h2>{marketPreferenceLabel(tokenA, tokenB, sideAPercentage, marketAvailable)}</h2></div>
           {!marketAvailable ? <div className={styles.dataNotice}><span /> Market activity will appear as trades are recorded.</div> : null}
         </div>

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { KORUM_CHAIN } from "../config/korum-network";
 import { useWatchlist } from "../hooks/useWatchlist";
 import { useProfileStats } from "../hooks/useProfileStats";
@@ -14,11 +14,11 @@ import ProfileAvatar from "./ProfileAvatar";
 import DesignIcon, { type DesignIconName } from "./DesignIcon";
 import AvatarUpload from "./AvatarUpload";
 import ProfileFeeClaim from "./ProfileFeeClaim";
-import EarningsSimulator from "./EarningsSimulator";
 import { TokenImage, VsTableView } from "./explore/VsTable";
+import HorizontalRail from "./explore/HorizontalRail";
 import { shortenAddress, useWallet } from "./WalletProvider";
 
-type ProfileTab = "information" | "holdings" | "managed" | "activity" | "referrals" | "badges" | "watchlist" | "simulator";
+type ProfileTab = "information" | "holdings" | "managed" | "activity" | "referrals" | "badges" | "watchlist";
 
 type ProfileClientProps = {
   profile: UserProfile | null;
@@ -36,7 +36,6 @@ const PROFILE_TABS: Array<{ id: ProfileTab; label: string; icon: DesignIconName 
   { id: "referrals", label: "Referrals", icon: "users" },
   { id: "badges", label: "Badges", icon: "badge" },
   { id: "watchlist", label: "Watchlist", icon: "star" },
-  { id: "simulator", label: "Global simulator", icon: "simulator" },
 ];
 
 const POOL_PNL_VALUATION_NOTE = "Pool tokens valued at current price, excluding selling fees and price impact.";
@@ -85,27 +84,46 @@ function Icon({ name }: { name: "copy" | "users" | "bolt" | "chart" | "wallet" |
   return <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">{paths[name]}</svg>;
 }
 
-function CopyButton({ value, label }: { value: string | (() => string); label: string }) {
+function CopyButton({ value, label, showLabel = false }: { value: string | (() => string); label: string; showLabel?: boolean }) {
   const [copied, setCopied] = useState(false);
+  const [failed, setFailed] = useState(false);
 
   async function copy() {
     const copyValue = typeof value === "function" ? value() : value;
-    await navigator.clipboard?.writeText(copyValue);
-    setCopied(true);
-    window.setTimeout(() => setCopied(false), 1400);
+    try {
+      await navigator.clipboard.writeText(copyValue);
+      setCopied(true);
+      setFailed(false);
+      window.setTimeout(() => setCopied(false), 1400);
+    } catch {
+      setFailed(true);
+    }
   }
 
   return (
-    <button type="button" className={`profile-copy-button${copied ? " copied" : ""}`} onClick={copy} aria-label={label} title={copied ? "Copied" : label}>
+    <button type="button" className={`profile-copy-button${copied ? " copied" : ""}`} onClick={copy} aria-label={copied ? "Copied" : failed ? "Copy failed. Try again." : label} title={copied ? "Copied" : label}>
       <Icon name="copy" />
+      {showLabel ? <span aria-live="polite">{copied ? "Copied!" : failed ? "Try again" : "Copy link"}</span> : null}
     </button>
   );
 }
 
-function getReferralLink(code: string) {
-  const referralUrl = new URL("/", window.location.origin);
+function getReferralLink(code: string, origin = window.location.origin) {
+  const referralUrl = new URL("/", origin);
   referralUrl.searchParams.set("ref", code);
   return referralUrl.toString();
+}
+
+function ReferralLinkField({ code, id }: { code: string; id: string }) {
+  const origin = useSyncExternalStore(() => () => {}, () => window.location.origin, () => "");
+  const referralLink = origin ? getReferralLink(code, origin) : "";
+
+  return (
+    <div className="profile-referral-url-box">
+      <input id={id} aria-label="Your referral link" type="url" readOnly value={referralLink} size={Math.max(referralLink.length, 1)} onFocus={(event) => event.currentTarget.select()} spellCheck={false} />
+      <CopyButton value={() => getReferralLink(code)} label="Copy referral link" />
+    </div>
+  );
 }
 
 function IndexedData({ children = "Recorded activity" }: { children?: React.ReactNode }) {
@@ -227,8 +245,8 @@ function InformationPanel({ profile, stats, referral, holdings, holdingsLoading,
 
       <div className="profile-stat-grid">
         <article className="profile-stat-block" data-illustration="referral-code">
-          <div className="profile-stat-heading"><span className="profile-stat-icon"><Icon name="users" /></span><span>Referral</span></div>
-          <div className="profile-referral-code"><span><small>Referral code</small><strong>{profile.referralCode}</strong></span><CopyButton value={() => getReferralLink(profile.referralCode)} label="Copy referral link" /></div>
+          <div className="profile-stat-heading"><span className="profile-stat-icon"><Icon name="users" /></span><label htmlFor="profile-overview-referral-url">Your referral link</label></div>
+          <ReferralLinkField code={profile.referralCode} id="profile-overview-referral-url" />
         </article>
         <article className="profile-stat-block" data-illustration="referrals">
           <div className="profile-stat-heading"><span className="profile-stat-icon"><Icon name="users" /></span><span>Referrals</span></div>
@@ -475,15 +493,15 @@ function ReferralsPanel({ code, stats }: { code: string; stats: UserProfileStats
     <div className="profile-tab-panel" role="tabpanel" id="profile-panel-referrals">
       <ProfileFeeClaim />
       <div className="profile-referral-flow" aria-label="Referral reward flow">
-        <article><span>01</span><strong>Share your code</strong><p>Your unique referral code stays bound to your connected EVM wallet.</p></article>
+        <article><span>01</span><strong>Share your referral link.</strong></article>
         <span className="profile-flow-arrow">→</span>
         <article><span>02</span><strong>Friends trade</strong><p>Their trading volume counts toward your referral activity.</p></article>
         <span className="profile-flow-arrow">→</span>
         <article><span>03</span><strong>Earn rewards</strong><p>Claim your creator and referral fees together above.</p></article>
       </div>
       <section className="profile-content-card profile-referral-address">
-        <div><span className="profile-eyebrow">Your referral code</span><strong>{code}</strong></div>
-        <CopyButton value={() => getReferralLink(code)} label="Copy referral link" />
+        <label className="profile-eyebrow" htmlFor="profile-referral-url">Your referral link</label>
+        <ReferralLinkField code={code} id="profile-referral-url" />
       </section>
       <div className="profile-referral-layout">
         <section className="profile-content-card">
@@ -582,18 +600,6 @@ function WatchlistPanel() {
     <div className="profile-tab-panel" role="tabpanel" id="profile-panel-watchlist">
       <div className="profile-section-title"><div><span className="profile-eyebrow">Saved markets</span><h2>Watchlist</h2></div><span className="profile-count-pill">{watched.length}</span></div>
       {!ready ? <div className="profile-empty-state"><Icon name="bolt" /><strong>Loading your watchlist...</strong></div> : watched.length ? <VsTableView debates={watched} ageLabel={(debate) => watchlistAgeLabel(debate, now)} isWatched={(id) => ids.includes(id)} onWatchlistToggle={remove} /> : <div className="profile-empty-state"><Icon name="bolt" /><strong>Your watchlist is empty</strong><p>Save a versus from Explore to find it here.</p><Link className="btn" href="/explore">Explore versus</Link></div>}
-    </div>
-  );
-}
-
-function SimulatorPanel() {
-  return (
-    <div className="profile-tab-panel" role="tabpanel" id="profile-panel-simulator">
-      <section className="profile-global-simulator">
-        <div className="profile-section-title"><div><span className="profile-eyebrow">Scenario tool</span><h2>Global simulator</h2></div></div>
-        <p className="profile-panel-intro">Project what you could earn by combining the VS you create with your referral network. Both revenue sources add up.</p>
-        <EarningsSimulator />
-      </section>
     </div>
   );
 }
@@ -721,7 +727,6 @@ function WalletProfile({ profile, stats: initialStats, sessionAddress, sessionCh
     referrals: <ReferralsPanel code={currentProfile.referralCode} stats={stats} />,
     badges: <BadgesPanel stats={stats} />,
     watchlist: <WatchlistPanel />,
-    simulator: <SimulatorPanel />,
   };
 
   return (
@@ -731,7 +736,7 @@ function WalletProfile({ profile, stats: initialStats, sessionAddress, sessionCh
       </section>
       <section className="profile-reference-content">
         <div className="wrap">
-          <div className="profile-tabs" role="tablist" aria-label="Profile sections">{PROFILE_TABS.map((tab) => <button type="button" role="tab" aria-selected={activeTab === tab.id} aria-controls={`profile-panel-${tab.id}`} className={activeTab === tab.id ? "active" : ""} onClick={() => setActiveTab(tab.id)} key={tab.id}><DesignIcon name={tab.icon} />{tab.label}</button>)}</div>
+          <HorizontalRail className="profile-tabs-rail" viewportClassName="profile-tabs" viewportRole="tablist" label="Profile sections">{PROFILE_TABS.map((tab) => <button type="button" role="tab" aria-selected={activeTab === tab.id} aria-controls={`profile-panel-${tab.id}`} className={activeTab === tab.id ? "active" : ""} onClick={() => setActiveTab(tab.id)} key={tab.id}><DesignIcon name={tab.icon} />{tab.label}</button>)}</HorizontalRail>
           {panels[activeTab]}
         </div>
       </section>

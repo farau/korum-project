@@ -40,7 +40,7 @@ export default function EarnPage() {
                 <article className="earn-card" key={card.title}>
                   <div className="earn-card-artwork" aria-hidden="true">
                     <Image className="earn-card-artwork-dark" src={`/korum-reference/earn/Black_${card.title}V2.png`} alt="" width={488} height={463} sizes="(max-width: 960px) 100vw, 33vw" />
-                    <Image className="earn-card-artwork-light" src={`/korum-reference/earn/White_${card.title}.png`} alt="" width={488} height={463} sizes="(max-width: 960px) 100vw, 33vw" />
+                    <Image className="earn-card-artwork-light" src={`/korum-reference/earn/White_${card.title}.webp`} alt="" width={488} height={463} sizes="(max-width: 960px) 100vw, 33vw" />
                   </div>
                   <h2 className="earn-card-title">{card.title}</h2>
                   <h3 className="earn-card-subtitle">{card.subtitle}</h3>

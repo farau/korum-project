@@ -24,7 +24,6 @@
 .shareMenuWrap{position:relative}.shareMenu{position:absolute;top:calc(100% + 8px);right:0;z-index:20;display:grid;width:190px;gap:2px;padding:6px;border:1px solid var(--line);border-radius:12px;background:var(--panel);box-shadow:0 18px 42px rgba(0,0,0,.25)}
 .shareMenu button{display:flex;align-items:center;gap:8px;padding:9px 10px;border:0;border-radius:8px;background:transparent;color:var(--text-2);font:600 14px var(--font);text-align:left;cursor:pointer}
 .shareMenu button:hover{background:var(--panel-2);color:var(--text)}.shareMenu svg{width:13px;height:13px;flex:0 0 13px}
-.description{max-width:760px;margin:24px auto 0;color:var(--text-2);font-family:var(--font);font-size:clamp(16px,1.3vw,18px);font-weight:400;line-height:1.65;text-align:center;text-wrap:pretty;white-space:pre-wrap;overflow-wrap:anywhere}
 .metaRow{display:flex;align-items:center;gap:8px;margin-top:17px;color:var(--text-3);font-size:13px;flex-wrap:wrap}.metaRow b{color:var(--text-2)}.creatorMeta{display:inline-flex;align-items:center;gap:7px}.creatorMeta small{padding:4px 8px;border:1px dashed var(--line);border-radius:6px;color:var(--text-3);font:700 12px var(--font);letter-spacing:.06em;text-transform:uppercase}
 .category{padding:4px 10px;border:1px solid var(--line);border-radius:6px;color:var(--text-2);font-size:12px;font-weight:750;letter-spacing:.08em;text-transform:uppercase}
 .overview{display:grid;gap:9px;margin-top:25px}.overviewLabels{display:flex;justify-content:space-between;gap:16px}
@@ -122,6 +121,8 @@
 .leadingBadge{padding:5px 18px;border-radius:999px;background:#42d891;color:#102416;font:900 italic 13px var(--display)}
 .addressButton{min-height:39px;max-width:150px;padding:7px 14px;border:1.5px solid transparent;border-radius:999px;background:linear-gradient(#1a1a1b,#1a1a1b) padding-box,linear-gradient(115deg,#a76bab,#46d797) border-box;color:#b7b7bc;font:700 13px var(--font-geist-mono),monospace}
 .addressButton svg{width:17px;height:17px}
+.addressMobile{display:none}
+@media(max-width:720px){.addressDesktop{display:none}.addressMobile{display:inline}.addressButton{flex-shrink:0}.addressButton svg{flex-shrink:0}}
 .chartCard{min-width:0;padding:9px 11px 8px;border:2px solid #3b3b3d;border-radius:23px;background:#101011;box-shadow:0 15px 32px rgba(0,0,0,.22)}
 .chartCard.leadingCard{border-color:#4c4c4e}
 .chartToolbar{display:flex;min-height:32px;align-items:center;justify-content:space-between;gap:10px;margin:0 0 3px;padding:0 2px 7px;border-bottom:1px solid #252527;flex-wrap:wrap}
@@ -143,6 +144,7 @@
 .marketStats>div{display:flex;min-width:125px;min-height:39px;align-items:center;gap:8px;padding:5px 13px;border:1.5px solid #818184;border-radius:999px;background:#1a1a1b}
 .marketStats svg{width:20px;height:20px;flex:0 0 20px;color:#a5a5a8}
 .marketStats span{display:grid;gap:0;color:#98989b;font:700 12px var(--display);line-height:1.1;letter-spacing:.02em;text-transform:uppercase}
+.marketStats>div>span:first-child{display:flex;align-items:center;justify-content:center;width:20px;height:20px;flex:0 0 20px}
 .marketStats strong{color:#f0efea;font:900 italic 14px var(--display);line-height:1.2;letter-spacing:0}
 .graduationTarget{padding:0 4px 6px}
 .infoCard{background:#141414}

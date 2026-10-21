@@ -6,7 +6,7 @@ import Link from "next/link";
 import type { Debate, DebateToken } from "../../lib/debates";
 import { formatMarketValue } from "../../lib/markets/format";
 import { useWatchlist } from "../../hooks/useWatchlist";
-import DesignIcon from "../DesignIcon";
+import MarketStatIcon from "../MarketStatIcon";
 import styles from "./ExploreVsCard.module.css";
 
 function fmtAgeFromMinutes(minutes: number) {
@@ -67,6 +67,8 @@ export default function ExploreVsCard({ debate, index = 0 }: { debate: Debate; i
   const share = Math.max(0, Math.min(100, totalCap > 0
     ? Math.round(((tokens[0].marketCap ?? 0) / totalCap) * 100)
     : debate.sideAPercentage ?? 50));
+  const visualSplit = share === 50 ? 50
+    : 50 + Math.sign(share - 50) * (4 + Math.min(Math.abs(share - 50) * 0.16, 8));
   const { toggle, has } = useWatchlist();
   const starred = has(debate.id);
   const [failedImages, setFailedImages] = React.useState<string[]>([]);
@@ -86,8 +88,11 @@ export default function ExploreVsCard({ debate, index = 0 }: { debate: Debate; i
     <article className={styles.card}>
       <div className={styles.meterRow}>
         <span>{share}%</span>
-        <div className={styles.meter} role="img" aria-label={`${tokens[0].name} ${share}%, ${tokens[1].name} ${100 - share}%`}>
+        <div className={styles.meter} data-majority={share >= 50 ? "a" : "b"} data-tied={share === 50}
+          style={{ "--power-speed": `${0.65 - Math.abs(share - 50) * 0.007}s` } as React.CSSProperties}
+          role="img" aria-label={`${tokens[0].name} ${share}%, ${tokens[1].name} ${100 - share}%`}>
           <span style={{ width: `${share}%` }} />
+          <span style={{ width: `${100 - share}%` }} />
         </div>
         <span>{100 - share}%</span>
       </div>
@@ -100,17 +105,22 @@ export default function ExploreVsCard({ debate, index = 0 }: { debate: Debate; i
           </button>
         </div>
       </div>
-      <Link href={href} className={styles.visuals} aria-label={`${tokens[0].name} vs ${tokens[1].name}`}>
+      <Link href={href} className={styles.visuals}
+        style={{ "--visual-split": `${visualSplit}%` } as React.CSSProperties}
+        aria-label={`${tokens[0].name} vs ${tokens[1].name}`}>
         {tokens.map((token, side) => {
           const source = token.image || token.imageRef;
           return (
-            <div className={styles.token} key={side}>
-              {source && !failedImages.includes(source) ? (
-                <Image src={source} alt={token.name} fill unoptimized
-                  sizes="(max-width: 600px) 45vw, (max-width: 1100px) 23vw, 16vw"
-                  loading={index === 0 ? "eager" : "lazy"}
-                  onError={() => setFailedImages((images) => [...images, source])} />
-              ) : <span className={styles.initial}>{token.name.charAt(0).toUpperCase()}</span>}
+            <div className={styles.token} key={side}
+              data-emphasis={share === 50 ? "balanced" : (side === 0 ? share > 50 : share < 50) ? "dominant" : "secondary"}>
+              <div className={styles.tokenArtwork}>
+                {source && !failedImages.includes(source) ? (
+                  <Image src={source} alt={token.name} fill unoptimized
+                    sizes="(max-width: 600px) 45vw, (max-width: 1100px) 23vw, 16vw"
+                    loading={index === 0 ? "eager" : "lazy"}
+                    onError={() => setFailedImages((images) => [...images, source])} />
+                ) : <span className={styles.initial}>{token.name.charAt(0).toUpperCase()}</span>}
+              </div>
             </div>
           );
         })}
@@ -124,11 +134,11 @@ export default function ExploreVsCard({ debate, index = 0 }: { debate: Debate; i
           {tokens.map((token, side) => (
             <div className={styles.tokenStats} role="group" aria-label={`${token.name} statistics`} key={side}>
               <div className={styles.stat}>
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path d="M3 13h4v8H3zM10 8h4v13h-4zM17 3h4v18h-4z" /></svg>
+                <MarketStatIcon kind="market" />
                 <span><span className={styles.label}>MCAP</span><strong title={token.marketCap === undefined ? undefined : `${token.marketCap.toLocaleString("en-US")} ${currency}`}>{formatMarketValue(token.marketCap, currency, 1)}</strong></span>
               </div>
               <div className={styles.stat}>
-                <DesignIcon name="user" />
+                <MarketStatIcon kind="people" />
                 <span><span className={styles.label}>Holders</span><strong title={token.holders?.toLocaleString("en-US")}>{token.holders === undefined ? "—" : Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 1 }).format(token.holders)}</strong></span>
               </div>
             </div>

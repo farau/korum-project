@@ -25,14 +25,18 @@ function XIcon() {
 }
 
 export default function Footer() {
-  const marqueeItems = Array.from({ length: 16 }, (_, index) => index);
+  const marqueeItems = Array.from({ length: 8 }, (_, index) => index);
 
   return (
     <footer>
       <div className="footer-marquee">
         <div className="footer-marquee-track">
-          {marqueeItems.map((item, index) => (
-            <KorumWordmark key={item} className="footer-marquee-logo" hidden={index >= marqueeItems.length / 2} />
+          {[0, 1].map((group) => (
+            <div className="footer-marquee-group" key={group} aria-hidden={group === 1}>
+              {marqueeItems.map((item) => (
+                <KorumWordmark key={item} className="footer-marquee-logo" hidden={group === 1} />
+              ))}
+            </div>
           ))}
         </div>
       </div>

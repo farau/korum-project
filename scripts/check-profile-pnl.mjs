@@ -116,7 +116,7 @@ const profile = await load('app/components/ProfileClient.tsx', {
   '../hooks/useWatchlist': {}, '../hooks/useProfileStats': {}, '../lib/badges': {},
   '../lib/markets/format': await load('app/lib/markets/format.ts'),
   './ProfileAvatar': empty, './DesignIcon': empty, './AvatarUpload': empty, './ProfileFeeClaim': empty,
-  './EarningsSimulator': empty, './explore/VsTable': {},
+  './explore/VsTable': {}, './explore/HorizontalRail': empty,
   './WalletProvider': { shortenAddress: address => address.slice(0, 6), useWallet: () => ({}) },
 }, '\nexports.ActivityForCheck = ActivityPanel; exports.InformationForCheck = InformationPanel;');
 const activity = renderToStaticMarkup(React.createElement(profile.ActivityForCheck, { stats }));

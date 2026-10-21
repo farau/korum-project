@@ -6,6 +6,26 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed
+
+- Replace the six light-theme illustrations in Earn and Concept with the supplied WebP assets, remove the superseded PNG files, and adapt Concept's image sizing to the new canvases.
+- Align Profile's avatar with the username on mobile and present the membership date as a compact line below the badges.
+- Reuse Explore's horizontal scrolling controls for Profile tabs, with touch-sized buttons and a scroll arrow when tabs overflow.
+- Share the same referral URL field and copy control between Profile Overview and Referrals. Size the field to its URL in Referrals and constrain it to the Overview card, with smaller text, a separate illustration area, and copy success/failure feedback. Simplify the sharing instruction to “Share your referral link.”
+- Give Profile card illustrations a fixed display scale across card sizes and themes.
+- Reuse Explore's market-cap and holder icons below Versus charts, use the shared Analytics volume glyph, and shorten contract-address buttons to “CA” with a copy icon on mobile.
+- Reduce the border around Analytics' trading icon from 2 px to 1 px.
+- Update Explore cards to emphasize the leading token through the artwork split and animated market-share bar, respecting reduced-motion preferences.
+
+### Removed
+
+- Remove Profile's Global simulator tab, panel, unused styles and icon, and update the profile documentation while retaining Earn's earnings simulator.
+- Remove the description from Versus detail pages and delete its unused presentation styles.
+
+### Fixed
+
+- Group the footer marquee into two repeated sequences for continuous scrolling and restore Explore's footer separator.
+
 ## [0.3.1] - 2026-10-15
 
 ### Added

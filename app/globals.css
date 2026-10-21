@@ -1336,7 +1336,7 @@ html[data-theme="light"] #page-earn .earn-card-artwork-light {
   scroll-margin-top: 78px;
 }
 
-:is(#page-earn, .profile-global-simulator) .earn-sim-card {
+#page-earn .earn-sim-card {
   position: relative;
   isolation: isolate;
   overflow: hidden;
@@ -1348,8 +1348,8 @@ html[data-theme="light"] #page-earn .earn-card-artwork-light {
   background: var(--panel);
 }
 
-:is(#page-earn, .profile-global-simulator) .earn-sim-card::before,
-:is(#page-earn, .profile-global-simulator) .earn-sim-card::after {
+#page-earn .earn-sim-card::before,
+#page-earn .earn-sim-card::after {
   content: "";
   position: absolute;
   z-index: -1;
@@ -1358,7 +1358,7 @@ html[data-theme="light"] #page-earn .earn-card-artwork-light {
   pointer-events: none;
 }
 
-:is(#page-earn, .profile-global-simulator) .earn-sim-card::before {
+#page-earn .earn-sim-card::before {
   top: -80px;
   left: -80px;
   width: 260px;
@@ -1367,7 +1367,7 @@ html[data-theme="light"] #page-earn .earn-card-artwork-light {
   filter: blur(35px);
 }
 
-:is(#page-earn, .profile-global-simulator) .earn-sim-card::after {
+#page-earn .earn-sim-card::after {
   right: -60px;
   bottom: -100px;
   width: 320px;
@@ -1376,25 +1376,25 @@ html[data-theme="light"] #page-earn .earn-card-artwork-light {
   filter: blur(40px);
 }
 
-:is(#page-earn, .profile-global-simulator) .global-sim-grid {
+#page-earn .global-sim-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 28px;
 }
 
-:is(#page-earn, .profile-global-simulator) .global-sim-col {
+#page-earn .global-sim-col {
   padding: 0;
   border: 0;
   border-radius: 0;
   background: transparent;
 }
 
-:is(#page-earn, .profile-global-simulator) .gsim-col-head {
+#page-earn .gsim-col-head {
   align-items: center;
   margin: 0 0 20px;
 }
 
-:is(#page-earn, .profile-global-simulator) .gsim-icon {
+#page-earn .gsim-icon {
   display: flex;
   width: 42px;
   height: 42px;
@@ -1406,13 +1406,13 @@ html[data-theme="light"] #page-earn .earn-card-artwork-light {
   background: transparent;
 }
 
-:is(#page-earn, .profile-global-simulator) .gsim-icon svg {
+#page-earn .gsim-icon svg {
   width: 24px;
   height: auto;
   overflow: visible;
 }
 
-:is(#page-earn, .profile-global-simulator) .gsim-col-title {
+#page-earn .gsim-col-title {
   color: var(--text);
   font-family: var(--display);
   font-size: 16px;
@@ -1420,7 +1420,7 @@ html[data-theme="light"] #page-earn .earn-card-artwork-light {
   text-transform: none;
 }
 
-:is(#page-earn, .profile-global-simulator) .gsim-col-sub {
+#page-earn .gsim-col-sub {
   margin-top: 2px;
   color: var(--text-3);
   font-size: 10.5px;
@@ -1428,13 +1428,13 @@ html[data-theme="light"] #page-earn .earn-card-artwork-light {
   text-transform: uppercase;
 }
 
-:is(#page-earn, .profile-global-simulator) .global-sim-col input[type="range"] {
+#page-earn .global-sim-col input[type="range"] {
   width: 100%;
   margin: 0 0 6px;
   accent-color: var(--text);
 }
 
-:is(#page-earn, .profile-global-simulator) .sim-label {
+#page-earn .sim-label {
   display: block;
   margin-top: 18px;
   color: var(--text-2);
@@ -1442,25 +1442,25 @@ html[data-theme="light"] #page-earn .earn-card-artwork-light {
   text-transform: none;
 }
 
-:is(#page-earn, .profile-global-simulator) .sim-value {
+#page-earn .sim-value {
   color: var(--text-2);
   font-size: 22px;
   font-weight: 400;
   text-transform: none;
 }
 
-:is(#page-earn, .profile-global-simulator) .sim-value b {
+#page-earn .sim-value b {
   color: var(--text);
   font-weight: 800;
 }
 
-:is(#page-earn, .profile-global-simulator) .gsim-results {
+#page-earn .gsim-results {
   grid-template-columns: repeat(3, 1fr);
   gap: 12px;
   margin: 22px 0 14px;
 }
 
-:is(#page-earn, .profile-global-simulator) .gsim-stat {
+#page-earn .gsim-stat {
   position: relative;
   isolation: isolate;
   padding: 14px;
@@ -1469,7 +1469,7 @@ html[data-theme="light"] #page-earn .earn-card-artwork-light {
   background: rgba(255,255,255,.06);
 }
 
-:is(#page-earn, .profile-global-simulator) .gsim-stat::before {
+#page-earn .gsim-stat::before {
   content: "";
   position: absolute;
   inset: -2px;
@@ -1484,24 +1484,24 @@ html[data-theme="light"] #page-earn .earn-card-artwork-light {
   mask-composite: exclude;
 }
 
-html[data-theme="light"] :is(#page-earn, .profile-global-simulator) .gsim-stat::before {
+html[data-theme="light"] #page-earn .gsim-stat::before {
   background: linear-gradient(145deg, rgba(25, 25, 28, .82), rgba(25, 25, 28, .16) 42%, rgba(25, 25, 28, .62));
 }
 
-:is(#page-earn, .profile-global-simulator) .gsim-stat .lbl {
+#page-earn .gsim-stat .lbl {
   margin-bottom: 4px;
   color: var(--text-3);
   font-size: 11px;
 }
 
-:is(#page-earn, .profile-global-simulator) .gsim-stat .val {
+#page-earn .gsim-stat .val {
   color: var(--green);
   font-family: var(--display);
   font-size: 20px;
   font-weight: 700;
 }
 
-:is(#page-earn, .profile-global-simulator) .gsim-note {
+#page-earn .gsim-note {
   display: flex;
   justify-content: center;
   align-items: center;
@@ -1510,7 +1510,7 @@ html[data-theme="light"] :is(#page-earn, .profile-global-simulator) .gsim-stat::
   text-align: center;
 }
 
-:is(#page-earn, .profile-global-simulator) .gsim-note svg {
+#page-earn .gsim-note svg {
   width: 15px;
   height: 15px;
   flex-shrink: 0;
@@ -1602,6 +1602,7 @@ html[data-theme="light"] #page-concept .three-steps-card {
 
 #page-concept .step-image-light {
   display: none;
+  height: auto;
 }
 
 html[data-theme="light"] #page-concept .step-image-dark {
@@ -1938,7 +1939,7 @@ html[data-theme="light"] #page-concept .lex-card {
 }
 
 @media (max-width: 760px) {
-  :is(#page-earn, .profile-global-simulator) .global-sim-grid {
+  #page-earn .global-sim-grid {
     grid-template-columns: 1fr;
   }
 
@@ -1963,7 +1964,7 @@ html[data-theme="light"] #page-concept .lex-card {
 }
 
 @media (max-width: 560px) {
-  :is(#page-earn, .profile-global-simulator) .gsim-results {
+  #page-earn .gsim-results {
     grid-template-columns: 1fr;
   }
 
@@ -4392,9 +4393,18 @@ footer {
 .footer-marquee-track {
   display: flex;
   align-items: center;
-  gap: 72px;
   width: max-content;
   animation: footerMarqueeScroll 24s linear infinite;
+}
+
+.footer-marquee-group {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: space-around;
+  gap: 72px;
+  min-width: 100vw;
+  padding-right: 72px;
 }
 
 .footer-marquee-logo {
@@ -6855,8 +6865,7 @@ html[data-theme="dark"] .profile-page .profile-versus-values span {
   background: #242428;
 }
 
-.profile-page .profile-field > span,
-.profile-page .profile-referral-code > span {
+.profile-page .profile-field > span {
   display: flex;
   min-width: 0;
   flex-direction: column;
@@ -6864,7 +6873,6 @@ html[data-theme="dark"] .profile-page .profile-versus-values span {
 }
 
 .profile-page .profile-field small,
-.profile-page .profile-referral-code small,
 .profile-page .profile-metric-row small,
 .profile-page .profile-data-pending {
   color: var(--text-3);
@@ -6872,8 +6880,7 @@ html[data-theme="dark"] .profile-page .profile-versus-values span {
   font-weight: 500;
 }
 
-.profile-page .profile-field strong,
-.profile-page .profile-referral-code strong {
+.profile-page .profile-field strong {
   min-width: 0;
   overflow: hidden;
   color: var(--text);
@@ -7077,13 +7084,6 @@ html[data-theme="dark"] .profile-page .profile-versus-values span {
 .profile-page .profile-data-pending {
   display: inline-block;
   margin-top: 3px;
-}
-
-.profile-page .profile-referral-code {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
 }
 
 .profile-page .profile-versus-values {
@@ -7440,23 +7440,65 @@ html[data-theme="dark"] .profile-page .profile-versus-values span {
 
 .profile-page .profile-referral-address {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-}
-
-.profile-page .profile-referral-address > div {
-  display: flex;
-  min-width: 0;
   flex-direction: column;
-  gap: 5px;
+  align-items: stretch;
+  gap: 8px;
+  padding: 14px;
 }
 
-.profile-page .profile-referral-address strong {
-  overflow: hidden;
-  font-family: var(--mono);
-  font-size: 13px;
-  text-overflow: ellipsis;
+.profile-page .profile-referral-url-box {
+  display: flex;
+  width: fit-content;
+  max-width: 100%;
+  min-width: 0;
+  align-items: center;
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid var(--line-hover);
+  border-radius: 8px;
+  background: var(--panel-2);
+}
+
+.profile-page .profile-referral-url-box:focus-within {
+  outline: 2px solid var(--text-3);
+  outline-offset: 2px;
+}
+
+.profile-page .profile-referral-url-box input {
+  field-sizing: content;
+  flex: 0 1 auto;
+  min-width: 0;
+  width: auto;
+  padding: 6px;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--text);
+  font: 400 16px var(--mono);
+}
+
+.profile-page .profile-referral-url-box .profile-copy-button {
+  display: inline-flex;
+  width: 36px;
+  height: 36px;
+  justify-content: center;
+  padding: 8px;
+  border: 1px solid var(--line-hover);
+  border-radius: 6px;
+  background: var(--text);
+  color: var(--bg);
+  font: 650 13px var(--font);
+  white-space: nowrap;
+}
+
+.profile-page .profile-referral-url-box .profile-copy-button:hover {
+  transform: none;
+  opacity: .85;
+}
+
+.profile-page .profile-referral-url-box .profile-copy-button.copied {
+  background: var(--green);
+  color: var(--bg);
 }
 
 .profile-page .profile-referral-layout {
@@ -7641,68 +7683,6 @@ html[data-theme="dark"] .profile-page .profile-versus-values span {
   color: var(--text-3);
 }
 
-.profile-page .profile-global-simulator > .profile-panel-intro {
-  max-width: none;
-}
-
-#profile-panel-simulator .profile-global-simulator {
-  max-width: 960px;
-}
-
-#profile-panel-simulator .earn-sim-card {
-  padding: 18px;
-  border-radius: 12px;
-}
-
-#profile-panel-simulator .global-sim-grid {
-  gap: 18px;
-}
-
-#profile-panel-simulator .gsim-col-head {
-  gap: 8px;
-  margin-bottom: 12px;
-}
-
-#profile-panel-simulator .gsim-icon {
-  width: 32px;
-  height: 32px;
-  flex-basis: 32px;
-}
-
-#profile-panel-simulator .gsim-icon svg {
-  width: 20px;
-}
-
-#profile-panel-simulator .gsim-col-title {
-  font-size: 14px;
-}
-
-#profile-panel-simulator .sim-label {
-  margin-top: 12px;
-}
-
-#profile-panel-simulator .sim-value {
-  font-size: 18px;
-}
-
-#profile-panel-simulator .gsim-results {
-  gap: 8px;
-  margin: 16px 0 10px;
-}
-
-#profile-panel-simulator .gsim-stat {
-  padding: 10px;
-}
-
-#profile-panel-simulator .gsim-stat .val {
-  font-size: 18px;
-}
-
-#profile-panel-simulator .gsim-note {
-  margin-top: 12px;
-  font-size: 11px;
-}
-
 .profile-page .profile-locked-hero {
   min-height: 460px;
   display: flex;
@@ -7820,7 +7800,16 @@ html[data-theme="dark"] .profile-page .profile-versus-values span {
   .profile-page .profile-holding-row > span:last-child { grid-column: 2; grid-row: 1 / 3; }
 
   .profile-page .profile-referral-address {
-    align-items: flex-start;
+    align-items: stretch;
+  }
+
+  .profile-page .profile-referral-url-box {
+    gap: 4px;
+    padding: 4px;
+  }
+
+  .profile-page .profile-referral-url-box .profile-copy-button {
+    padding: 8px;
   }
 }
 
@@ -10446,7 +10435,7 @@ html[data-theme] :is(#page-concept, #page-earn) :is(.earn-card, .three-steps-car
 }
 
 .analytics-page .tac-logo {
-  border: 2px solid transparent;
+  border: 1px solid transparent;
   background:
     linear-gradient(rgba(28, 28, 30, .92), rgba(20, 20, 22, .88)) padding-box,
     linear-gradient(145deg, rgba(255, 255, 255, .9), rgba(255, 255, 255, .14) 48%, rgba(255, 255, 255, .7)) border-box;

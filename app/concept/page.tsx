@@ -7,9 +7,9 @@ import PageWrapper from "../components/PageWrapper";
 import ScrollReveal from "../components/ScrollReveal";
 
 const steps = [
-  { title: "A matchup launches", body: "Two tokens are created at once, one for each side.", darkImage: "/korum-reference/concept-step-1-dark.png", darkSize: [463, 308], lightImage: "/korum-reference/concept-step-1-light.png", lightSize: [488, 244] },
-  { title: "The sides compete", body: "Every purchase raises that side's market cap and its share against the other.", darkImage: "/korum-reference/concept-step-2-dark.png", darkSize: [487, 332], lightImage: "/korum-reference/concept-step-2-light.png", lightSize: [488, 270], middle: true },
-  { title: "You stay in control", body: "Buy or sell whenever you want.", darkImage: "/korum-reference/concept-step-3-dark.png", darkSize: [441, 303], lightImage: "/korum-reference/concept-step-3-light.png", lightSize: [488, 239] },
+  { title: "A matchup launches", body: "Two tokens are created at once, one for each side.", darkImage: "/korum-reference/concept-step-1-dark.png", darkSize: [463, 308], lightImage: "/korum-reference/concept-step-1-light.webp", lightSize: [488, 463] },
+  { title: "The sides compete", body: "Every purchase raises that side's market cap and its share against the other.", darkImage: "/korum-reference/concept-step-2-dark.png", darkSize: [487, 332], lightImage: "/korum-reference/concept-step-2-light.webp", lightSize: [488, 463], middle: true },
+  { title: "You stay in control", body: "Buy or sell whenever you want.", darkImage: "/korum-reference/concept-step-3-dark.png", darkSize: [441, 303], lightImage: "/korum-reference/concept-step-3-light.webp", lightSize: [488, 463] },
 ];
 
 const lexicon = [

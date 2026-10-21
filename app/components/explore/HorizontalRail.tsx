@@ -9,9 +9,10 @@ type HorizontalRailProps = {
   viewportId?: string;
   label: string;
   list?: boolean;
+  viewportRole?: "tablist";
 };
 
-export default function HorizontalRail({ children, className, viewportClassName, viewportId, label, list }: HorizontalRailProps) {
+export default function HorizontalRail({ children, className, viewportClassName, viewportId, label, list, viewportRole }: HorizontalRailProps) {
   const viewport = useRef<HTMLDivElement>(null);
   const [scrollState, setScrollState] = useState({ overflow: false, atEnd: false });
 
@@ -40,7 +41,7 @@ export default function HorizontalRail({ children, className, viewportClassName,
 
   return (
     <div className={`${className} horizontal-rail`}>
-      <div className={viewportClassName} id={viewportId} ref={viewport} role={list ? "list" : undefined} aria-label={label} aria-live={list ? "polite" : undefined} aria-atomic={list ? false : undefined}>
+      <div className={viewportClassName} id={viewportId} ref={viewport} role={viewportRole ?? (list ? "list" : undefined)} aria-label={label} aria-live={list ? "polite" : undefined} aria-atomic={list ? false : undefined}>
         {children}
       </div>
       <button type="button" className="rail-next" hidden={!scrollState.overflow} aria-label={scrollState.atEnd ? `Back to the start of ${label.toLowerCase()}` : `Scroll ${label.toLowerCase()}`} onClick={scroll}>
