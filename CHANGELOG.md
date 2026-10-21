@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.3.2] - 2026-10-21
+
 ### Changed
 
 - Replace the six light-theme illustrations in Earn and Concept with the supplied WebP assets, remove the superseded PNG files, and adapt Concept's image sizing to the new canvases.
