@@ -8,6 +8,7 @@ import { getEthUsdQuote } from "../markets/quote-usd";
 import { tokenPriceWad, unitsNumber } from "../markets/math";
 import { readLiveChart } from "../live/chart-cache";
 import { getDatabase } from "./client";
+import { reconcileIndexedMarkets } from "./debates";
 import { getTokenVenue } from "./token-venue";
 import { usesKorumCandles, GRADUATING_MESSAGE, type TokenVenue } from "../markets/venue";
 
@@ -370,6 +371,7 @@ export async function getTokenChart(tokenAddress: string, range: MarketRange, li
     try {
       const redis = await connectedRedis();
       if (redis?.status === "ready") {
+        await reconcileIndexedMarkets(redis);
         const snapshot = await readLiveChart(redis, redisCacheKey, token, range, async () => {
           try { return await loadSnapshot(); }
           catch (error) { loadFailed = true; throw error; }
@@ -387,6 +389,7 @@ export async function getTokenChart(tokenAddress: string, range: MarketRange, li
     before === undefined ? config.cacheSeconds : 30,
     loadSnapshot,
     diagnostic,
+    token,
   );
 }
 
@@ -435,6 +438,7 @@ export async function getTokenTrades(tokenAddress: string, limit = 100, diagnost
       };
     },
     diagnostic,
+    token,
   );
 }
 

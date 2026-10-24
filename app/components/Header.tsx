@@ -12,7 +12,7 @@ import {
 } from "../lib/notifications/client";
 import ProfileAvatar from "./ProfileAvatar";
 import BellIcon from "./BellIcon";
-import { shortenAddress, useWallet } from "./WalletProvider";
+import { shortenAddress, useWallet } from "./WalletContext";
 
 const navItems = [
   { href: "/explore", label: "Explore" },
@@ -69,14 +69,14 @@ function DisconnectIcon() {
   return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M10 4H5.5A1.5 1.5 0 0 0 4 5.5v13A1.5 1.5 0 0 0 5.5 20H10" /><path d="m15 16 4-4-4-4M19 12H9" /></svg>;
 }
 
-export default function Header() {
+export default function Header({ publicPage = false }: { publicPage?: boolean }) {
   const { address, connected, authenticated } = useWallet();
   const notificationWallet = connected && authenticated && address ? address.toLowerCase() : null;
   // A new owner gets fresh state immediately, before effects or requests settle.
-  return <HeaderContent key={notificationWallet ?? "anonymous"} notificationWallet={notificationWallet} />;
+  return <HeaderContent key={notificationWallet ?? "anonymous"} notificationWallet={notificationWallet} publicPage={publicPage} />;
 }
 
-function HeaderContent({ notificationWallet }: { notificationWallet: string | null }) {
+function HeaderContent({ notificationWallet, publicPage }: { notificationWallet: string | null; publicPage: boolean }) {
   const pathname = usePathname();
   const [menuOpen, setMenuOpen] = useState(false);
   const [notificationOpen, setNotificationOpen] = useState(false);
@@ -87,7 +87,7 @@ function HeaderContent({ notificationWallet }: { notificationWallet: string | nu
   const notificationCenterRef = useRef<HTMLDivElement>(null);
   const walletCenterRef = useRef<HTMLDivElement>(null);
   const headerRef = useRef<HTMLElement>(null);
-  const { address, connected, authenticating, connect, disconnect, hydrated: walletHydrated } = useWallet();
+  const { address, connected, authenticating, connect, disconnect, hydrated: walletHydrated, deferred } = useWallet();
 
   useEffect(() => {
     const header = headerRef.current;
@@ -276,13 +276,13 @@ function HeaderContent({ notificationWallet }: { notificationWallet: string | nu
   return (
     <header className="topbar" ref={headerRef}>
       <div className="topbar-inner">
-        <Link href="/explore" className="logo" aria-label="Korum">
+        <Link prefetch={publicPage ? false : undefined} href="/explore" className="logo" aria-label="Korum">
           <LogoMark />
         </Link>
 
         <nav className={`topnav${menuOpen ? " open" : ""}`} id="primary-navigation" aria-label="Main navigation">
           {navItems.map((item) => (
-            <Link key={item.href} href={item.href} className={pathname === item.href ? "active" : undefined} onClick={() => setMenuOpen(false)}>
+            <Link prefetch={publicPage ? false : undefined} key={item.href} href={item.href} className={pathname === item.href ? "active" : undefined} onClick={() => setMenuOpen(false)}>
               {item.label}
             </Link>
           ))}
@@ -332,7 +332,7 @@ function HeaderContent({ notificationWallet }: { notificationWallet: string | nu
             <ThemeIcon />
           </button>
 
-          <Link href="/create" className="btn btn-create" aria-label="Create a VS">
+          <Link prefetch={publicPage ? false : undefined} href="/create" className="btn btn-create" aria-label="Create a VS">
             <span className="btn-create-label-desktop">CREATE A VS</span>
             <span className="btn-create-label-mobile" aria-hidden="true">VS</span>
           </Link>
@@ -352,7 +352,7 @@ function HeaderContent({ notificationWallet }: { notificationWallet: string | nu
 
               {walletMenuOpen ? (
                 <section className="wallet-account-panel" id="wallet-account-panel" role="dialog" aria-label="Connected wallet">
-                  <Link href="/profile" className="wallet-account-summary" aria-label="View your profile" onClick={() => setWalletMenuOpen(false)}>
+                  <Link prefetch={publicPage ? false : undefined} href="/profile" className="wallet-account-summary" aria-label="View your profile" onClick={() => setWalletMenuOpen(false)}>
                     <ProfileAvatar address={address} className="wallet-avatar-large" />
                     <div className="wallet-account-copy">
                       <span>Connected with</span>
@@ -373,7 +373,7 @@ function HeaderContent({ notificationWallet }: { notificationWallet: string | nu
             <button
               type="button"
               className="btn btn-solid wallet-shine-btn"
-              disabled={!walletHydrated || authenticating}
+              disabled={(!walletHydrated && !deferred) || authenticating}
               onClick={connect}
               aria-busy={authenticating}
               title={authenticating ? "Authenticating wallet..." : undefined}

@@ -1,0 +1,38 @@
+{
+  "verifiedAt": "2026-10-22T16:14:47.460Z",
+  "target": "Application DATABASE_URL, Railway testnet chain 46630",
+  "migration": {
+    "name": "0017_create_consumed_wallet_nonces.sql",
+    "checksum": "625981245928e976e0042a966e4dfab22be5b4f000bd80db463fb2981f5bd02a",
+    "applied_at": "2026-10-22T16:14:23.817Z"
+  },
+  "columns": [
+    {
+      "column_name": "nonce_hash",
+      "data_type": "character",
+      "is_nullable": "NO",
+      "character_maximum_length": 64
+    },
+    {
+      "column_name": "expires_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO",
+      "character_maximum_length": null
+    }
+  ],
+  "indexes": [
+    {
+      "name": "consumed_wallet_nonces_expiry_idx",
+      "primary": false,
+      "valid": true,
+      "definition": "CREATE INDEX consumed_wallet_nonces_expiry_idx ON public.consumed_wallet_nonces USING btree (expires_at)"
+    },
+    {
+      "name": "consumed_wallet_nonces_pkey",
+      "primary": true,
+      "valid": true,
+      "definition": "CREATE UNIQUE INDEX consumed_wallet_nonces_pkey ON public.consumed_wallet_nonces USING btree (nonce_hash)"
+    }
+  ],
+  "rowsAtVerification": 0
+}

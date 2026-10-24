@@ -62,7 +62,7 @@ const db = await load('app/lib/db/analytics.ts', {
   '../../config/korum-network': { KORUM_CHAIN_ID: 46630 },
   './client': { getDatabase: () => ({ unsafe: async (sql, params) => {
     calls.push({ sql, params });
-    if (sql.includes('AS "feesEth"')) return [{ trades: 4, volumeEth: '3000000000000000000', feesEth: '100000000000000000', creatorFeesEth: '20000000000000000', traders: 2, activeVersus: 1 }];
+    if (sql.includes('AS "feesEth"')) return [{ isTotal: 1, category: "Other", trades: 4, volumeEth: '3000000000000000000', feesEth: '100000000000000000', creatorFeesEth: '20000000000000000', traders: 2, activeVersus: 1 }];
     return [{ timestamp: timestamp(`${clock.getUTCFullYear()}-02-01`), volumeEth: '3000000000000000000', trades: 4 }];
   } }) },
 });
@@ -107,7 +107,9 @@ const component = await load('app/components/analytics/StatsClient.tsx', {
     if (options.queryKey[1] === 'year') annualQueryOptions = options;
     return { data: options.queryKey[1] === 'year' && !failure ? annual : undefined, isError: failure, isPending: false };
   } },
-  '../../hooks/useIndexedMarkets': { useIndexedDebates: () => ({ data: [] }) },
+  '../../hooks/useIndexedMarkets': { useExplorePage: () => ({ data: { items: [] } }) },
+  '../../lib/explore-page': { DEFAULT_EXPLORE_OPTIONS: {} },
+  '../explore/VsTable': { VsTableView: () => null },
   './MetricGlyph': { __esModule: true, default: () => null },
   '../DesignIcon': { __esModule: true, default: () => null },
 });

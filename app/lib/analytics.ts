@@ -9,6 +9,7 @@ export type AnalyticsBucket = {
 
 export type AnalyticsSnapshot = {
   period: AnalyticsPeriod;
+  categories: Array<{ name: string; volumeEth: number; volumeUsd: number | null }>;
   asOf: number;
   trades: number;
   volumeEth: number;

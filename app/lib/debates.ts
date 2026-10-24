@@ -52,7 +52,7 @@ export type DebateToken = {
   change5m?: number;
   change1h?: number;
   change6h?: number;
-  priceHistory?: number[];
+  priceHistory?: Array<number | null>;
 };
 
 export type Debate = {

@@ -6,6 +6,48 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed
+
+- Complete final local verification on 2026-10-25: all 30 checks, lint and production build pass. The refreshed npm audit now reports 17 high-severity package entries (including production), all tracing to Zod advisory GHSA-mrhx-c7xc-m3w5; the earlier clean audit is historical. Dependencies remain unchanged pending a compatible wallet-SDK remediation.
+- Align frontend, referral/indexer, live-cache and token-image architecture docs with route groups, targeted Profile SSE, global rankings, compact snapshots, durable nonce consumption and upload reservations. Document deployment and real-wallet validation still pending.
+- Strengthen Header and Profile Connect Wallet borders to 2px in dark mode, with a white upper edge and grey sides/bottom.
+
+- Compute Analytics categories over the complete selected period and load its top markets from the global ranking; share period requests and display the actual snapshot timestamp.
+- Share one 30-second Redis Leaderboard projection across searches, pages and sorts, preserving global ranks and batching creator/referral aggregates.
+- Target authenticated Profile SSE updates to personal changes and held-token prices, with conservative reset recovery and no new per-user SQL polling. Keep internal actor hashes out of public events.
+- Statically render Concept, Earn, Privacy and Terms with lightweight providers; defer wallet SDK loading until connection intent or returning-wallet restoration. Preserve page state and raw Wagmi cookies when entering interactive routes.
+- Share the cards' minute clock and pending-referral queries; remove five unused files and twelve duplicate CSS rules. Retain x402 dependencies required by Coinbase's SDK.
+- Add 22 isolated checks, eight local SQL/Redis integration checks and a GitHub Actions workflow for lint, regression tests and production build. Final local browser checks cover public wallet activation, Analytics and Explore at desktop/mobile widths; production rollout remains pending.
+
+- Rank and paginate Explore across all indexed Versus on the server, returning 12 compact items per page. Share the ranking projection across filters/users, slide quiet-market volume windows in memory, and update only affected ranking rows on live publication. Keep the legacy `/api/versus` list response for existing consumers.
+- Scope token trade/history/venue request caches to token and metadata revisions, so an unrelated trade no longer invalidates them.
+- Coalesce live list/ticker refreshes over one second and Profile statistics over five seconds; target detail refreshes to affected tokens, retain immediate chart merges and let slow list responses finish.
+- Update Next.js and its ESLint configuration to 16.4.2, Sharp to 0.35.5 and the Axios override to 1.20.0; refresh compatible vulnerable transitive dependencies. The full npm audit reported zero vulnerabilities on 2026-10-23; the 2026-10-25 Zod findings above supersede that result.
+- Share watchlist membership through one wallet-scoped provider and an IDs-only API response. Load full debate data only in Watchlist views, with one cross-tab listener per wallet session.
+- Reuse a warm catalog for single-market reads without building the full catalog on a cold detail visit; retain catalog batching for multi-market consumers.
+- Serve cropped 1x/2x mobile Explore artwork for both themes, preserving the desktop assets. Generate derivatives with `scripts/optimize-explore-backgrounds.mjs`.
+- Replace raw 24-hour trade arrays with compact timestamp buckets and cumulative totals; preserve exact rolling windows and sample sparklines at 96 quarter-hour closes across 24 hours. Carry known prices through inactive intervals, retain null slots before creation/first known price, and show an empty state when no price is known; no raw-trade tail query is needed. Count traders from incrementally maintained wallet/token memberships. Migration `0016_create_market_snapshot_aggregates.sql` backfills these projections and maintains inserts, corrections and deletes transactionally; apply it before deploying the reader. Replace the redundant time index with a covering index and version the internal Redis snapshots. Event-driven invalidation, idle retention and Profile polling behavior are unchanged.
+
+### Fixed
+
+- Avoid closing an already-cancelled SSE controller; handle malformed wallet cookies and defer requested wallet-modal opening until provider initialization completes.
+
+- Keep Explore's open filter menu above the footer when filtered results are empty or short.
+- Recover maintained-cache read, lease and write failures with shared fresh SQL reads per process; preserve SQL errors and avoid reloading successful reads when only cache persistence or lease cleanup fails. Coalesce degraded Profile and selected-page reads.
+- Bound market-detail SQL work to selected Versus before expanding market/recipient views; hydrate a cold Explore page in one batch without loading the 250-market catalog. Defer Explore database work until an incoming request during Next.js builds.
+- Release PostgreSQL connections before uploading token images to Pinata. Use short, owner-fenced upload reservations and share identical in-flight uploads; return a retryable response for another replica's active reservation. Requires migration `0018_create_token_image_upload_leases.sql`.
+- Recover missed Goldsky trade deliveries through a transactional insert/update/delete journal. The existing shared minute probe checks pending deliveries, invalidates affected charts and maintained sources only when needed, and preserves concurrent changes. One timer per SSE server process shares the same cross-replica lease; no periodic SQL reload per user. Requires migration `0019_create_market_delivery_outbox.sql`. Migrations 0018 and 0019 were applied and verified on the configured Railway testnet database on 2026-10-22; application changes remain undeployed.
+- Keep Profile holdings in a wallet-scoped query across tab changes, with polling limited to the Holdings panel and request/response wallet checks.
+- Preserve Explore pagination across live ranking changes and clamp the selected page when results shrink.
+- Reject reused wallet sign-in challenges with transactional nonce consumption (requires migration 0017); bound verification payloads and attempts while retaining contract-wallet signature verification.
+- Rate-limit Leaderboard searches and cache repeated search pages for 30 seconds without changing global ranks.
+- Coalesce concurrent SQL fallbacks when Redis revision reads fail, without storing unversioned data.
+- Reuse the launch-preview quote when both initial token amounts match.
+- Isolate watchlist reads, optimistic mutations and rollbacks between wallet sessions; serialize rapid mutations, reject requests whose expected wallet differs from the session cookie, and preserve cached membership with a visible error when refresh fails.
+- Skip session deletion and server refresh for anonymous visitors without a session cookie, while still clearing restored cookies after wallet disconnection.
+- Apply the saved theme while parsing the initial HTML so light-theme visits do not first download the dark Explore background.
+- Repair outdated Analytics, creator-fee and graduated-market test fixtures; add watchlist concurrency and anonymous-session regression checks. Retain isolated Redis coverage for event-driven invalidation and shared cache reconstruction.
+
 ## [0.3.2] - 2026-10-21
 
 ### Changed

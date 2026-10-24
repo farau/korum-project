@@ -1,23 +1,32 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { DEPLOYMENT_CACHE_SCOPE } from "../config/deployment";
 import { useWallet } from "../components/WalletProvider";
 import { fetchPendingReferral } from "../lib/referrals/client";
 import type { PendingReferral } from "../lib/referrals/pending";
 
 export function usePendingReferral(initial: PendingReferral | null = null) {
   const { address, authenticated } = useWallet();
-  const [stored, setStored] = useState(initial);
+  const client = useQueryClient();
   const wallet = authenticated ? address?.toLowerCase() : null;
-  const referral = wallet && stored?.walletAddress.toLowerCase() === wallet ? stored : null;
-  useEffect(() => {
+  const key = ["pending-referral", DEPLOYMENT_CACHE_SCOPE, wallet] as const;
+  const query = useQuery({
+    queryKey: key,
+    queryFn: ({ signal }) => fetchPendingReferral(wallet!, signal),
+    enabled: Boolean(wallet),
+    initialData: wallet && initial?.walletAddress.toLowerCase() === wallet ? initial : undefined,
+    staleTime: 60_000,
+    gcTime: 0,
+    retry: false,
+  });
+  const referral = wallet && query.data?.walletAddress.toLowerCase() === wallet ? query.data : null;
+  const clear = useCallback(async () => {
     if (!wallet) return;
-    const controller = new AbortController();
-    void fetchPendingReferral(wallet, controller.signal).then(result => {
-      if (!controller.signal.aborted) setStored(result);
-    });
-    return () => controller.abort();
-  }, [wallet]);
-  const clear = useCallback(() => setStored(null), []);
+    const key = ["pending-referral", DEPLOYMENT_CACHE_SCOPE, wallet];
+    await client.cancelQueries({ queryKey: key, exact: true });
+    client.setQueryData(key, null);
+  }, [client, wallet]);
   return { referral, clear };
 }

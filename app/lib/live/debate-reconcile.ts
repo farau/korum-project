@@ -19,7 +19,7 @@ return 1
 
 // Creation/lifecycle/profile changes have no trade webhook. One shared, small
 // metadata probe per minute detects them without expiring quiet market data.
-export async function reconcileDebateMetadata(redis: Redis, key: Key, probe: () => Promise<string>) {
+export async function reconcileDebateMetadata(redis: Redis, key: Key, probe: () => Promise<string>, recover?: (lease: string, owner: string) => Promise<void>) {
   const lease = key("live", "debate-metadata-probe-v1");
   const owner = randomUUID();
   if (await redis.set(lease, owner, "EX", DEBATE_RECONCILE_SECONDS, "NX") !== "OK") return;
@@ -30,4 +30,5 @@ export async function reconcileDebateMetadata(redis: Redis, key: Key, probe: () 
   const fingerprint = await probe();
   await redis.eval(reconcileScript, 4, lease, key("live", "debate-metadata-fingerprint-v1"),
     metadata, key("live", "revision"), owner, before, fingerprint, randomUUID());
+  await recover?.(lease, owner);
 }

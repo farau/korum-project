@@ -2,24 +2,17 @@
 
 import React, { useEffect, useId, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { useIndexedDebates } from "../../hooks/useIndexedMarkets";
+import { useExplorePage } from "../../hooks/useIndexedMarkets";
+import { DEFAULT_EXPLORE_OPTIONS } from "../../lib/explore-page";
 import MetricGlyph from "./MetricGlyph";
 import DesignIcon from "../DesignIcon";
 import { VsTableView } from "../explore/VsTable";
 import type { Debate } from "../../lib/debates";
 import type { AnalyticsPeriod, AnalyticsSnapshot } from "../../lib/analytics";
 
-const chartWeek = [32, 48, 41, 59, 73, 67, 86];
-const labelsWeek = ["M", "T", "W", "T", "F", "S", "S"];
 const categoryColors = ["#00A1FD", "#D794F3", "#F3D8AD", "#9DDA72", "#07CCC3", "#58E877", "#FF453A"];
-const emptyDebates: Debate[] = [];
 const ANALYTICS_REFRESH_MS = 5 * 60 * 1_000;
 const ANALYTICS_CACHE_MS = 10 * 60 * 1_000;
-
-function combinedMarketCap(debate: Debate) {
-  return (debate.tokenA?.marketCap ?? debate.marketCapA ?? 0)
-    + (debate.tokenB?.marketCap ?? debate.marketCapB ?? 0);
-}
 
 function versusAgeLabel(debate: Debate) {
   const minutes = Math.max(0, Math.floor(debate.createdMinutesAgo));
@@ -34,7 +27,7 @@ function annualRefreshInterval() {
   return Math.min(ANALYTICS_REFRESH_MS, nextMonth - now.getTime() + 100);
 }
 
-function useCountUp(value: number) {
+function useCountUp(value: number, precision = 0) {
   const [display, setDisplay] = useState(0);
 
   useEffect(() => {
@@ -45,7 +38,8 @@ function useCountUp(value: number) {
     const animate = (time: number) => {
       const progress = Math.min(1, (time - start) / duration);
       const eased = 1 - Math.pow(1 - progress, 3);
-      setDisplay(Math.round(from + (value - from) * eased));
+      const scale = 10 ** precision;
+      setDisplay(Math.round((from + (value - from) * eased) * scale) / scale);
       if (progress < 1) raf = requestAnimationFrame(animate);
     };
     raf = requestAnimationFrame(animate);
@@ -53,7 +47,7 @@ function useCountUp(value: number) {
       if (raf) cancelAnimationFrame(raf);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [value]);
+  }, [value, precision]);
 
   return display;
 }
@@ -191,90 +185,60 @@ function StatCard({ value, label, icon }: { value: string; label: string; icon: 
   );
 }
 
-export default function StatsClient() {
-  const liveDebates = useIndexedDebates();
-  const [period, setPeriod] = useState<AnalyticsPeriod>("day");
-  const analyticsQuery = useQuery({
+function useAnalyticsPeriod(period: AnalyticsPeriod) {
+  return useQuery({
     queryKey: ["analytics", period],
-    queryFn: async () => {
-      const response = await fetch(`/api/analytics?period=${period}`);
+    queryFn: async ({ signal }) => {
+      const response = await fetch(`/api/analytics?period=${period}`, { signal, ...(period === "year" ? { cache: "no-store" as const } : {}) });
       if (!response.ok) throw new Error("Analytics request failed.");
       return response.json() as Promise<AnalyticsSnapshot>;
     },
-    staleTime: ANALYTICS_CACHE_MS,
-    refetchInterval: ANALYTICS_REFRESH_MS,
+    staleTime: period === "year" ? 0 : ANALYTICS_CACHE_MS,
+    refetchInterval: period === "year" ? annualRefreshInterval : ANALYTICS_REFRESH_MS,
     refetchIntervalInBackground: false,
     refetchOnWindowFocus: true,
     retry: 1,
   });
-  const weeklyAnalyticsQuery = useQuery({
-    queryKey: ["analytics", "week"],
-    queryFn: async () => {
-      const response = await fetch("/api/analytics?period=week");
-      if (!response.ok) throw new Error("Weekly analytics request failed.");
-      return response.json() as Promise<AnalyticsSnapshot>;
-    },
-    staleTime: ANALYTICS_CACHE_MS,
-    refetchInterval: ANALYTICS_REFRESH_MS,
-    refetchIntervalInBackground: false,
-    refetchOnWindowFocus: true,
-    retry: 1,
-  });
-  const annualAnalyticsQuery = useQuery({
-    queryKey: ["analytics", "year"],
-    queryFn: async () => {
-      const response = await fetch("/api/analytics?period=year", { cache: "no-store" });
-      if (!response.ok) throw new Error("Annual analytics request failed.");
-      return response.json() as Promise<AnalyticsSnapshot>;
-    },
-    staleTime: 0,
-    refetchInterval: annualRefreshInterval,
-    refetchIntervalInBackground: false,
-    refetchOnWindowFocus: true,
-    retry: 1,
-  });
+}
 
-  const src = liveDebates.data ?? emptyDebates;
-  const totalVolume = src.reduce((sum, debate) => sum + debate.volume24h, 0);
-  const trades = src.reduce((sum, debate) => sum + (debate.trades24h ?? 0), 0);
-  const avgTrade = trades ? totalVolume / trades : 0;
+export default function StatsClient() {
+  const topMarkets = useExplorePage({ ...DEFAULT_EXPLORE_OPTIONS, category: "All", sort: "marketCap" });
+  const [period, setPeriod] = useState<AnalyticsPeriod>("day");
+  const analyticsQuery = useAnalyticsPeriod(period);
+  const dailyAnalyticsQuery = useAnalyticsPeriod("day");
+  const weeklyAnalyticsQuery = useAnalyticsPeriod("week");
+  const annualAnalyticsQuery = useAnalyticsPeriod("year");
+
   const analytics = analyticsQuery.data;
   const weeklyAnalytics = weeklyAnalyticsQuery.data;
   const annualAnalytics = annualAnalyticsQuery.data;
   const annualChartValues = annualAnalytics?.buckets.map((bucket) => bucket.volumeUsd ?? bucket.volumeEth) ?? [];
   const annualChartLabels = annualAnalytics?.buckets.map((bucket) => bucketLabel(bucket.timestamp, "year")) ?? [];
   const annualYear = annualAnalytics ? new Date(annualAnalytics.asOf * 1_000).getUTCFullYear() : null;
-  const periodTrades = analytics?.trades ?? trades;
-  const periodVolumeUsd = analytics?.volumeUsd ?? totalVolume;
-  const periodAverageTradeUsd = analytics?.averageTradeUsd ?? avgTrade;
+  const periodTrades = analytics?.trades ?? 0;
+  const periodVolumeValue = analytics?.volumeUsd ?? analytics?.volumeEth ?? 0;
+  const periodAverageTradeValue = analytics?.averageTradeUsd ?? analytics?.averageTradeEth ?? 0;
   const weeklyVolumeEth = weeklyAnalytics?.volumeEth ?? 0;
   const weeklyVolumeUsd = weeklyAnalytics?.volumeUsd;
-  const weeklyChartValues = weeklyAnalytics?.buckets.map((bucket) => bucket.volumeUsd ?? bucket.volumeEth) ?? chartWeek;
-  const weeklyChartLabels = weeklyAnalytics?.buckets.map((bucket) => bucketLabel(bucket.timestamp, "week")) ?? labelsWeek;
+  const weeklyChartValues = weeklyAnalytics?.buckets.map((bucket) => bucket.volumeUsd ?? bucket.volumeEth) ?? [];
+  const weeklyChartLabels = weeklyAnalytics?.buckets.map((bucket) => bucketLabel(bucket.timestamp, "week")) ?? [];
   const weeklyChartMax = weeklyAnalytics?.buckets.length ? Math.max(...weeklyChartValues, 0) : undefined;
   const comparisonLabel = periodComparisonLabel(period);
 
   const tradesDisplay = useCountUp(periodTrades);
-  const volumeDisplay = useCountUp(periodVolumeUsd);
-  const avgDisplay = useCountUp(periodAverageTradeUsd * 10) / 10;
+  const volumeDisplay = useCountUp(periodVolumeValue, analytics?.volumeUsd == null ? 5 : 0);
+  const avgDisplay = useCountUp(periodAverageTradeValue, analytics?.averageTradeUsd == null ? 5 : 1);
 
   const categories = useMemo(() => {
-    const totals = new Map<string, number>();
-    src.forEach((debate) => totals.set(debate.category, (totals.get(debate.category) || 0) + debate.volume24h));
-    const total = Math.max([...totals.values()].reduce((sum, volume) => sum + volume, 0), 1);
-    const max = Math.max(...totals.values(), 1);
-    return [...totals.entries()]
-      .sort((a, b) => b[1] - a[1])
-      .map(([name, volume], index) => ({ name, volume, color: categoryColors[index % categoryColors.length], percentage: (volume / total) * 100, width: (volume / max) * 100 }));
-  }, [src]);
-
-  const topVs = useMemo(
-    () =>
-      [...src]
-        .sort((a, b) => combinedMarketCap(b) - combinedMarketCap(a) || a.id - b.id)
-        .slice(0, 8),
-    [src],
-  );
+    const rows = analytics?.categories ?? [];
+    const total = rows.reduce((sum, row) => sum + row.volumeEth, 0);
+    const max = Math.max(...rows.map(row => row.volumeEth), 0);
+    return rows.map((row, index) => ({ ...row, color: categoryColors[index % categoryColors.length],
+      percentage: total > 0 ? row.volumeEth / total * 100 : 0,
+      width: max > 0 ? row.volumeEth / max * 100 : 0,
+    }));
+  }, [analytics]);
+  const topVs = topMarkets.data?.items.slice(0, 8) ?? [];
 
   return (
     <>
@@ -315,7 +279,7 @@ export default function StatsClient() {
                 <span className="tac-icon-tile"><AnalyticsIcon type="bars" /></span>
                 <div className="tac-stat-text">
                   <span className="tac-stat-label">Trading volume</span>
-                  <span className="tac-stat-value">{formatAnalyticsMoney(analytics?.volumeUsd ?? null, volumeDisplay)}</span>
+                  <span className="tac-stat-value">{analytics ? formatAnalyticsMoney(analytics.volumeUsd === null ? null : volumeDisplay, volumeDisplay) : "—"}</span>
                   <span className="tac-stat-change">↗ — <em>{comparisonLabel}</em></span>
                 </div>
               </div>
@@ -324,7 +288,7 @@ export default function StatsClient() {
                 <span className="tac-icon-tile"><AnalyticsIcon type="cash" /></span>
                 <div className="tac-stat-text">
                   <span className="tac-stat-label">Average trade size</span>
-                  <span className="tac-stat-value">{formatAnalyticsMoney(analytics?.averageTradeUsd ?? null, avgDisplay)}</span>
+                  <span className="tac-stat-value">{analytics ? formatAnalyticsMoney(analytics.averageTradeUsd === null ? null : avgDisplay, avgDisplay) : "—"}</span>
                   <span className="tac-stat-change">↗ — <em>{comparisonLabel}</em></span>
                 </div>
               </div>
@@ -345,7 +309,7 @@ export default function StatsClient() {
                         <span className="vol24h-icon" aria-hidden="true"><MetricGlyph type="bars" /></span>
                         <span className="vol24h-text">
                           <span className="vol24h-label">Vol 24h</span>
-                          <span className="vol24h-value">{formatMoney(totalVolume)}</span>
+                          <span className="vol24h-value">{dailyAnalyticsQuery.data ? formatAnalyticsMoney(dailyAnalyticsQuery.data.volumeUsd, dailyAnalyticsQuery.data.volumeEth) : "—"}</span>
                         </span>
                       </div>
                     </div>
@@ -371,7 +335,7 @@ export default function StatsClient() {
                         <span className="vol24h-icon" aria-hidden="true"><MetricGlyph type="bars" /></span>
                         <span className="vol24h-text">
                           <span className="vol24h-label">Vol 24h</span>
-                        <span className="vol24h-value">{formatMoney(totalVolume)}</span>
+                        <span className="vol24h-value">{dailyAnalyticsQuery.data ? formatAnalyticsMoney(dailyAnalyticsQuery.data.volumeUsd, dailyAnalyticsQuery.data.volumeEth) : "—"}</span>
                         </span>
                       </div>
                     </div>
@@ -387,9 +351,9 @@ export default function StatsClient() {
               </div>
             </div>
             <div className="analytics-panel-footer">
-              <span className="live-dot" /> Data updated in real time
+              <span className="live-dot" /> Data refreshed periodically
               <span className="sep">|</span>
-              Last updated: <span>2 min ago</span>
+              Snapshot: <span>{analytics ? new Date(analytics.asOf * 1_000).toISOString().replace("T", " ").slice(0, 19) + " UTC" : "—"}</span>
             </div>
           </div>
         </div>
@@ -402,6 +366,7 @@ export default function StatsClient() {
             <h2>Volume by category</h2>
           </div>
           <div className="fee-bars">
+            {!categories.length ? <p role="status">{analyticsQuery.isError ? "Category data is temporarily unavailable." : analyticsQuery.isPending ? "Loading categories…" : "No volume in this period."}</p> : null}
             {categories.map((category) => (
               <div className="fee-bar-row2" key={category.name}>
                 <span className="fee-bar-name"><span className="fee-bar-dot" style={{ background: category.color }} />{category.name}</span>
@@ -409,7 +374,7 @@ export default function StatsClient() {
                   <div className="fee-bar-fill2" style={{ width: `${category.width}%` }} />
                   <span className="fee-bar-percentage" style={{ left: `${category.width}%` }}>{category.percentage.toFixed(1)}%</span>
                 </div>
-                <span className="fee-bar-value"><span className="fee-bar-value-dot" />{formatMoney(category.volume)}</span>
+                <span className="fee-bar-value"><span className="fee-bar-value-dot" />{formatAnalyticsMoney(category.volumeUsd, category.volumeEth)}</span>
               </div>
             ))}
           </div>
@@ -426,7 +391,7 @@ export default function StatsClient() {
             <VsTableView debates={topVs} ageLabel={versusAgeLabel} />
           ) : (
             <div className="explore-empty-versus" role="status">
-              <p>{liveDebates.isPending ? "Loading top versus..." : liveDebates.isError ? "Top versus are temporarily unavailable." : "No versus available yet."}</p>
+              <p>{topMarkets.isPending ? "Loading top versus..." : topMarkets.isError ? "Top versus are temporarily unavailable." : "No versus available yet."}</p>
             </div>
           )}
         </div>

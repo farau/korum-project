@@ -1,0 +1,4810 @@
+{
+  "collectedOn": "2026-10-21",
+  "collection": "Railway MCP, fenêtre 24 h avant les visites synthétiques de 16:54 UTC ; heures exactes de début/fin non retournées par le fournisseur",
+  "project": "korum-project",
+  "environment": "staging",
+  "deployment": "4479f996-7723-4e68-98b9-cac8cba4031a",
+  "commit": "e0b50c0424166cc92d1870b316460955f1f4676b",
+  "requests": {
+    "environment": {
+      "id": "77c5c32e-8703-4810-bcdd-27fdc9cad8c7",
+      "name": "staging"
+    },
+    "samples": [
+      {
+        "2xx": 164,
+        "3xx": 10,
+        "4xx": 3,
+        "5xx": 0,
+        "total": 177,
+        "ts": 1792529280
+      },
+      {
+        "2xx": 46,
+        "3xx": 2,
+        "4xx": 0,
+        "5xx": 0,
+        "total": 48,
+        "ts": 1792540800
+      },
+      {
+        "2xx": 351,
+        "3xx": 49,
+        "4xx": 1,
+        "5xx": 0,
+        "total": 401,
+        "ts": 1792558080
+      },
+      {
+        "2xx": 7,
+        "3xx": 0,
+        "4xx": 0,
+        "5xx": 0,
+        "total": 7,
+        "ts": 1792560960
+      },
+      {
+        "2xx": 101,
+        "3xx": 2,
+        "4xx": 1,
+        "5xx": 0,
+        "total": 104,
+        "ts": 1792566720
+      },
+      {
+        "2xx": 67,
+        "3xx": 20,
+        "4xx": 3,
+        "5xx": 0,
+        "total": 90,
+        "ts": 1792581120
+      }
+    ],
+    "service": {
+      "id": "6e90c3c8-ddb2-42e3-9d89-386b2845ebd4",
+      "name": "korum-project"
+    },
+    "totals": {
+      "2xx": 736,
+      "3xx": 83,
+      "4xx": 8,
+      "5xx": 0,
+      "total": 827
+    },
+    "window": {
+      "bucketCount": 6,
+      "hoursBack": 24
+    }
+  },
+  "errors": {
+    "environment": {
+      "id": "77c5c32e-8703-4810-bcdd-27fdc9cad8c7",
+      "name": "staging"
+    },
+    "overall": {
+      "clientErrorCount": 8,
+      "errorCount": 0,
+      "errorRate": 0,
+      "totalRequests": 827
+    },
+    "samples": [
+      {
+        "clientErrorCount": 3,
+        "errorCount": 0,
+        "errorRate": 0,
+        "totalRequests": 177,
+        "ts": 1792529280
+      },
+      {
+        "clientErrorCount": 0,
+        "errorCount": 0,
+        "errorRate": 0,
+        "totalRequests": 48,
+        "ts": 1792540800
+      },
+      {
+        "clientErrorCount": 1,
+        "errorCount": 0,
+        "errorRate": 0,
+        "totalRequests": 401,
+        "ts": 1792558080
+      },
+      {
+        "clientErrorCount": 0,
+        "errorCount": 0,
+        "errorRate": 0,
+        "totalRequests": 7,
+        "ts": 1792560960
+      },
+      {
+        "clientErrorCount": 1,
+        "errorCount": 0,
+        "errorRate": 0,
+        "totalRequests": 104,
+        "ts": 1792566720
+      },
+      {
+        "clientErrorCount": 3,
+        "errorCount": 0,
+        "errorRate": 0,
+        "totalRequests": 90,
+        "ts": 1792581120
+      }
+    ],
+    "service": {
+      "id": "6e90c3c8-ddb2-42e3-9d89-386b2845ebd4",
+      "name": "korum-project"
+    },
+    "window": {
+      "bucketCount": 6,
+      "hoursBack": 24
+    },
+    "worstBucket": {
+      "clientErrorCount": 3,
+      "errorCount": 0,
+      "errorRate": 0,
+      "totalRequests": 177,
+      "ts": 1792529280
+    }
+  },
+  "http_times": {
+    "environment": {
+      "id": "77c5c32e-8703-4810-bcdd-27fdc9cad8c7",
+      "name": "staging"
+    },
+    "samples": [
+      {
+        "p50": 6,
+        "p90": 20,
+        "p95": 27,
+        "p99": 222,
+        "ts": 1792529280
+      },
+      {
+        "p50": 39,
+        "p90": 287,
+        "p95": 442,
+        "p99": 14911,
+        "ts": 1792540800
+      },
+      {
+        "p50": 20,
+        "p90": 96,
+        "p95": 206,
+        "p99": 30000,
+        "ts": 1792558080
+      },
+      {
+        "p50": 11610,
+        "p90": 30000,
+        "p95": 30000,
+        "p99": 30000,
+        "ts": 1792560960
+      },
+      {
+        "p50": 15,
+        "p90": 32,
+        "p95": 160,
+        "p99": 6641,
+        "ts": 1792566720
+      },
+      {
+        "p50": 20,
+        "p90": 49,
+        "p95": 52,
+        "p99": 4255,
+        "ts": 1792581120
+      }
+    ],
+    "service": {
+      "id": "6e90c3c8-ddb2-42e3-9d89-386b2845ebd4",
+      "name": "korum-project"
+    },
+    "slowestBucket": {
+      "p50": 11610,
+      "p90": 30000,
+      "p95": 30000,
+      "p99": 30000,
+      "ts": 1792560960
+    },
+    "window": {
+      "bucketCount": 6,
+      "hoursBack": 24
+    }
+  },
+  "metrics_app": {
+    "environment": {
+      "id": "77c5c32e-8703-4810-bcdd-27fdc9cad8c7",
+      "name": "staging"
+    },
+    "metrics": [
+      {
+        "average": 0.00018724624103631736,
+        "current": 0.000025466666666666665,
+        "max": 0.05046513333333333,
+        "measurement": "CPU_USAGE",
+        "min": 0,
+        "sampleCount": 1441
+      },
+      {
+        "average": 0.1944642726995144,
+        "current": 0.215056384,
+        "max": 0.230244352,
+        "measurement": "MEMORY_USAGE_GB",
+        "min": 0,
+        "sampleCount": 1441
+      }
+    ],
+    "service": {
+      "id": "6e90c3c8-ddb2-42e3-9d89-386b2845ebd4",
+      "name": "korum-project"
+    }
+  },
+  "metrics_postgres": {
+    "environment": {
+      "id": "77c5c32e-8703-4810-bcdd-27fdc9cad8c7",
+      "name": "staging"
+    },
+    "metrics": [
+      {
+        "average": 0.0004041807078417764,
+        "current": 0.00012743333333333333,
+        "max": 0.018364183333333336,
+        "measurement": "CPU_USAGE",
+        "min": 0,
+        "sampleCount": 1441
+      },
+      {
+        "average": 0.05580320617349219,
+        "current": 0.055549952,
+        "max": 0.090873856,
+        "measurement": "MEMORY_USAGE_GB",
+        "min": 0,
+        "sampleCount": 1441
+      }
+    ],
+    "service": {
+      "id": "22372f54-0d30-440e-8af8-42c9835a6324",
+      "name": "Postgres"
+    }
+  },
+  "metrics_redis": {
+    "environment": {
+      "id": "77c5c32e-8703-4810-bcdd-27fdc9cad8c7",
+      "name": "staging"
+    },
+    "metrics": [
+      {
+        "average": 0.0013414864561647022,
+        "current": 0.0014447333333333333,
+        "max": 0.0026565,
+        "measurement": "CPU_USAGE",
+        "min": 0.0006690499999999999,
+        "sampleCount": 1441
+      },
+      {
+        "average": 0.009880320414526826,
+        "current": 0.009818112,
+        "max": 0.010457088,
+        "measurement": "MEMORY_USAGE_GB",
+        "min": 0.009531392,
+        "sampleCount": 1441
+      }
+    ],
+    "service": {
+      "id": "380af336-a0ad-41c4-b305-ab5c4a289c60",
+      "name": "Redis"
+    }
+  },
+  "httpLogSample": [
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/api/notifications",
+      "timestamp": "2026-10-21T05:17:34.710507005Z",
+      "totalDuration": 27,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/leaderboard",
+      "timestamp": "2026-10-21T05:17:34.712499144Z",
+      "totalDuration": 49,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "HEAD",
+      "path": "/explore",
+      "timestamp": "2026-10-21T05:17:34.722720750Z",
+      "totalDuration": 39,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/vs/1",
+      "timestamp": "2026-10-21T05:17:34.803239290Z",
+      "totalDuration": 24,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/vs/6",
+      "timestamp": "2026-10-21T05:17:34.806265974Z",
+      "totalDuration": 23,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/vs/5",
+      "timestamp": "2026-10-21T05:17:34.816722221Z",
+      "totalDuration": 20,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/vs/4",
+      "timestamp": "2026-10-21T05:17:34.817560091Z",
+      "totalDuration": 18,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/explore",
+      "timestamp": "2026-10-21T05:17:34.822302640Z",
+      "totalDuration": 35,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/create",
+      "timestamp": "2026-10-21T05:17:34.911775986Z",
+      "totalDuration": 14,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/vs/1",
+      "timestamp": "2026-10-21T05:17:34.917725916Z",
+      "totalDuration": 19,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/vs/6",
+      "timestamp": "2026-10-21T05:17:34.918028634Z",
+      "totalDuration": 7,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/vs/5",
+      "timestamp": "2026-10-21T05:17:34.945464803Z",
+      "totalDuration": 20,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/leaderboard",
+      "timestamp": "2026-10-21T05:17:35.025141380Z",
+      "totalDuration": 21,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/earn",
+      "timestamp": "2026-10-21T05:17:35.026501784Z",
+      "totalDuration": 21,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/concept",
+      "timestamp": "2026-10-21T05:17:35.032410845Z",
+      "totalDuration": 17,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/analytics",
+      "timestamp": "2026-10-21T05:17:35.047740638Z",
+      "totalDuration": 11,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/api/versus",
+      "timestamp": "2026-10-21T05:17:35.081266391Z",
+      "totalDuration": 19,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/api/markets/trades",
+      "timestamp": "2026-10-21T05:17:35.083493008Z",
+      "totalDuration": 19,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/vs/4",
+      "timestamp": "2026-10-21T05:17:35.117474996Z",
+      "totalDuration": 13,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/create",
+      "timestamp": "2026-10-21T05:17:35.137998953Z",
+      "totalDuration": 16,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/vs/3",
+      "timestamp": "2026-10-21T05:17:35.138277767Z",
+      "totalDuration": 17,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/vs/2",
+      "timestamp": "2026-10-21T05:17:35.171588019Z",
+      "totalDuration": 8,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/vs/4",
+      "timestamp": "2026-10-21T05:17:37.206573691Z",
+      "totalDuration": 15,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/_next/static/chunks/3fr_qk3gujufp.css",
+      "timestamp": "2026-10-21T05:17:37.295583893Z",
+      "totalDuration": 6,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/_next/static/chunks/0b-7qti2vs_vm.js",
+      "timestamp": "2026-10-21T05:17:37.304807137Z",
+      "totalDuration": 4,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/_next/static/chunks/1ow_75_9li99k.js",
+      "timestamp": "2026-10-21T05:17:37.311167710Z",
+      "totalDuration": 15,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/korum-icons/red-arrow.png",
+      "timestamp": "2026-10-21T05:17:37.436636553Z",
+      "totalDuration": 6,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/korum-icons/green-arrow.png",
+      "timestamp": "2026-10-21T05:17:37.436818326Z",
+      "totalDuration": 8,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/api/markets/live",
+      "timestamp": "2026-10-21T05:17:37.509937506Z",
+      "totalDuration": 2827,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/api/markets/:address/chart",
+      "timestamp": "2026-10-21T05:17:37.524517399Z",
+      "totalDuration": 72,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/api/markets/:address/chart",
+      "timestamp": "2026-10-21T05:17:37.552938275Z",
+      "totalDuration": 102,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/api/markets/:address/chart",
+      "timestamp": "2026-10-21T05:17:37.647280577Z",
+      "totalDuration": 29,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/api/markets/:address/chart",
+      "timestamp": "2026-10-21T05:17:37.687887011Z",
+      "totalDuration": 32,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/api/versus/4",
+      "timestamp": "2026-10-21T05:17:37.897497256Z",
+      "totalDuration": 24,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/api/markets/:address/chart",
+      "timestamp": "2026-10-21T05:17:37.897825634Z",
+      "totalDuration": 24,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/api/markets/:address/chart",
+      "timestamp": "2026-10-21T05:17:37.897973567Z",
+      "totalDuration": 25,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/api/markets/:address/chart",
+      "timestamp": "2026-10-21T05:17:38.003368001Z",
+      "totalDuration": 15,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/api/markets/:address/chart",
+      "timestamp": "2026-10-21T05:17:38.004182539Z",
+      "totalDuration": 16,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/privacy",
+      "timestamp": "2026-10-21T05:17:49.564445963Z",
+      "totalDuration": 7,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/terms",
+      "timestamp": "2026-10-21T05:17:49.604220299Z",
+      "totalDuration": 12,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/privacy",
+      "timestamp": "2026-10-21T05:17:49.668194645Z",
+      "totalDuration": 7,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/profile",
+      "timestamp": "2026-10-21T05:17:49.686246882Z",
+      "totalDuration": 8,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/terms",
+      "timestamp": "2026-10-21T05:17:49.708271215Z",
+      "totalDuration": 10,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/profile",
+      "timestamp": "2026-10-21T05:17:49.791005806Z",
+      "totalDuration": 8,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/api/versus/4",
+      "timestamp": "2026-10-21T05:17:53.007452140Z",
+      "totalDuration": 18,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/earn",
+      "timestamp": "2026-10-21T05:17:58.657292286Z",
+      "totalDuration": 12,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/_next/static/chunks/107g8hl2rmp2l.js",
+      "timestamp": "2026-10-21T05:17:58.761165982Z",
+      "totalDuration": 5,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/api/markets/live",
+      "timestamp": "2026-10-21T05:17:58.934837361Z",
+      "totalDuration": 21422,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/korum-reference/combined-glow.jpg",
+      "timestamp": "2026-10-21T05:17:59.082821062Z",
+      "totalDuration": 184,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 304,
+      "method": "GET",
+      "path": "/_next/image",
+      "timestamp": "2026-10-21T05:17:59.107996289Z",
+      "totalDuration": 215,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 304,
+      "method": "GET",
+      "path": "/_next/image",
+      "timestamp": "2026-10-21T05:17:59.108621437Z",
+      "totalDuration": 215,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 304,
+      "method": "GET",
+      "path": "/_next/image",
+      "timestamp": "2026-10-21T05:17:59.108745514Z",
+      "totalDuration": 216,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/_next/image",
+      "timestamp": "2026-10-21T05:18:01.578870648Z",
+      "totalDuration": 48,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/_next/image",
+      "timestamp": "2026-10-21T05:18:01.582171891Z",
+      "totalDuration": 50,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/_next/image",
+      "timestamp": "2026-10-21T05:18:01.592145128Z",
+      "totalDuration": 62,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/concept",
+      "timestamp": "2026-10-21T05:18:05.357026360Z",
+      "totalDuration": 30,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/korum-icons/Raly.svg",
+      "timestamp": "2026-10-21T05:18:05.504944518Z",
+      "totalDuration": 15,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/korum-icons/Badge.svg",
+      "timestamp": "2026-10-21T05:18:05.512292337Z",
+      "totalDuration": 28,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/korum-icons/Side.svg",
+      "timestamp": "2026-10-21T05:18:05.547130951Z",
+      "totalDuration": 62,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/korum-icons/fire.svg",
+      "timestamp": "2026-10-21T05:18:05.548503522Z",
+      "totalDuration": 63,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/korum-icons/flash.svg",
+      "timestamp": "2026-10-21T05:18:05.550430773Z",
+      "totalDuration": 65,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/korum-icons/DobleFlag.svg",
+      "timestamp": "2026-10-21T05:18:05.552738586Z",
+      "totalDuration": 66,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/_next/image",
+      "timestamp": "2026-10-21T05:18:05.553437977Z",
+      "totalDuration": 70,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/_next/image",
+      "timestamp": "2026-10-21T05:18:05.554317548Z",
+      "totalDuration": 71,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/_next/image",
+      "timestamp": "2026-10-21T05:18:05.555303783Z",
+      "totalDuration": 66,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 304,
+      "method": "GET",
+      "path": "/_next/image",
+      "timestamp": "2026-10-21T05:18:05.643519920Z",
+      "totalDuration": 156,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 304,
+      "method": "GET",
+      "path": "/_next/image",
+      "timestamp": "2026-10-21T05:18:05.655900556Z",
+      "totalDuration": 168,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 304,
+      "method": "GET",
+      "path": "/_next/image",
+      "timestamp": "2026-10-21T05:18:05.666857185Z",
+      "totalDuration": 183,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/explore",
+      "timestamp": "2026-10-21T05:18:18.078039597Z",
+      "totalDuration": 19,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 304,
+      "method": "GET",
+      "path": "/design-vdef/home/light.webp",
+      "timestamp": "2026-10-21T05:18:18.182568015Z",
+      "totalDuration": 3,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/api/versus",
+      "timestamp": "2026-10-21T05:18:18.214233710Z",
+      "totalDuration": 19,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/api/markets/trades",
+      "timestamp": "2026-10-21T05:18:18.252261542Z",
+      "totalDuration": 61,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/api/versus",
+      "timestamp": "2026-10-21T05:18:18.606534737Z",
+      "totalDuration": 12,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/api/markets/trades",
+      "timestamp": "2026-10-21T05:18:18.608211649Z",
+      "totalDuration": 13,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 304,
+      "method": "GET",
+      "path": "/design-vdef/home/dark.webp",
+      "timestamp": "2026-10-21T05:18:23.582167253Z",
+      "totalDuration": 5,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/api/versus",
+      "timestamp": "2026-10-21T05:18:33.718396999Z",
+      "totalDuration": 13,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/api/markets/trades",
+      "timestamp": "2026-10-21T05:18:48.806920522Z",
+      "totalDuration": 95,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/api/versus",
+      "timestamp": "2026-10-21T05:18:48.839676245Z",
+      "totalDuration": 25,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/api/versus",
+      "timestamp": "2026-10-21T05:19:03.951229483Z",
+      "totalDuration": 19,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/api/markets/trades",
+      "timestamp": "2026-10-21T05:19:18.962681107Z",
+      "totalDuration": 52,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/api/versus",
+      "timestamp": "2026-10-21T05:19:19.061560883Z",
+      "totalDuration": 15,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/api/versus",
+      "timestamp": "2026-10-21T05:19:34.182875543Z",
+      "totalDuration": 16,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/api/markets/trades",
+      "timestamp": "2026-10-21T05:19:49.154840016Z",
+      "totalDuration": 98,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/api/versus",
+      "timestamp": "2026-10-21T05:19:49.310715044Z",
+      "totalDuration": 25,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/api/versus",
+      "timestamp": "2026-10-21T05:20:04.421651078Z",
+      "totalDuration": 14,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/api/markets/trades",
+      "timestamp": "2026-10-21T05:20:19.318308557Z",
+      "totalDuration": 62,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/api/versus",
+      "timestamp": "2026-10-21T05:20:19.536839454Z",
+      "totalDuration": 20,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/analytics",
+      "timestamp": "2026-10-21T05:20:28.802211404Z",
+      "totalDuration": 14,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/_next/static/chunks/1jmaif0e2w--v.js",
+      "timestamp": "2026-10-21T05:20:28.901086573Z",
+      "totalDuration": 9,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 304,
+      "method": "GET",
+      "path": "/korum-icons/flash.svg",
+      "timestamp": "2026-10-21T05:20:29.013559082Z",
+      "totalDuration": 3,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/api/markets/live",
+      "timestamp": "2026-10-21T05:20:29.063599358Z",
+      "totalDuration": 130822,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/api/analytics",
+      "timestamp": "2026-10-21T05:20:29.072463126Z",
+      "totalDuration": 55,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/api/analytics",
+      "timestamp": "2026-10-21T05:20:29.073373645Z",
+      "totalDuration": 56,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/api/analytics",
+      "timestamp": "2026-10-21T05:20:29.077122208Z",
+      "totalDuration": 56,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/explore",
+      "timestamp": "2026-10-21T05:20:29.829292944Z",
+      "totalDuration": 23,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/api/markets/trades",
+      "timestamp": "2026-10-21T05:20:29.969160286Z",
+      "totalDuration": 24,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/api/markets/trades",
+      "timestamp": "2026-10-21T05:20:30.366474103Z",
+      "totalDuration": 15,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/api/versus",
+      "timestamp": "2026-10-21T05:20:30.367790780Z",
+      "totalDuration": 13,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/api/versus",
+      "timestamp": "2026-10-21T05:20:45.528785839Z",
+      "totalDuration": 13,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/api/markets/live",
+      "timestamp": "2026-10-21T05:20:59.192090976Z",
+      "totalDuration": 29197,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/explore",
+      "timestamp": "2026-10-21T05:21:06.820558602Z",
+      "totalDuration": 137,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 304,
+      "method": "GET",
+      "path": "/korum-footer-logo.png",
+      "timestamp": "2026-10-21T05:21:07.241046067Z",
+      "totalDuration": 3,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 304,
+      "method": "GET",
+      "path": "/robinhood-chain.png",
+      "timestamp": "2026-10-21T05:21:07.241695711Z",
+      "totalDuration": 2,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/api/markets/trades",
+      "timestamp": "2026-10-21T05:21:07.489790278Z",
+      "totalDuration": 96,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "HEAD",
+      "path": "/explore",
+      "timestamp": "2026-10-21T05:21:07.492378004Z",
+      "totalDuration": 50,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/api/versus",
+      "timestamp": "2026-10-21T05:21:07.854171842Z",
+      "totalDuration": 20,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/api/markets/trades",
+      "timestamp": "2026-10-21T05:21:07.856354084Z",
+      "totalDuration": 21,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "DELETE",
+      "path": "/api/auth/session",
+      "timestamp": "2026-10-21T05:21:07.999882378Z",
+      "totalDuration": 4,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/api/notifications",
+      "timestamp": "2026-10-21T05:21:08.003343037Z",
+      "totalDuration": 7,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/explore",
+      "timestamp": "2026-10-21T05:21:08.103877906Z",
+      "totalDuration": 15,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/analytics",
+      "timestamp": "2026-10-21T05:21:08.368179073Z",
+      "totalDuration": 34,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/earn",
+      "timestamp": "2026-10-21T05:21:08.368581115Z",
+      "totalDuration": 35,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/concept",
+      "timestamp": "2026-10-21T05:21:08.373193534Z",
+      "totalDuration": 37,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/leaderboard",
+      "timestamp": "2026-10-21T05:21:08.376274941Z",
+      "totalDuration": 38,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/create",
+      "timestamp": "2026-10-21T05:21:08.620104837Z",
+      "totalDuration": 20,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/vs/6",
+      "timestamp": "2026-10-21T05:21:08.622360310Z",
+      "totalDuration": 19,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/vs/1",
+      "timestamp": "2026-10-21T05:21:08.622545982Z",
+      "totalDuration": 22,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/vs/4",
+      "timestamp": "2026-10-21T05:21:08.628826825Z",
+      "totalDuration": 21,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/vs/5",
+      "timestamp": "2026-10-21T05:21:08.716694801Z",
+      "totalDuration": 7,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/concept",
+      "timestamp": "2026-10-21T05:21:08.741302179Z",
+      "totalDuration": 21,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/earn",
+      "timestamp": "2026-10-21T05:21:08.742558113Z",
+      "totalDuration": 23,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/leaderboard",
+      "timestamp": "2026-10-21T05:21:08.743941184Z",
+      "totalDuration": 21,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/analytics",
+      "timestamp": "2026-10-21T05:21:08.833693785Z",
+      "totalDuration": 17,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/vs/1",
+      "timestamp": "2026-10-21T05:21:08.873983238Z",
+      "totalDuration": 32,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/create",
+      "timestamp": "2026-10-21T05:21:08.875237706Z",
+      "totalDuration": 35,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/vs/4",
+      "timestamp": "2026-10-21T05:21:08.911350044Z",
+      "totalDuration": 12,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/vs/6",
+      "timestamp": "2026-10-21T05:21:08.946743779Z",
+      "totalDuration": 13,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/vs/5",
+      "timestamp": "2026-10-21T05:21:08.979064578Z",
+      "totalDuration": 11,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/vs/3",
+      "timestamp": "2026-10-21T05:21:08.986541878Z",
+      "totalDuration": 9,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/vs/2",
+      "timestamp": "2026-10-21T05:21:09.048384646Z",
+      "totalDuration": 12,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/explore",
+      "timestamp": "2026-10-21T05:21:09.922829811Z",
+      "totalDuration": 31,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 304,
+      "method": "GET",
+      "path": "/korum-footer-logo.png",
+      "timestamp": "2026-10-21T05:21:10.267079234Z",
+      "totalDuration": 1,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 304,
+      "method": "GET",
+      "path": "/robinhood-chain.png",
+      "timestamp": "2026-10-21T05:21:10.268447371Z",
+      "totalDuration": 1,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/api/markets/trades",
+      "timestamp": "2026-10-21T05:21:10.561234345Z",
+      "totalDuration": 10,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "HEAD",
+      "path": "/explore",
+      "timestamp": "2026-10-21T05:21:11.422536710Z",
+      "totalDuration": 37,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "DELETE",
+      "path": "/api/auth/session",
+      "timestamp": "2026-10-21T05:21:11.427674268Z",
+      "totalDuration": 5,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/api/notifications",
+      "timestamp": "2026-10-21T05:21:11.431568980Z",
+      "totalDuration": 5,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 304,
+      "method": "GET",
+      "path": "/korum-footer-logo.png",
+      "timestamp": "2026-10-21T05:21:11.538801350Z",
+      "totalDuration": 3,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 304,
+      "method": "GET",
+      "path": "/robinhood-chain.png",
+      "timestamp": "2026-10-21T05:21:11.552680050Z",
+      "totalDuration": 9,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/explore",
+      "timestamp": "2026-10-21T05:21:11.559767678Z",
+      "totalDuration": 23,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/api/versus",
+      "timestamp": "2026-10-21T05:21:22.990133944Z",
+      "totalDuration": 16,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/api/markets/live",
+      "timestamp": "2026-10-21T05:21:33.376364091Z",
+      "totalDuration": 25913,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/api/markets/trades",
+      "timestamp": "2026-10-21T05:23:30.669442119Z",
+      "totalDuration": 118,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/api/versus",
+      "timestamp": "2026-10-21T05:23:30.669475267Z",
+      "totalDuration": 116,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/api/versus",
+      "timestamp": "2026-10-21T05:23:30.968933078Z",
+      "totalDuration": 17,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/api/markets/trades",
+      "timestamp": "2026-10-21T05:23:30.971985642Z",
+      "totalDuration": 20,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/_next/static/chunks/3q2magz47p0eg.js",
+      "timestamp": "2026-10-21T05:23:41.643525327Z",
+      "totalDuration": 10,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/favicon.ico",
+      "timestamp": "2026-10-21T05:23:42.074431397Z",
+      "totalDuration": 14,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 499,
+      "method": "GET",
+      "path": "/api/notifications",
+      "timestamp": "2026-10-21T05:23:44.784016541Z",
+      "totalDuration": 6,
+      "upstreamErrors": "[{\"deploymentInstanceID\":\"e0c821e3-9334-4ff7-bf28-e099003a8ee8\",\"error\":\"client has closed the request before the server could send a response\",\"duration\":6}]"
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/api/auth/session",
+      "timestamp": "2026-10-21T05:23:44.792360202Z",
+      "totalDuration": 12,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/api/auth/challenge",
+      "timestamp": "2026-10-21T05:23:44.802042821Z",
+      "totalDuration": 22,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 304,
+      "method": "GET",
+      "path": "/korum-reference/avatar-hex-rounded.svg",
+      "timestamp": "2026-10-21T05:23:44.813468033Z",
+      "totalDuration": 32,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/api/avatars/:address",
+      "timestamp": "2026-10-21T05:23:44.821440224Z",
+      "totalDuration": 41,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/api/notifications",
+      "timestamp": "2026-10-21T05:23:44.904789458Z",
+      "totalDuration": 11,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/api/auth/challenge",
+      "timestamp": "2026-10-21T05:23:44.914582230Z",
+      "totalDuration": 15,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/api/versus",
+      "timestamp": "2026-10-21T05:23:46.087535839Z",
+      "totalDuration": 18,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "POST",
+      "path": "/api/auth/challenge",
+      "timestamp": "2026-10-21T05:23:46.522091997Z",
+      "totalDuration": 9,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/favicon.ico",
+      "timestamp": "2026-10-21T05:23:47.226120039Z",
+      "totalDuration": 5,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "POST",
+      "path": "/api/auth/verify",
+      "timestamp": "2026-10-21T05:23:48.324258495Z",
+      "totalDuration": 113,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/api/notifications",
+      "timestamp": "2026-10-21T05:23:48.434161811Z",
+      "totalDuration": 15,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/concept",
+      "timestamp": "2026-10-21T05:23:48.460416921Z",
+      "totalDuration": 44,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/leaderboard",
+      "timestamp": "2026-10-21T05:23:48.462188215Z",
+      "totalDuration": 42,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/earn",
+      "timestamp": "2026-10-21T05:23:48.462877753Z",
+      "totalDuration": 44,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/explore",
+      "timestamp": "2026-10-21T05:23:48.464341585Z",
+      "totalDuration": 48,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/analytics",
+      "timestamp": "2026-10-21T05:23:48.465937296Z",
+      "totalDuration": 44,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/api/watchlist",
+      "timestamp": "2026-10-21T05:23:48.478892601Z",
+      "totalDuration": 57,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/create",
+      "timestamp": "2026-10-21T05:23:48.583752425Z",
+      "totalDuration": 28,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/vs/1",
+      "timestamp": "2026-10-21T05:23:48.585722027Z",
+      "totalDuration": 24,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/vs/6",
+      "timestamp": "2026-10-21T05:23:48.585864993Z",
+      "totalDuration": 26,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/vs/4",
+      "timestamp": "2026-10-21T05:23:48.585878005Z",
+      "totalDuration": 24,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/api/watchlist",
+      "timestamp": "2026-10-21T05:23:48.594619020Z",
+      "totalDuration": 21,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/vs/5",
+      "timestamp": "2026-10-21T05:23:48.708663077Z",
+      "totalDuration": 26,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/vs/3",
+      "timestamp": "2026-10-21T05:23:48.709027035Z",
+      "totalDuration": 29,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/vs/2",
+      "timestamp": "2026-10-21T05:23:48.710440215Z",
+      "totalDuration": 29,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/api/watchlist",
+      "timestamp": "2026-10-21T05:23:48.718719779Z",
+      "totalDuration": 33,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/api/watchlist",
+      "timestamp": "2026-10-21T05:23:48.838656978Z",
+      "totalDuration": 15,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/api/watchlist",
+      "timestamp": "2026-10-21T05:23:48.941130673Z",
+      "totalDuration": 11,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/api/watchlist",
+      "timestamp": "2026-10-21T05:23:49.050481261Z",
+      "totalDuration": 13,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/profile",
+      "timestamp": "2026-10-21T05:23:49.968036671Z",
+      "totalDuration": 7,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/profile",
+      "timestamp": "2026-10-21T05:23:50.070706730Z",
+      "totalDuration": 9,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/profile",
+      "timestamp": "2026-10-21T05:23:51.390553509Z",
+      "totalDuration": 198,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/_next/static/chunks/2ieetbcqomb0d.js",
+      "timestamp": "2026-10-21T05:23:51.481061572Z",
+      "totalDuration": 7,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/_next/static/chunks/19njz3j93isk_.js",
+      "timestamp": "2026-10-21T05:23:51.481943040Z",
+      "totalDuration": 7,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/korum-icons/Edit.svg",
+      "timestamp": "2026-10-21T05:23:51.597995193Z",
+      "totalDuration": 9,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/design-vdef/profile/dark/volume.webp",
+      "timestamp": "2026-10-21T05:23:51.599146973Z",
+      "totalDuration": 10,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/design-vdef/profile/dark/versus.webp",
+      "timestamp": "2026-10-21T05:23:51.601355298Z",
+      "totalDuration": 12,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/design-vdef/profile/dark/holdings.webp",
+      "timestamp": "2026-10-21T05:23:51.601961998Z",
+      "totalDuration": 13,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/korum-icons/X.svg",
+      "timestamp": "2026-10-21T05:23:51.604508646Z",
+      "totalDuration": 11,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/design-vdef/profile/dark/referral-code.webp",
+      "timestamp": "2026-10-21T05:23:51.605200477Z",
+      "totalDuration": 11,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/korum-icons/User.svg",
+      "timestamp": "2026-10-21T05:23:51.632094806Z",
+      "totalDuration": 40,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/design-vdef/profile/banner-dark.webp",
+      "timestamp": "2026-10-21T05:23:51.641069686Z",
+      "totalDuration": 53,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/korum-icons/Wallet1.svg",
+      "timestamp": "2026-10-21T05:23:51.641958806Z",
+      "totalDuration": 54,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/api/markets/live",
+      "timestamp": "2026-10-21T05:23:51.644832692Z",
+      "totalDuration": 21046,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/design-vdef/profile/dark/referrals.webp",
+      "timestamp": "2026-10-21T05:23:51.646302438Z",
+      "totalDuration": 52,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/korum-icons/users.svg",
+      "timestamp": "2026-10-21T05:23:51.651273714Z",
+      "totalDuration": 61,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/design-vdef/profile/dark/pnl.webp",
+      "timestamp": "2026-10-21T05:23:51.654065848Z",
+      "totalDuration": 60,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/api/profile/stats",
+      "timestamp": "2026-10-21T05:23:51.775984317Z",
+      "totalDuration": 175,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/api/profile/holdings",
+      "timestamp": "2026-10-21T05:23:51.917376776Z",
+      "totalDuration": 317,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/api/profile/stats",
+      "timestamp": "2026-10-21T05:23:52.786041371Z",
+      "totalDuration": 24,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/privacy",
+      "timestamp": "2026-10-21T05:23:53.968028565Z",
+      "totalDuration": 10,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/terms",
+      "timestamp": "2026-10-21T05:23:53.994427417Z",
+      "totalDuration": 5,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/privacy",
+      "timestamp": "2026-10-21T05:23:54.069981594Z",
+      "totalDuration": 11,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/terms",
+      "timestamp": "2026-10-21T05:23:54.091258051Z",
+      "totalDuration": 8,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/api/profile/holdings",
+      "timestamp": "2026-10-21T05:24:16.433589642Z",
+      "totalDuration": 248,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/api/profile/holdings",
+      "timestamp": "2026-10-21T05:24:18.029175530Z",
+      "totalDuration": 14,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/api/profile/managed-versus",
+      "timestamp": "2026-10-21T05:24:18.066891033Z",
+      "totalDuration": 50,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 304,
+      "method": "GET",
+      "path": "/korum-icons/flash.svg",
+      "timestamp": "2026-10-21T05:24:18.167823382Z",
+      "totalDuration": 4,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/api/profile/holdings",
+      "timestamp": "2026-10-21T05:24:22.710398983Z",
+      "totalDuration": 27,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/api/profile/activity",
+      "timestamp": "2026-10-21T05:24:22.719770037Z",
+      "totalDuration": 36,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/api/profile/holdings",
+      "timestamp": "2026-10-21T05:24:23.690225837Z",
+      "totalDuration": 9,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/api/profile/holdings",
+      "timestamp": "2026-10-21T05:24:24.803442670Z",
+      "totalDuration": 8,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/api/profile/holdings",
+      "timestamp": "2026-10-21T05:24:26.488789841Z",
+      "totalDuration": 10,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 304,
+      "method": "GET",
+      "path": "/korum-icons/User.svg",
+      "timestamp": "2026-10-21T05:24:30.963617382Z",
+      "totalDuration": 8,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/api/profile/holdings",
+      "timestamp": "2026-10-21T05:24:30.963818761Z",
+      "totalDuration": 9,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 304,
+      "method": "GET",
+      "path": "/korum-icons/X.svg",
+      "timestamp": "2026-10-21T05:24:30.965220064Z",
+      "totalDuration": 8,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 304,
+      "method": "GET",
+      "path": "/korum-icons/Edit.svg",
+      "timestamp": "2026-10-21T05:24:30.965352517Z",
+      "totalDuration": 8,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 304,
+      "method": "GET",
+      "path": "/design-vdef/profile/dark/referrals.webp",
+      "timestamp": "2026-10-21T05:24:30.966396741Z",
+      "totalDuration": 6,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 304,
+      "method": "GET",
+      "path": "/korum-icons/users.svg",
+      "timestamp": "2026-10-21T05:24:30.966655733Z",
+      "totalDuration": 9,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 304,
+      "method": "GET",
+      "path": "/design-vdef/profile/dark/versus.webp",
+      "timestamp": "2026-10-21T05:24:30.967757509Z",
+      "totalDuration": 9,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 304,
+      "method": "GET",
+      "path": "/korum-icons/Wallet1.svg",
+      "timestamp": "2026-10-21T05:24:30.968383259Z",
+      "totalDuration": 10,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 304,
+      "method": "GET",
+      "path": "/design-vdef/profile/dark/pnl.webp",
+      "timestamp": "2026-10-21T05:24:30.971471644Z",
+      "totalDuration": 10,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 304,
+      "method": "GET",
+      "path": "/design-vdef/profile/dark/volume.webp",
+      "timestamp": "2026-10-21T05:24:30.971767862Z",
+      "totalDuration": 10,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 304,
+      "method": "GET",
+      "path": "/design-vdef/profile/dark/holdings.webp",
+      "timestamp": "2026-10-21T05:24:30.972255343Z",
+      "totalDuration": 9,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 304,
+      "method": "GET",
+      "path": "/design-vdef/profile/dark/referral-code.webp",
+      "timestamp": "2026-10-21T05:24:30.973260904Z",
+      "totalDuration": 10,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/api/markets/live",
+      "timestamp": "2026-10-21T05:25:08.147400089Z",
+      "totalDuration": 76498,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/leaderboard",
+      "timestamp": "2026-10-21T05:25:09.354580033Z",
+      "totalDuration": 24,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/earn",
+      "timestamp": "2026-10-21T05:25:09.362618882Z",
+      "totalDuration": 31,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/analytics",
+      "timestamp": "2026-10-21T05:25:09.363622891Z",
+      "totalDuration": 31,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/concept",
+      "timestamp": "2026-10-21T05:25:09.364342721Z",
+      "totalDuration": 32,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/api/versus",
+      "timestamp": "2026-10-21T05:25:09.414991857Z",
+      "totalDuration": 111,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/api/markets/trades",
+      "timestamp": "2026-10-21T05:25:09.416380028Z",
+      "totalDuration": 118,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/create",
+      "timestamp": "2026-10-21T05:25:09.463317163Z",
+      "totalDuration": 15,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/vs/6",
+      "timestamp": "2026-10-21T05:25:09.478089730Z",
+      "totalDuration": 18,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/vs/4",
+      "timestamp": "2026-10-21T05:25:09.478142804Z",
+      "totalDuration": 17,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/vs/1",
+      "timestamp": "2026-10-21T05:25:09.479235430Z",
+      "totalDuration": 22,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 304,
+      "method": "GET",
+      "path": "/korum-reference/avatar-hex-rounded.svg",
+      "timestamp": "2026-10-21T05:25:09.552450058Z",
+      "totalDuration": 2,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/api/auth/session",
+      "timestamp": "2026-10-21T05:25:09.564821748Z",
+      "totalDuration": 7,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/api/avatars/:address",
+      "timestamp": "2026-10-21T05:25:09.571531950Z",
+      "totalDuration": 17,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/vs/5",
+      "timestamp": "2026-10-21T05:25:09.630161328Z",
+      "totalDuration": 24,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/earn",
+      "timestamp": "2026-10-21T05:25:09.633151621Z",
+      "totalDuration": 25,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/leaderboard",
+      "timestamp": "2026-10-21T05:25:09.639522649Z",
+      "totalDuration": 29,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/concept",
+      "timestamp": "2026-10-21T05:25:09.651030812Z",
+      "totalDuration": 8,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/api/notifications",
+      "timestamp": "2026-10-21T05:25:09.663294736Z",
+      "totalDuration": 5,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/api/watchlist",
+      "timestamp": "2026-10-21T05:25:09.680024352Z",
+      "totalDuration": 17,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/api/versus",
+      "timestamp": "2026-10-21T05:25:09.761921052Z",
+      "totalDuration": 31,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/api/markets/trades",
+      "timestamp": "2026-10-21T05:25:09.771704280Z",
+      "totalDuration": 41,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/analytics",
+      "timestamp": "2026-10-21T05:25:09.783418118Z",
+      "totalDuration": 61,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/create",
+      "timestamp": "2026-10-21T05:25:09.785438262Z",
+      "totalDuration": 60,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/vs/1",
+      "timestamp": "2026-10-21T05:25:09.785770580Z",
+      "totalDuration": 53,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/vs/4",
+      "timestamp": "2026-10-21T05:25:09.790207578Z",
+      "totalDuration": 43,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/api/watchlist",
+      "timestamp": "2026-10-21T05:25:09.797867621Z",
+      "totalDuration": 21,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/vs/5",
+      "timestamp": "2026-10-21T05:25:09.924797315Z",
+      "totalDuration": 43,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/vs/2",
+      "timestamp": "2026-10-21T05:25:09.925285831Z",
+      "totalDuration": 43,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/vs/3",
+      "timestamp": "2026-10-21T05:25:09.925630294Z",
+      "totalDuration": 45,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/vs/6",
+      "timestamp": "2026-10-21T05:25:09.926807559Z",
+      "totalDuration": 49,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/api/watchlist",
+      "timestamp": "2026-10-21T05:25:09.930011652Z",
+      "totalDuration": 40,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/api/watchlist",
+      "timestamp": "2026-10-21T05:25:10.054421865Z",
+      "totalDuration": 27,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/api/watchlist",
+      "timestamp": "2026-10-21T05:25:10.154872017Z",
+      "totalDuration": 11,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/api/watchlist",
+      "timestamp": "2026-10-21T05:25:10.262723213Z",
+      "totalDuration": 17,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/api/markets/live",
+      "timestamp": "2026-10-21T05:25:11.372074249Z",
+      "totalDuration": 1991,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/api/markets/trades",
+      "timestamp": "2026-10-21T05:25:12.084802666Z",
+      "totalDuration": 14,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/api/versus",
+      "timestamp": "2026-10-21T05:25:12.469252517Z",
+      "totalDuration": 13,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/api/markets/trades",
+      "timestamp": "2026-10-21T05:25:12.471713091Z",
+      "totalDuration": 13,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/api/markets/live",
+      "timestamp": "2026-10-21T05:25:13.368352424Z",
+      "totalDuration": 1262,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/api/versus",
+      "timestamp": "2026-10-21T05:26:02.761199035Z",
+      "totalDuration": 18,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/api/markets/trades",
+      "timestamp": "2026-10-21T05:26:02.799568394Z",
+      "totalDuration": 58,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/api/markets/trades",
+      "timestamp": "2026-10-21T05:26:03.148381245Z",
+      "totalDuration": 13,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/api/versus",
+      "timestamp": "2026-10-21T05:26:03.156948874Z",
+      "totalDuration": 15,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/explore",
+      "timestamp": "2026-10-21T05:26:06.938963201Z",
+      "totalDuration": 53,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/profile",
+      "timestamp": "2026-10-21T05:26:06.980986896Z",
+      "totalDuration": 18,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/privacy",
+      "timestamp": "2026-10-21T05:26:06.981014725Z",
+      "totalDuration": 19,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/terms",
+      "timestamp": "2026-10-21T05:26:06.983647307Z",
+      "totalDuration": 16,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/profile",
+      "timestamp": "2026-10-21T05:26:07.076909888Z",
+      "totalDuration": 8,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/terms",
+      "timestamp": "2026-10-21T05:26:07.096800488Z",
+      "totalDuration": 17,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/privacy",
+      "timestamp": "2026-10-21T05:26:07.097710360Z",
+      "totalDuration": 13,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/api/avatars/:address",
+      "timestamp": "2026-10-21T05:26:15.401171763Z",
+      "totalDuration": 13,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/profile",
+      "timestamp": "2026-10-21T05:26:16.574441724Z",
+      "totalDuration": 126,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 304,
+      "method": "GET",
+      "path": "/design-vdef/profile/banner-dark.webp",
+      "timestamp": "2026-10-21T05:26:16.683266327Z",
+      "totalDuration": 3,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 304,
+      "method": "GET",
+      "path": "/korum-icons/User.svg",
+      "timestamp": "2026-10-21T05:26:16.685046121Z",
+      "totalDuration": 3,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 304,
+      "method": "GET",
+      "path": "/korum-icons/Edit.svg",
+      "timestamp": "2026-10-21T05:26:16.686532697Z",
+      "totalDuration": 3,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 304,
+      "method": "GET",
+      "path": "/design-vdef/profile/dark/pnl.webp",
+      "timestamp": "2026-10-21T05:26:16.686852094Z",
+      "totalDuration": 1,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 304,
+      "method": "GET",
+      "path": "/korum-icons/X.svg",
+      "timestamp": "2026-10-21T05:26:16.687175414Z",
+      "totalDuration": 3,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 304,
+      "method": "GET",
+      "path": "/korum-icons/Wallet1.svg",
+      "timestamp": "2026-10-21T05:26:16.688165397Z",
+      "totalDuration": 1,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 304,
+      "method": "GET",
+      "path": "/design-vdef/profile/dark/referrals.webp",
+      "timestamp": "2026-10-21T05:26:16.689067840Z",
+      "totalDuration": 3,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 304,
+      "method": "GET",
+      "path": "/design-vdef/profile/dark/volume.webp",
+      "timestamp": "2026-10-21T05:26:16.690324605Z",
+      "totalDuration": 5,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 304,
+      "method": "GET",
+      "path": "/design-vdef/profile/dark/referral-code.webp",
+      "timestamp": "2026-10-21T05:26:16.690573225Z",
+      "totalDuration": 5,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 304,
+      "method": "GET",
+      "path": "/design-vdef/profile/dark/holdings.webp",
+      "timestamp": "2026-10-21T05:26:16.691085633Z",
+      "totalDuration": 3,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 304,
+      "method": "GET",
+      "path": "/korum-icons/users.svg",
+      "timestamp": "2026-10-21T05:26:16.691259570Z",
+      "totalDuration": 5,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 304,
+      "method": "GET",
+      "path": "/design-vdef/profile/dark/versus.webp",
+      "timestamp": "2026-10-21T05:26:16.694121169Z",
+      "totalDuration": 4,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/explore",
+      "timestamp": "2026-10-21T05:26:16.723356193Z",
+      "totalDuration": 23,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/api/markets/live",
+      "timestamp": "2026-10-21T05:26:16.752562081Z",
+      "totalDuration": 13965,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/api/profile/stats",
+      "timestamp": "2026-10-21T05:26:16.798808552Z",
+      "totalDuration": 99,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/explore",
+      "timestamp": "2026-10-21T05:26:16.832405923Z",
+      "totalDuration": 15,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/api/profile/holdings",
+      "timestamp": "2026-10-21T05:26:16.927692983Z",
+      "totalDuration": 230,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/api/profile/stats",
+      "timestamp": "2026-10-21T05:26:17.873724589Z",
+      "totalDuration": 14,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/api/markets/live",
+      "timestamp": "2026-10-21T05:28:04.370511240Z",
+      "totalDuration": 107622,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/api/profile/stats",
+      "timestamp": "2026-10-21T05:28:17.064698252Z",
+      "totalDuration": 111,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/api/profile/stats",
+      "timestamp": "2026-10-21T05:28:18.114433057Z",
+      "totalDuration": 19,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/api/markets/live",
+      "timestamp": "2026-10-21T05:32:17.001420825Z",
+      "totalDuration": 240016,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/api/profile/stats",
+      "timestamp": "2026-10-21T05:32:23.471944961Z",
+      "totalDuration": 121,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/api/markets/live",
+      "timestamp": "2026-10-21T05:36:22.265482744Z",
+      "totalDuration": 240016,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/api/profile/stats",
+      "timestamp": "2026-10-21T05:36:28.728777968Z",
+      "totalDuration": 115,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/api/markets/live",
+      "timestamp": "2026-10-21T05:39:46.096729795Z",
+      "totalDuration": 198599,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/api/profile/stats",
+      "timestamp": "2026-10-21T05:40:02.061264215Z",
+      "totalDuration": 149,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/api/markets/live",
+      "timestamp": "2026-10-21T05:43:51.213796832Z",
+      "totalDuration": 240023,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/api/profile/stats",
+      "timestamp": "2026-10-21T05:43:57.580694814Z",
+      "totalDuration": 109,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/api/markets/live",
+      "timestamp": "2026-10-21T05:44:07.971153643Z",
+      "totalDuration": 11610,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/api/profile/stats",
+      "timestamp": "2026-10-21T07:23:33.413042153Z",
+      "totalDuration": 160,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/api/markets/live",
+      "timestamp": "2026-10-21T07:23:33.774764275Z",
+      "totalDuration": 521,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 307,
+      "method": "GET",
+      "path": "/",
+      "timestamp": "2026-10-21T07:48:05.687198485Z",
+      "totalDuration": 33,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/explore",
+      "timestamp": "2026-10-21T07:48:06.023146726Z",
+      "totalDuration": 240,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/_next/static/media/caa3a2e1cccd8315-s.p.0wgildi0cnwt9.woff2",
+      "timestamp": "2026-10-21T07:48:06.161626695Z",
+      "totalDuration": 7,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/_next/static/chunks/41g5tr04xw9_r.css",
+      "timestamp": "2026-10-21T07:48:06.161716730Z",
+      "totalDuration": 9,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/_next/static/media/797e433ab948586e-s.p.0r6juujl39pe6.woff2",
+      "timestamp": "2026-10-21T07:48:06.162576633Z",
+      "totalDuration": 8,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/_next/static/chunks/1hi09f6g-61b3.css",
+      "timestamp": "2026-10-21T07:48:06.163835385Z",
+      "totalDuration": 8,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/_next/static/chunks/270tg83-8sd_b.css",
+      "timestamp": "2026-10-21T07:48:06.166469681Z",
+      "totalDuration": 14,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/korum-footer-logo.png",
+      "timestamp": "2026-10-21T07:48:06.439744351Z",
+      "totalDuration": 5,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/robinhood-chain.png",
+      "timestamp": "2026-10-21T07:48:06.443807574Z",
+      "totalDuration": 4,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/_next/static/chunks/2x_4iaiyq3doh.js",
+      "timestamp": "2026-10-21T07:48:06.448426854Z",
+      "totalDuration": 7,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/_next/static/chunks/2kjo6q7xwa4a_.js",
+      "timestamp": "2026-10-21T07:48:06.450620758Z",
+      "totalDuration": 5,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/_next/static/chunks/232y7mspxrg6p.js",
+      "timestamp": "2026-10-21T07:48:06.452945958Z",
+      "totalDuration": 12,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/_next/static/chunks/3xagcps4hzd00.js",
+      "timestamp": "2026-10-21T07:48:06.453750984Z",
+      "totalDuration": 8,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/_next/static/chunks/2zx3q7e7c69qs.js",
+      "timestamp": "2026-10-21T07:48:06.455138241Z",
+      "totalDuration": 16,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/_next/static/chunks/00k-s1zjtm7qe.js",
+      "timestamp": "2026-10-21T07:48:06.455492511Z",
+      "totalDuration": 12,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/_next/static/chunks/3xu3-r127jcui.js",
+      "timestamp": "2026-10-21T07:48:06.457838016Z",
+      "totalDuration": 17,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/design-vdef/home/dark.webp",
+      "timestamp": "2026-10-21T07:48:06.458802075Z",
+      "totalDuration": 13,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/_next/static/chunks/31wj48gdlifva.js",
+      "timestamp": "2026-10-21T07:48:06.467867983Z",
+      "totalDuration": 24,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/_next/static/chunks/29wmtd-12body.js",
+      "timestamp": "2026-10-21T07:48:06.642429667Z",
+      "totalDuration": 9,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/_next/static/chunks/2ien7qpkyij8i.js",
+      "timestamp": "2026-10-21T07:48:06.650698997Z",
+      "totalDuration": 16,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/design-vdef/home/light.webp",
+      "timestamp": "2026-10-21T07:48:06.656077228Z",
+      "totalDuration": 18,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/api/markets/trades",
+      "timestamp": "2026-10-21T07:48:06.695379893Z",
+      "totalDuration": 21,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/earn",
+      "timestamp": "2026-10-21T07:48:06.770959464Z",
+      "totalDuration": 12,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/concept",
+      "timestamp": "2026-10-21T07:48:06.775745130Z",
+      "totalDuration": 11,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/analytics",
+      "timestamp": "2026-10-21T07:48:06.779157073Z",
+      "totalDuration": 15,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/leaderboard",
+      "timestamp": "2026-10-21T07:48:06.786609326Z",
+      "totalDuration": 16,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/icon.png",
+      "timestamp": "2026-10-21T07:48:06.821615371Z",
+      "totalDuration": 11,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/vs/1",
+      "timestamp": "2026-10-21T07:48:06.919461014Z",
+      "totalDuration": 18,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/create",
+      "timestamp": "2026-10-21T07:48:06.919538793Z",
+      "totalDuration": 18,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/vs/6",
+      "timestamp": "2026-10-21T07:48:06.922366925Z",
+      "totalDuration": 18,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/vs/5",
+      "timestamp": "2026-10-21T07:48:06.922850464Z",
+      "totalDuration": 18,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/_next/static/chunks/369xydvtl9w42.js",
+      "timestamp": "2026-10-21T07:48:06.925814634Z",
+      "totalDuration": 14,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/_next/static/chunks/2s8x1bprnzu3y.js",
+      "timestamp": "2026-10-21T07:48:06.926582540Z",
+      "totalDuration": 15,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/_next/static/chunks/0jvp3o4xjzznm.js",
+      "timestamp": "2026-10-21T07:48:06.936624942Z",
+      "totalDuration": 26,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/_next/static/chunks/1e2si40t6nlfe.js",
+      "timestamp": "2026-10-21T07:48:06.943841869Z",
+      "totalDuration": 29,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/explore",
+      "timestamp": "2026-10-21T07:48:07.039775513Z",
+      "totalDuration": 20,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/vs/1",
+      "timestamp": "2026-10-21T07:48:07.040111335Z",
+      "totalDuration": 20,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/vs/6",
+      "timestamp": "2026-10-21T07:48:07.040143524Z",
+      "totalDuration": 24,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/vs/5",
+      "timestamp": "2026-10-21T07:48:07.040807753Z",
+      "totalDuration": 23,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "HEAD",
+      "path": "/explore",
+      "timestamp": "2026-10-21T07:48:07.090579631Z",
+      "totalDuration": 29,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/earn",
+      "timestamp": "2026-10-21T07:48:07.140949271Z",
+      "totalDuration": 7,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/concept",
+      "timestamp": "2026-10-21T07:48:07.161046015Z",
+      "totalDuration": 18,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/leaderboard",
+      "timestamp": "2026-10-21T07:48:07.161570256Z",
+      "totalDuration": 21,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/analytics",
+      "timestamp": "2026-10-21T07:48:07.162298772Z",
+      "totalDuration": 17,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/api/markets/trades",
+      "timestamp": "2026-10-21T07:48:07.166801661Z",
+      "totalDuration": 17,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/api/versus",
+      "timestamp": "2026-10-21T07:48:07.166982937Z",
+      "totalDuration": 15,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 404,
+      "method": "GET",
+      "path": "/api/avatars/:address",
+      "timestamp": "2026-10-21T07:48:07.225755295Z",
+      "totalDuration": 9,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/korum-reference/avatar-hex-rounded.svg",
+      "timestamp": "2026-10-21T07:48:07.229852801Z",
+      "totalDuration": 4,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/api/auth/session",
+      "timestamp": "2026-10-21T07:48:07.232563836Z",
+      "totalDuration": 4,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/create",
+      "timestamp": "2026-10-21T07:48:07.248772287Z",
+      "totalDuration": 8,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/vs/4",
+      "timestamp": "2026-10-21T07:48:07.267902610Z",
+      "totalDuration": 7,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/vs/2",
+      "timestamp": "2026-10-21T07:48:07.276254401Z",
+      "totalDuration": 10,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/vs/3",
+      "timestamp": "2026-10-21T07:48:07.277239007Z",
+      "totalDuration": 10,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/api/notifications",
+      "timestamp": "2026-10-21T07:48:07.436798457Z",
+      "totalDuration": 3,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/api/auth/challenge",
+      "timestamp": "2026-10-21T07:48:07.495998119Z",
+      "totalDuration": 7,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "DELETE",
+      "path": "/api/auth/session",
+      "timestamp": "2026-10-21T07:48:08.934548533Z",
+      "totalDuration": 5,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "DELETE",
+      "path": "/api/auth/session",
+      "timestamp": "2026-10-21T07:48:09.045038801Z",
+      "totalDuration": 9,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/vs/5",
+      "timestamp": "2026-10-21T07:48:09.067390358Z",
+      "totalDuration": 33,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/earn",
+      "timestamp": "2026-10-21T07:48:09.067842933Z",
+      "totalDuration": 32,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/vs/6",
+      "timestamp": "2026-10-21T07:48:09.068421591Z",
+      "totalDuration": 32,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/vs/1",
+      "timestamp": "2026-10-21T07:48:09.074019985Z",
+      "totalDuration": 31,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/explore",
+      "timestamp": "2026-10-21T07:48:09.075600815Z",
+      "totalDuration": 34,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/explore",
+      "timestamp": "2026-10-21T07:48:09.160194580Z",
+      "totalDuration": 12,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/vs/1",
+      "timestamp": "2026-10-21T07:48:09.186959660Z",
+      "totalDuration": 22,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/earn",
+      "timestamp": "2026-10-21T07:48:09.186975693Z",
+      "totalDuration": 18,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/vs/6",
+      "timestamp": "2026-10-21T07:48:09.187107799Z",
+      "totalDuration": 20,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/vs/5",
+      "timestamp": "2026-10-21T07:48:09.187976343Z",
+      "totalDuration": 18,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/leaderboard",
+      "timestamp": "2026-10-21T07:48:09.305340368Z",
+      "totalDuration": 25,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/concept",
+      "timestamp": "2026-10-21T07:48:09.306828536Z",
+      "totalDuration": 20,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/analytics",
+      "timestamp": "2026-10-21T07:48:09.306981145Z",
+      "totalDuration": 19,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/create",
+      "timestamp": "2026-10-21T07:48:09.307240826Z",
+      "totalDuration": 19,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/vs/4",
+      "timestamp": "2026-10-21T07:48:09.420574227Z",
+      "totalDuration": 16,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/vs/2",
+      "timestamp": "2026-10-21T07:48:09.420609059Z",
+      "totalDuration": 16,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/vs/3",
+      "timestamp": "2026-10-21T07:48:09.421319524Z",
+      "totalDuration": 15,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/vs/1",
+      "timestamp": "2026-10-21T07:48:13.726528578Z",
+      "totalDuration": 13,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/_next/static/chunks/1a3rysesug5nu.js",
+      "timestamp": "2026-10-21T07:48:13.826916774Z",
+      "totalDuration": 4,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/_next/static/chunks/0b-7qti2vs_vm.js",
+      "timestamp": "2026-10-21T07:48:13.828415036Z",
+      "totalDuration": 4,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/_next/static/chunks/3fr_qk3gujufp.css",
+      "timestamp": "2026-10-21T07:48:13.828767506Z",
+      "totalDuration": 5,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/_next/static/chunks/1ow_75_9li99k.js",
+      "timestamp": "2026-10-21T07:48:13.838483710Z",
+      "totalDuration": 14,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/korum-icons/green-arrow.png",
+      "timestamp": "2026-10-21T07:48:13.974224423Z",
+      "totalDuration": 5,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/korum-icons/red-arrow.png",
+      "timestamp": "2026-10-21T07:48:13.975571464Z",
+      "totalDuration": 4,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/api/markets/:address/venue",
+      "timestamp": "2026-10-21T07:48:14.035315975Z",
+      "totalDuration": 21,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/api/markets/live",
+      "timestamp": "2026-10-21T07:48:14.065833091Z",
+      "totalDuration": 7338,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/api/markets/:address/chart",
+      "timestamp": "2026-10-21T07:48:14.083462143Z",
+      "totalDuration": 69,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/api/markets/:address/chart",
+      "timestamp": "2026-10-21T07:48:14.212087252Z",
+      "totalDuration": 26,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/api/versus/1",
+      "timestamp": "2026-10-21T07:48:14.433928831Z",
+      "totalDuration": 14,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/api/markets/:address/chart",
+      "timestamp": "2026-10-21T07:48:14.435331334Z",
+      "totalDuration": 15,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/api/markets/:address/chart",
+      "timestamp": "2026-10-21T07:48:14.542291453Z",
+      "totalDuration": 12,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/privacy",
+      "timestamp": "2026-10-21T07:48:16.321768821Z",
+      "totalDuration": 6,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/terms",
+      "timestamp": "2026-10-21T07:48:16.336227754Z",
+      "totalDuration": 5,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/profile",
+      "timestamp": "2026-10-21T07:48:16.381554526Z",
+      "totalDuration": 6,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/privacy",
+      "timestamp": "2026-10-21T07:48:16.434739453Z",
+      "totalDuration": 12,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/terms",
+      "timestamp": "2026-10-21T07:48:16.435015260Z",
+      "totalDuration": 5,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/profile",
+      "timestamp": "2026-10-21T07:48:16.499945467Z",
+      "totalDuration": 7,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/explore",
+      "timestamp": "2026-10-21T07:48:20.524710804Z",
+      "totalDuration": 13,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 304,
+      "method": "GET",
+      "path": "/design-vdef/home/light.webp",
+      "timestamp": "2026-10-21T07:48:20.650908251Z",
+      "totalDuration": 1,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/api/versus",
+      "timestamp": "2026-10-21T07:48:20.671497026Z",
+      "totalDuration": 8,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/api/markets/trades",
+      "timestamp": "2026-10-21T07:48:20.678799689Z",
+      "totalDuration": 17,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/api/markets/live",
+      "timestamp": "2026-10-21T07:48:20.714397923Z",
+      "totalDuration": 6641,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/api/versus",
+      "timestamp": "2026-10-21T07:48:21.132195562Z",
+      "totalDuration": 14,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/api/markets/trades",
+      "timestamp": "2026-10-21T07:48:21.137189613Z",
+      "totalDuration": 16,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/api/markets/live",
+      "timestamp": "2026-10-21T07:48:24.740041734Z",
+      "totalDuration": 4025,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 307,
+      "method": "GET",
+      "path": "/",
+      "timestamp": "2026-10-21T11:43:51.039223700Z",
+      "totalDuration": 29,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/explore",
+      "timestamp": "2026-10-21T11:43:51.403247136Z",
+      "totalDuration": 216,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 304,
+      "method": "GET",
+      "path": "/korum-footer-logo.png",
+      "timestamp": "2026-10-21T11:43:51.759897463Z",
+      "totalDuration": 2,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 304,
+      "method": "GET",
+      "path": "/robinhood-chain.png",
+      "timestamp": "2026-10-21T11:43:51.785397000Z",
+      "totalDuration": 28,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/design-vdef/home/dark.webp",
+      "timestamp": "2026-10-21T11:43:51.798811718Z",
+      "totalDuration": 18,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 304,
+      "method": "GET",
+      "path": "/korum-reference/avatar-hex-rounded.svg",
+      "timestamp": "2026-10-21T11:43:51.994798519Z",
+      "totalDuration": 11,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/analytics",
+      "timestamp": "2026-10-21T11:43:52.008070823Z",
+      "totalDuration": 25,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/api/avatars/:address",
+      "timestamp": "2026-10-21T11:43:52.013323793Z",
+      "totalDuration": 28,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/concept",
+      "timestamp": "2026-10-21T11:43:52.028490300Z",
+      "totalDuration": 43,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/leaderboard",
+      "timestamp": "2026-10-21T11:43:52.030623229Z",
+      "totalDuration": 48,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/earn",
+      "timestamp": "2026-10-21T11:43:52.034726883Z",
+      "totalDuration": 48,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/api/auth/session",
+      "timestamp": "2026-10-21T11:43:52.040306408Z",
+      "totalDuration": 23,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "HEAD",
+      "path": "/explore",
+      "timestamp": "2026-10-21T11:43:52.048537759Z",
+      "totalDuration": 43,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/api/markets/trades",
+      "timestamp": "2026-10-21T11:43:52.057930166Z",
+      "totalDuration": 71,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/api/notifications",
+      "timestamp": "2026-10-21T11:43:52.562719798Z",
+      "totalDuration": 19,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/vs/6",
+      "timestamp": "2026-10-21T11:43:52.572609765Z",
+      "totalDuration": 29,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/vs/5",
+      "timestamp": "2026-10-21T11:43:52.572982125Z",
+      "totalDuration": 29,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/vs/1",
+      "timestamp": "2026-10-21T11:43:52.580501713Z",
+      "totalDuration": 37,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/vs/4",
+      "timestamp": "2026-10-21T11:43:52.590752341Z",
+      "totalDuration": 40,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/api/watchlist",
+      "timestamp": "2026-10-21T11:43:52.596214722Z",
+      "totalDuration": 52,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/api/watchlist",
+      "timestamp": "2026-10-21T11:43:52.596503123Z",
+      "totalDuration": 53,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/api/watchlist",
+      "timestamp": "2026-10-21T11:43:52.597307638Z",
+      "totalDuration": 52,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/api/watchlist",
+      "timestamp": "2026-10-21T11:43:52.597471505Z",
+      "totalDuration": 50,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/api/watchlist",
+      "timestamp": "2026-10-21T11:43:52.597655223Z",
+      "totalDuration": 52,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/api/watchlist",
+      "timestamp": "2026-10-21T11:43:52.602014251Z",
+      "totalDuration": 49,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/create",
+      "timestamp": "2026-10-21T11:43:52.753623566Z",
+      "totalDuration": 25,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/vs/1",
+      "timestamp": "2026-10-21T11:43:52.757016934Z",
+      "totalDuration": 27,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/vs/5",
+      "timestamp": "2026-10-21T11:43:52.757733695Z",
+      "totalDuration": 23,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/vs/6",
+      "timestamp": "2026-10-21T11:43:52.761686076Z",
+      "totalDuration": 27,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/api/versus",
+      "timestamp": "2026-10-21T11:43:52.801755639Z",
+      "totalDuration": 15,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/api/markets/trades",
+      "timestamp": "2026-10-21T11:43:52.805164920Z",
+      "totalDuration": 13,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/earn",
+      "timestamp": "2026-10-21T11:43:52.917567833Z",
+      "totalDuration": 14,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/explore",
+      "timestamp": "2026-10-21T11:43:52.917834078Z",
+      "totalDuration": 17,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/leaderboard",
+      "timestamp": "2026-10-21T11:43:52.954490956Z",
+      "totalDuration": 10,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/concept",
+      "timestamp": "2026-10-21T11:43:52.955998667Z",
+      "totalDuration": 13,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/analytics",
+      "timestamp": "2026-10-21T11:43:53.103800091Z",
+      "totalDuration": 14,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/create",
+      "timestamp": "2026-10-21T11:43:53.104947705Z",
+      "totalDuration": 14,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/vs/4",
+      "timestamp": "2026-10-21T11:43:53.135356376Z",
+      "totalDuration": 12,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/vs/3",
+      "timestamp": "2026-10-21T11:43:53.141206759Z",
+      "totalDuration": 9,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/vs/2",
+      "timestamp": "2026-10-21T11:43:53.290721021Z",
+      "totalDuration": 11,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/earn",
+      "timestamp": "2026-10-21T11:43:56.043318856Z",
+      "totalDuration": 15,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 304,
+      "method": "GET",
+      "path": "/korum-reference/combined-glow.jpg",
+      "timestamp": "2026-10-21T11:43:56.211070125Z",
+      "totalDuration": 1,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/profile",
+      "timestamp": "2026-10-21T11:43:56.223308206Z",
+      "totalDuration": 10,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 304,
+      "method": "GET",
+      "path": "/_next/image",
+      "timestamp": "2026-10-21T11:43:56.223574515Z",
+      "totalDuration": 7,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 304,
+      "method": "GET",
+      "path": "/_next/image",
+      "timestamp": "2026-10-21T11:43:56.225037318Z",
+      "totalDuration": 11,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 304,
+      "method": "GET",
+      "path": "/_next/image",
+      "timestamp": "2026-10-21T11:43:56.225342498Z",
+      "totalDuration": 12,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/api/markets/live",
+      "timestamp": "2026-10-21T11:43:56.262405023Z",
+      "totalDuration": 4255,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/profile",
+      "timestamp": "2026-10-21T11:43:56.384797233Z",
+      "totalDuration": 12,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/leaderboard",
+      "timestamp": "2026-10-21T11:43:56.952679312Z",
+      "totalDuration": 37,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/korum-reference/leaderboard-podium.png",
+      "timestamp": "2026-10-21T11:43:57.114479832Z",
+      "totalDuration": 11,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/api/avatars/:address",
+      "timestamp": "2026-10-21T11:43:57.136638344Z",
+      "totalDuration": 12,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 404,
+      "method": "GET",
+      "path": "/api/avatars/:address",
+      "timestamp": "2026-10-21T11:43:57.159197567Z",
+      "totalDuration": 34,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/api/avatars/:address",
+      "timestamp": "2026-10-21T11:43:57.164773625Z",
+      "totalDuration": 41,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/concept",
+      "timestamp": "2026-10-21T11:43:57.863642327Z",
+      "totalDuration": 20,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 304,
+      "method": "GET",
+      "path": "/korum-icons/DobleFlag.svg",
+      "timestamp": "2026-10-21T11:43:58.006371661Z",
+      "totalDuration": 6,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 304,
+      "method": "GET",
+      "path": "/korum-icons/Side.svg",
+      "timestamp": "2026-10-21T11:43:58.006659826Z",
+      "totalDuration": 6,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 304,
+      "method": "GET",
+      "path": "/korum-icons/fire.svg",
+      "timestamp": "2026-10-21T11:43:58.007057688Z",
+      "totalDuration": 7,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 304,
+      "method": "GET",
+      "path": "/_next/image",
+      "timestamp": "2026-10-21T11:43:58.019826815Z",
+      "totalDuration": 22,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/korum-reference/concept-lex-bg.jpg",
+      "timestamp": "2026-10-21T11:43:58.020242322Z",
+      "totalDuration": 21,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 304,
+      "method": "GET",
+      "path": "/korum-icons/Raly.svg",
+      "timestamp": "2026-10-21T11:43:58.020285021Z",
+      "totalDuration": 22,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 304,
+      "method": "GET",
+      "path": "/_next/image",
+      "timestamp": "2026-10-21T11:43:58.024220487Z",
+      "totalDuration": 27,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 304,
+      "method": "GET",
+      "path": "/_next/image",
+      "timestamp": "2026-10-21T11:43:58.027083903Z",
+      "totalDuration": 30,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 304,
+      "method": "GET",
+      "path": "/_next/image",
+      "timestamp": "2026-10-21T11:43:58.027556898Z",
+      "totalDuration": 28,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 304,
+      "method": "GET",
+      "path": "/korum-icons/Badge.svg",
+      "timestamp": "2026-10-21T11:43:58.029323031Z",
+      "totalDuration": 26,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 304,
+      "method": "GET",
+      "path": "/korum-icons/flash.svg",
+      "timestamp": "2026-10-21T11:43:58.030107543Z",
+      "totalDuration": 24,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 304,
+      "method": "GET",
+      "path": "/_next/image",
+      "timestamp": "2026-10-21T11:43:58.034693164Z",
+      "totalDuration": 31,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 304,
+      "method": "GET",
+      "path": "/_next/image",
+      "timestamp": "2026-10-21T11:43:58.036804159Z",
+      "totalDuration": 32,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/leaderboard",
+      "timestamp": "2026-10-21T11:43:59.130909001Z",
+      "totalDuration": 10,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 404,
+      "method": "GET",
+      "path": "/api/avatars/:address",
+      "timestamp": "2026-10-21T11:43:59.294060950Z",
+      "totalDuration": 13,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/privacy",
+      "timestamp": "2026-10-21T11:44:01.597320948Z",
+      "totalDuration": 6,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/terms",
+      "timestamp": "2026-10-21T11:44:01.612104436Z",
+      "totalDuration": 8,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/terms",
+      "timestamp": "2026-10-21T11:44:01.763608821Z",
+      "totalDuration": 11,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/privacy",
+      "timestamp": "2026-10-21T11:44:01.766583155Z",
+      "totalDuration": 15,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/api/notifications",
+      "timestamp": "2026-10-21T11:46:42.019707144Z",
+      "totalDuration": 5,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "DELETE",
+      "path": "/api/auth/session",
+      "timestamp": "2026-10-21T11:46:42.023461264Z",
+      "totalDuration": 7,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 404,
+      "method": "GET",
+      "path": "/api/avatars/:address",
+      "timestamp": "2026-10-21T11:46:42.093181164Z",
+      "totalDuration": 31,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "DELETE",
+      "path": "/api/auth/session",
+      "timestamp": "2026-10-21T11:46:42.188903174Z",
+      "totalDuration": 4,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/leaderboard",
+      "timestamp": "2026-10-21T11:46:42.200006688Z",
+      "totalDuration": 19,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "DELETE",
+      "path": "/api/auth/session",
+      "timestamp": "2026-10-21T11:46:42.317573376Z",
+      "totalDuration": 4,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/leaderboard",
+      "timestamp": "2026-10-21T11:46:42.368793206Z",
+      "totalDuration": 10,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "DELETE",
+      "path": "/api/auth/session",
+      "timestamp": "2026-10-21T11:46:42.453114783Z",
+      "totalDuration": 4,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/leaderboard",
+      "timestamp": "2026-10-21T11:46:42.521432890Z",
+      "totalDuration": 11,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "DELETE",
+      "path": "/api/auth/session",
+      "timestamp": "2026-10-21T11:46:42.590189199Z",
+      "totalDuration": 7,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/leaderboard",
+      "timestamp": "2026-10-21T11:46:42.654186552Z",
+      "totalDuration": 8,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/leaderboard",
+      "timestamp": "2026-10-21T11:46:42.813966470Z",
+      "totalDuration": 9,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/explore",
+      "timestamp": "2026-10-21T11:47:55.901387625Z",
+      "totalDuration": 33,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/earn",
+      "timestamp": "2026-10-21T11:47:55.901491463Z",
+      "totalDuration": 32,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/analytics",
+      "timestamp": "2026-10-21T11:47:55.902585256Z",
+      "totalDuration": 32,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/concept",
+      "timestamp": "2026-10-21T11:47:55.908300724Z",
+      "totalDuration": 30,
+      "upstreamErrors": ""
+    },
+    {
+      "host": "korum-project-production.up.railway.app",
+      "httpStatus": 200,
+      "method": "GET",
+      "path": "/create",
+      "timestamp": "2026-10-21T11:47:56.038435737Z",
+      "totalDuration": 6,
+      "upstreamErrors": ""
+    }
+  ]
+}

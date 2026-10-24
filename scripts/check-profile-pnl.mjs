@@ -113,7 +113,7 @@ assert.ok(holdingsKeys[0].includes('profile-holdings-v3'));
 const empty = { __esModule: true, default: () => null };
 const profile = await load('app/components/ProfileClient.tsx', {
   'next/link': empty, '../config/korum-network': { KORUM_CHAIN: { name: 'Test' } },
-  '../hooks/useWatchlist': {}, '../hooks/useProfileStats': {}, '../lib/badges': {},
+  '../hooks/useWatchlist': {}, '../hooks/useProfileStats': {}, '../hooks/useProfileHoldings': {}, '../lib/badges': {},
   '../lib/markets/format': await load('app/lib/markets/format.ts'),
   './ProfileAvatar': empty, './DesignIcon': empty, './AvatarUpload': empty, './ProfileFeeClaim': empty,
   './explore/VsTable': {}, './explore/HorizontalRail': empty,
@@ -143,7 +143,7 @@ if (process.argv.includes('--live')) {
     '../../config/deployment': { INDEXER_SCHEMA: manifest.readModelSchema, WATCHLIST_TABLE: manifest.watchlistTable },
     '../../config/korum-network': { KORUM_CHAIN_ID: chainId, KORUM_CHAIN: { name: 'Configured network' } },
     react: { cache: fn => fn }, '../badges': {}, '../cache/redis': cacheMock, '../cache/maintained': {},
-    '../live/debate-cache': {}, '../live/debate-reconcile': {}, '../live/debate-snapshot': {}, './watchlist': {},
+    '../live/debate-cache': {}, './market-delivery': { recoverMarketDeliveries: async () => {} }, '../live/debate-reconcile': {}, '../live/debate-snapshot': {}, './watchlist': {},
     '../markets/math': math, '../markets/quote-usd': {}, '../public-asset-url': {}, './client': client,
   };
   try {
@@ -177,7 +177,7 @@ if (process.argv.includes('--live')) {
       const liveServer = await load('app/lib/live/server.ts', {
         '../cache/redis': cacheMock, '../../config/deployment': { INDEXER_SCHEMA: manifest.readModelSchema },
         '../db/client': client, '../markets/math': math, '../markets/venue': {},
-        './chart-cache': {}, './debate-cache': {}, './profile-cache': cache, '../db/debates': {},
+        './chart-cache': {}, './debate-cache': {}, './explore-cache': { prepareExploreMutation: async () => ({ revisions: [], mutations: [] }) }, '../db/explore': {}, './profile-cache': cache, '../db/market-delivery': { pendingMarketDeliveries: async () => [], acknowledgeMarketDeliveries: async () => {} }, '../db/debates': {},
       }, '\nexports.walletsForCheck = readAffectedProfileWallets;');
       assert.equal((await liveServer.walletsForCheck([trade])).length, 1, 'Trade invalidation targets resolve against the deployed schema');
     }
@@ -200,8 +200,8 @@ if (process.argv.includes('--redis')) {
     const sourceDependencies = {
       '../../config/deployment': { INDEXER_SCHEMA: 'indexer_v2' }, '../../config/korum-network': { KORUM_CHAIN_ID: 46630 },
       '../cache/redis': { connectedRedis: async () => redis, redisCacheKey: key },
-      '../live/profile-cache': cache, '../live/debate-reconcile': reconcile,
-      './debates': { indexedDebateMetadataFingerprint: async () => 'same-metadata' },
+      '../live/profile-cache': cache, './market-delivery': { recoverMarketDeliveries: async () => {} }, '../live/debate-reconcile': reconcile,
+      './debates': { reconcileIndexedMarkets: () => reconcile.reconcileDebateMetadata(redis, key, async () => 'same-metadata') },
       './client': { getDatabase: () => ({ unsafe: async (sql, params) => {
         parameters.push(params); const address = params[1];
         counters.set(address, (counters.get(address) ?? 0) + 1);

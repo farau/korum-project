@@ -107,6 +107,7 @@ export async function getUserProfileStats(
   const estimatedPnlEth = estimated ? Number(formatEther(estimated.pnlWei)) : null;
 
   return {
+    liveTokens: open.length <= 25 ? [...new Set(open.map(position => position.tokenAddress.toLowerCase()))].sort() : [],
     referralCount: row?.referralCount ?? 0,
     activeReferralCount: row?.activeReferralCount ?? 0,
     versusCreated: row?.versusCreated ?? 0,

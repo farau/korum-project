@@ -1,6 +1,6 @@
 import { getWalletSession, isSameOriginRequest } from "../../lib/auth/session";
 import { consumeRateLimit, redisCacheKey } from "../../lib/cache/redis";
-import { storeTokenImage } from "../../lib/db/token-images";
+import { storeTokenImage, TokenImageBusyError } from "../../lib/db/token-images";
 import { compressTokenImage, readTokenImageBody, TokenImageValidationError } from "../../lib/token-image";
 import { TOKEN_IMAGE_TYPES } from "../../lib/token-image-policy";
 
@@ -27,6 +27,7 @@ export async function POST(request: Request) {
     return json(upload);
   } catch (error) {
     if (error instanceof TokenImageValidationError) return json({ error: error.message }, 400);
+    if (error instanceof TokenImageBusyError) return json({ error: error.message }, 503, { "Retry-After": "3" });
     console.error("Unable to upload a token image.", error instanceof Error ? error.message : "Unknown error");
     return json({ error: "The image service is temporarily unavailable. Please try again." }, 503);
   }

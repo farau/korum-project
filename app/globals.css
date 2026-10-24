@@ -987,9 +987,6 @@ html[data-theme="dark"] .analytics-stat-card {
 }
 
 @media (max-width: 980px) {
-  .topnav {
-    display: none;
-  }
 
   .topbar-right .btn,
   .topbar-right + div {
@@ -1885,28 +1882,9 @@ html[data-theme="light"] #page-concept .lex-card {
   width: 22px;
 }
 
-#page-concept .ref-flow-label,
-#page-concept .ref-flow-value,
-#page-concept .ref-flow-sub {
-  display: block;
-  margin: 0;
-}
-
 #page-concept .ref-flow-label {
   font-size: 11px;
   text-transform: uppercase;
-}
-
-#page-concept .ref-flow-value {
-  color: var(--text);
-  font-family: var(--display);
-  font-size: 22px;
-  font-weight: 700;
-}
-
-#page-concept .ref-flow-sub {
-  color: var(--text-2);
-  font-size: 11.5px;
 }
 
 #page-concept .ref-flow-arrow {
@@ -1945,10 +1923,6 @@ html[data-theme="light"] #page-concept .lex-card {
 
   #page-concept .ref-flow-card {
     flex-direction: column;
-  }
-
-  #page-concept .ref-flow-arrow {
-    transform: rotate(90deg);
   }
 }
 
@@ -5389,26 +5363,9 @@ html[data-theme="light"] .explore-page .hero-search-wrap .korum-search-input {
     height: 170px;
   }
 
-  .analytics-page .analytics-chart-bars,
-  .analytics-page .analytics-chart-xaxis {
-    gap: 3px;
-    padding-right: 34px;
-  }
-
   .analytics-page .analytics-chart-yaxis {
     width: 30px;
     font-size: 8px;
-  }
-
-  .analytics-page .analytics-stat-cards {
-    display: grid;
-    width: 100%;
-    grid-template-columns: 1fr;
-  }
-
-  .analytics-page .analytics-stat-card {
-    width: 100%;
-    min-width: 0;
   }
 
   .analytics-page .analytics-panel-footer {
@@ -5426,26 +5383,10 @@ html[data-theme="light"] .explore-page .hero-search-wrap .korum-search-input {
     gap: 24px;
   }
 
-  .analytics-page .fee-bar-row2 {
-    grid-template-columns: minmax(0, 1fr) auto;
-    gap: 10px 12px;
-  }
-
-  .analytics-page .fee-bar-track2 {
-    grid-column: 1 / -1;
-    grid-row: 2;
-    width: 100%;
-    margin-top: 4px;
-  }
-
   .analytics-page .fee-bar-name,
   .analytics-page .fee-bar-value {
     min-width: 0;
     font-size: 11px;
-  }
-
-  .analytics-page .fee-bar-value {
-    justify-content: flex-end;
   }
 }
 
@@ -8974,6 +8915,12 @@ html[data-theme="light"] #page-leaderboard .lb-podium-blocks-bg {
   box-shadow: inset 0 1px 0 rgb(255 255 255 / .25);
 }
 
+html[data-theme="dark"] .btn.wallet-shine-btn {
+  border-width: 2px;
+  border-color: #b5b5b5;
+  border-top-color: #fff;
+}
+
 .pill.active,
 .explore-page .pill.active,
 .profile-page .profile-tabs button.active,
@@ -10459,10 +10406,6 @@ html[data-theme="light"] .analytics-page .tac-logo {
 }
 
 @media (max-width: 560px) {
-  .topbar-inner,
-  footer > .wrap {
-    padding-inline: var(--page-gutter);
-  }
 
   .topbar-inner {
     gap: 12px;

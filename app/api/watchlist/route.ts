@@ -13,6 +13,12 @@ function unauthorized() {
   return NextResponse.json({ error: "Authentication required." }, { status: 401 });
 }
 
+function walletChanged(request: Request, address: string) {
+  const expected = request.headers.get("X-Korum-Wallet");
+  return expected && expected.toLowerCase() !== address.toLowerCase()
+    ? NextResponse.json({ error: "The wallet session changed. Please reconnect." }, { status: 409 }) : null;
+}
+
 async function versusIdFromRequest(request: Request) {
   try {
     const body: unknown = await request.json();
@@ -24,12 +30,17 @@ async function versusIdFromRequest(request: Request) {
   }
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   const session = await getWalletSession();
   if (!session) return unauthorized();
+  const mismatch = walletChanged(request, session.address);
+  if (mismatch) return mismatch;
 
   try {
     const ids = await getUserWatchlist(session.userId, KORUM_CHAIN_ID);
+    if (new URL(request.url).searchParams.get("view") === "ids") {
+      return NextResponse.json({ ids }, { headers: { "Cache-Control": "private, no-store" } });
+    }
     const debates = await getIndexedWatchlistDebates(session.userId, ids);
     return NextResponse.json({ ids, debates }, { headers: { "Cache-Control": "private, no-store" } });
   } catch (error) {
@@ -45,6 +56,8 @@ export async function POST(request: Request) {
 
   const session = await getWalletSession();
   if (!session) return unauthorized();
+  const mismatch = walletChanged(request, session.address);
+  if (mismatch) return mismatch;
   const versusId = await versusIdFromRequest(request);
   if (versusId === null) return NextResponse.json({ error: "A valid Versus ID is required." }, { status: 400 });
 
@@ -65,6 +78,8 @@ export async function DELETE(request: Request) {
 
   const session = await getWalletSession();
   if (!session) return unauthorized();
+  const mismatch = walletChanged(request, session.address);
+  if (mismatch) return mismatch;
   const versusId = await versusIdFromRequest(request);
   if (versusId === null) return NextResponse.json({ error: "A valid Versus ID is required." }, { status: 400 });
 

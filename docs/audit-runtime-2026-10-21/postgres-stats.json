@@ -1,0 +1,236 @@
+{
+  "at": "2026-10-21T16:55:15.649Z",
+  "tables": [
+    {
+      "schemaname": "indexer_v2",
+      "relname": "camp_trades",
+      "n_live_tup": "64",
+      "n_dead_tup": "8",
+      "seq_scan": "907128",
+      "idx_scan": "7007642",
+      "total_bytes": "196608"
+    },
+    {
+      "schemaname": "indexer",
+      "relname": "camp_trades",
+      "n_live_tup": "24",
+      "n_dead_tup": "4",
+      "seq_scan": "113685",
+      "idx_scan": "8064",
+      "total_bytes": "147456"
+    },
+    {
+      "schemaname": "public",
+      "relname": "users",
+      "n_live_tup": "11",
+      "n_dead_tup": "45",
+      "seq_scan": "27810",
+      "idx_scan": "173",
+      "total_bytes": "131072"
+    },
+    {
+      "schemaname": "indexer",
+      "relname": "versuses",
+      "n_live_tup": "2",
+      "n_dead_tup": "7",
+      "seq_scan": "22",
+      "idx_scan": "8296",
+      "total_bytes": "131072"
+    },
+    {
+      "schemaname": "indexer_v2",
+      "relname": "versuses",
+      "n_live_tup": "6",
+      "n_dead_tup": "4",
+      "seq_scan": "447",
+      "idx_scan": "129381",
+      "total_bytes": "131072"
+    },
+    {
+      "schemaname": "public",
+      "relname": "user_avatars",
+      "n_live_tup": "3",
+      "n_dead_tup": "6",
+      "seq_scan": "117",
+      "idx_scan": "979",
+      "total_bytes": "98304"
+    },
+    {
+      "schemaname": "indexer_v2",
+      "relname": "versus_camps",
+      "n_live_tup": "12",
+      "n_dead_tup": "8",
+      "seq_scan": "33",
+      "idx_scan": "608731",
+      "total_bytes": "81920"
+    },
+    {
+      "schemaname": "indexer",
+      "relname": "versus_camps",
+      "n_live_tup": "4",
+      "n_dead_tup": "14",
+      "seq_scan": "19",
+      "idx_scan": "64904",
+      "total_bytes": "81920"
+    },
+    {
+      "schemaname": "indexer_v2",
+      "relname": "creator_fee_recipient_events",
+      "n_live_tup": "1",
+      "n_dead_tup": "2",
+      "seq_scan": "8",
+      "idx_scan": "91736",
+      "total_bytes": "65536"
+    },
+    {
+      "schemaname": "indexer_v2",
+      "relname": "camp_curve_lifecycle",
+      "n_live_tup": "2",
+      "n_dead_tup": "4",
+      "seq_scan": "3",
+      "idx_scan": "3905008",
+      "total_bytes": "65536"
+    },
+    {
+      "schemaname": "indexer",
+      "relname": "camp_curve_lifecycle",
+      "n_live_tup": "0",
+      "n_dead_tup": "1",
+      "seq_scan": "6",
+      "idx_scan": "50909",
+      "total_bytes": "65536"
+    },
+    {
+      "schemaname": "indexer_v2",
+      "relname": "trader_totals",
+      "n_live_tup": "5",
+      "n_dead_tup": "5",
+      "seq_scan": "593",
+      "idx_scan": "456",
+      "total_bytes": "57344"
+    },
+    {
+      "schemaname": "indexer_v2",
+      "relname": "referral_bindings",
+      "n_live_tup": "1",
+      "n_dead_tup": "3",
+      "seq_scan": "3",
+      "idx_scan": "1211",
+      "total_bytes": "57344"
+    },
+    {
+      "schemaname": "indexer",
+      "relname": "referral_bindings",
+      "n_live_tup": "1",
+      "n_dead_tup": "6",
+      "seq_scan": "7",
+      "idx_scan": "285",
+      "total_bytes": "57344"
+    },
+    {
+      "schemaname": "public",
+      "relname": "token_images",
+      "n_live_tup": "7",
+      "n_dead_tup": "0",
+      "seq_scan": "11",
+      "idx_scan": "14",
+      "total_bytes": "49152"
+    },
+    {
+      "schemaname": "indexer_v2",
+      "relname": "camp_graduations",
+      "n_live_tup": "1",
+      "n_dead_tup": "3",
+      "seq_scan": "2",
+      "idx_scan": "273747",
+      "total_bytes": "40960"
+    },
+    {
+      "schemaname": "indexer_v2",
+      "relname": "trader_positions",
+      "n_live_tup": "17",
+      "n_dead_tup": "42",
+      "seq_scan": "17623",
+      "idx_scan": "3138",
+      "total_bytes": "40960"
+    },
+    {
+      "schemaname": "indexer",
+      "relname": "trader_positions",
+      "n_live_tup": "7",
+      "n_dead_tup": "13",
+      "seq_scan": "10",
+      "idx_scan": "671",
+      "total_bytes": "40960"
+    },
+    {
+      "schemaname": "public",
+      "relname": "user_watchlist",
+      "n_live_tup": "2",
+      "n_dead_tup": "6",
+      "seq_scan": "4",
+      "idx_scan": "1199",
+      "total_bytes": "40960"
+    },
+    {
+      "schemaname": "indexer",
+      "relname": "camp_graduations",
+      "n_live_tup": "0",
+      "n_dead_tup": "1",
+      "seq_scan": "5",
+      "idx_scan": "14305",
+      "total_bytes": "40960"
+    },
+    {
+      "schemaname": "public",
+      "relname": "user_watchlist_v2",
+      "n_live_tup": "8",
+      "n_dead_tup": "5",
+      "seq_scan": "2",
+      "idx_scan": "15525",
+      "total_bytes": "40960"
+    },
+    {
+      "schemaname": "public",
+      "relname": "korum_schema_migrations",
+      "n_live_tup": "15",
+      "n_dead_tup": "4",
+      "seq_scan": "12",
+      "idx_scan": "169",
+      "total_bytes": "32768"
+    },
+    {
+      "schemaname": "public",
+      "relname": "versus_socials_overrides",
+      "n_live_tup": "1",
+      "n_dead_tup": "0",
+      "seq_scan": "2",
+      "idx_scan": "22962",
+      "total_bytes": "32768"
+    },
+    {
+      "schemaname": "indexer",
+      "relname": "trader_totals",
+      "n_live_tup": "3",
+      "n_dead_tup": "16",
+      "seq_scan": "9",
+      "idx_scan": "262",
+      "total_bytes": "24576"
+    }
+  ],
+  "database": [
+    {
+      "bytes": "10540735"
+    }
+  ],
+  "connections": [
+    {
+      "state": null,
+      "count": "8"
+    },
+    {
+      "state": "active",
+      "count": "1"
+    }
+  ]
+}

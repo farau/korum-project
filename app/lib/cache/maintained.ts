@@ -39,6 +39,11 @@ export async function maintainedHit<T>(redis: Redis, keys: MaintainedKeys) {
   return { entry: parseMaintained<T>(raw, revision, metadata), revision, metadata, guard };
 }
 const inflight = new Map<string, Promise<unknown>>();
+class CacheReadError extends Error {}
+async function cacheOperation<T>(operation: () => Promise<T>): Promise<T> {
+  try { return await operation(); }
+  catch { throw new CacheReadError("Shared cache unavailable"); }
+}
 
 // A miss has one owner across replicas. A busy lease never creates a parallel SQL load.
 export async function readMaintained<T>(
@@ -51,34 +56,48 @@ export async function readMaintained<T>(
     return existing as Promise<T>;
   }
   const pending = (async () => {
-    let state = await maintainedHit<T>(redis, keys);
+    let state = await cacheOperation(() => maintainedHit<T>(redis, keys));
     if (state.entry) { if (diagnostic) diagnostic.status = "HIT"; return state.entry.value; }
     const owner = randomUUID();
     const lock = `${keys.value}:loading`;
     const deadline = Date.now() + 10_000;
-    while (await redis.set(lock, owner, "EX", 30, "NX") !== "OK") {
+    while (await cacheOperation(() => redis.set(lock, owner, "EX", 30, "NX")) !== "OK") {
       if (Date.now() >= deadline) throw new Error("Shared snapshot is still loading; retry shortly.");
       await new Promise(resolve => setTimeout(resolve, 100));
-      state = await maintainedHit<T>(redis, keys);
+      state = await cacheOperation(() => maintainedHit<T>(redis, keys));
       if (state.entry) { if (diagnostic) diagnostic.status = "DEDUPED"; return state.entry.value; }
     }
     try {
-      state = await maintainedHit<T>(redis, keys);
+      state = await cacheOperation(() => maintainedHit<T>(redis, keys));
       if (state.entry) { if (diagnostic) diagnostic.status = "HIT"; return state.entry.value; }
       if (diagnostic) diagnostic.status = "MISS";
       for (let attempt = 0; attempt < 3; attempt++) {
         const value = await load();
-        const stored = await redis.eval(storeScript, 5, keys.value, keys.revision, keys.metadata, keys.guard, lock,
-          state.revision, state.metadata, state.guard, owner,
-          JSON.stringify({ revision: state.revision, metadata: state.metadata, value }), MAINTAINED_IDLE_SECONDS,
-          JSON.stringify(mappings(value)));
+        let stored;
+        try {
+          stored = await redis.eval(storeScript, 5, keys.value, keys.revision, keys.metadata, keys.guard, lock,
+            state.revision, state.metadata, state.guard, owner,
+            JSON.stringify({ revision: state.revision, metadata: state.metadata, value }), MAINTAINED_IDLE_SECONDS,
+            JSON.stringify(mappings(value)));
+        } catch {
+          // The SQL read succeeded. Return that fresh value without a second
+          // database read when only cache persistence failed.
+          if (diagnostic) diagnostic.status = "BYPASS";
+          return value;
+        }
         if (stored === 1) return value;
-        state = await maintainedHit<T>(redis, keys);
+        state = await cacheOperation(() => maintainedHit<T>(redis, keys));
         if (state.entry) return state.entry.value;
       }
       throw new Error("Market snapshot changed during reconstruction; retry shortly.");
-    } finally { await redis.eval(releaseScript, 1, lock, owner); }
-  })().finally(() => inflight.delete(keys.value));
+    } finally { await redis.eval(releaseScript, 1, lock, owner).catch(() => undefined); }
+  })().catch(error => {
+    if (!(error instanceof CacheReadError)) throw error;
+    // Keep this fallback inside the shared promise. Never return an old cached
+    // value or retry a failing SQL loader as though it were a cache failure.
+    if (diagnostic) diagnostic.status = "BYPASS";
+    return load();
+  }).finally(() => inflight.delete(keys.value));
   inflight.set(keys.value, pending);
   return pending;
 }

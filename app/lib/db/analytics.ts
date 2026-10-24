@@ -13,6 +13,8 @@ export type { AnalyticsPeriod, AnalyticsSnapshot } from "../analytics";
 export const ANALYTICS_CACHE_SECONDS = 10 * 60;
 
 type AggregateRow = {
+  category: string | null;
+  isTotal: number;
   trades: number;
   volumeEth: string;
   feesEth: string;
@@ -36,6 +38,8 @@ async function loadAnalytics(period: AnalyticsPeriod, now: Date): Promise<Analyt
   const [aggregateRows, bucketRows, quote] = await Promise.all([
     database.unsafe<AggregateRow[]>(`
       SELECT
+        COALESCE(versus.category, 'Other') AS category,
+        GROUPING(versus.category)::INTEGER AS "isTotal",
         COUNT(*)::INTEGER AS trades,
         COALESCE(SUM(trade.eth_gross), 0)::TEXT AS "volumeEth",
         COALESCE(SUM(trade.fee_total), 0)::TEXT AS "feesEth",
@@ -46,9 +50,12 @@ async function loadAnalytics(period: AnalyticsPeriod, now: Date): Promise<Analyt
       JOIN ${INDEXER_SCHEMA}.versus_camps camp
         ON camp.chain_id = trade.chain_id
         AND camp.token_address = trade.token_address
+      LEFT JOIN ${INDEXER_SCHEMA}.versuses versus
+        ON versus.chain_id = camp.chain_id AND versus.versus_id = camp.versus_id
       WHERE trade.chain_id = $1
         AND trade.traded_at >= TO_TIMESTAMP($2::DOUBLE PRECISION)
         AND trade.traded_at < TO_TIMESTAMP($3::DOUBLE PRECISION)
+      GROUP BY GROUPING SETS ((versus.category), ())
     `, [KORUM_CHAIN_ID, startSeconds, endSeconds]),
     database.unsafe<BucketRow[]>(`
       SELECT
@@ -65,7 +72,7 @@ async function loadAnalytics(period: AnalyticsPeriod, now: Date): Promise<Analyt
     getEthUsdQuote(),
   ]);
 
-  const aggregate = aggregateRows[0];
+  const aggregate = aggregateRows.find(row => row.isTotal === 1);
   const trades = aggregate?.trades ?? 0;
   const volumeEth = unitsNumber(aggregate?.volumeEth ?? "0") ?? 0;
   const feesEth = unitsNumber(aggregate?.feesEth ?? "0") ?? 0;
@@ -79,6 +86,10 @@ async function loadAnalytics(period: AnalyticsPeriod, now: Date): Promise<Analyt
 
   return {
     period,
+    categories: aggregateRows.filter(row => row.isTotal === 0).map(row => {
+      const volumeEth = unitsNumber(row.volumeEth) ?? 0;
+      return { name: row.category ?? "Other", volumeEth, volumeUsd: toUsd(volumeEth) };
+    }).sort((a, b) => b.volumeEth - a.volumeEth || a.name.localeCompare(b.name)),
     asOf: endSeconds,
     trades,
     volumeEth,
@@ -100,7 +111,7 @@ export function getAnalytics(period: AnalyticsPeriod, diagnostic?: CacheDiagnost
   // A month/year rollover must never reuse the previous annual snapshot.
   const calendarScope = period === "year" ? [now.getUTCFullYear(), now.getUTCMonth() + 1] : [];
   return rememberJson(
-    redisCacheKey("analytics", "snapshot-v2", period, ...calendarScope),
+    redisCacheKey("analytics", "snapshot-v3", period, ...calendarScope),
     ANALYTICS_CACHE_SECONDS,
     () => loadAnalytics(period, now),
     diagnostic,

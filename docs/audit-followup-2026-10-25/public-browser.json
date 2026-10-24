@@ -1,0 +1,33 @@
+{
+  "verifiedAt": "2026-10-24T22:35:09.708Z",
+  "scope": "Local production build, synthetic SQL, external browser requests blocked; uncompressed executed JS resources, not field Core Web Vitals",
+  "results": [
+    {
+      "width": 1440,
+      "publicJsBytes": 528647,
+      "publicJsFiles": 10,
+      "walletAdditionalJsBytes": 2312677,
+      "walletModalOpened": true,
+      "pagePreserved": true,
+      "interactiveNavigationWithCookie": true,
+      "errors": []
+    },
+    {
+      "width": 390,
+      "publicJsBytes": 528647,
+      "publicJsFiles": 10,
+      "walletAdditionalJsBytes": 2312677,
+      "walletModalOpened": true,
+      "pagePreserved": true,
+      "interactiveNavigationWithCookie": true,
+      "errors": []
+    },
+    {
+      "analytics": true,
+      "completeCategories": true,
+      "oldMarketInTop": true,
+      "noLegacyRequest": true,
+      "errors": []
+    }
+  ]
+}

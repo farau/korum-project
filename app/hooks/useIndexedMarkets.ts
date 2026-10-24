@@ -5,6 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { DEPLOYMENT_CACHE_SCOPE } from "../config/deployment";
 
 import type { Debate } from "../lib/debates";
+import { DEFAULT_EXPLORE_OPTIONS, type ExploreOptions, type ExplorePage } from "../lib/explore-page";
 
 export const INDEXED_DEBATES_QUERY_KEY = ["indexed-debates", DEPLOYMENT_CACHE_SCOPE] as const;
 export const INDEXED_DEBATES_SEARCH_QUERY_KEY = `indexed-debates-search:${DEPLOYMENT_CACHE_SCOPE}`;
@@ -35,6 +36,16 @@ export function useIndexedDebates(initialData?: Debate[], enabled = true, refres
     refetchIntervalInBackground: false,
     refetchOnWindowFocus: true,
     retry: 1,
+  });
+}
+
+export function useExplorePage(options: ExploreOptions, initialData?: ExplorePage) {
+  const params = new URLSearchParams({ view: "explore", ...Object.fromEntries(Object.entries(options).map(([key, value]) => [key, String(value)])) });
+  return useQuery({
+    queryKey: [...INDEXED_DEBATES_QUERY_KEY, "page", options],
+    queryFn: ({ signal }) => jsonResponse<ExplorePage>(`/api/versus?${params}`, signal),
+    initialData: Object.entries(DEFAULT_EXPLORE_OPTIONS).every(([key, value]) => options[key as keyof ExploreOptions] === value) ? initialData : undefined,
+    staleTime: DEBATES_REFRESH_MS, refetchInterval: DEBATES_REFRESH_MS, refetchIntervalInBackground: false, retry: 1,
   });
 }
 

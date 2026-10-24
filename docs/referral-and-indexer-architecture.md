@@ -8,7 +8,7 @@
 
 
 Status: accepted  
-Last updated: 2026-10-02
+Last updated: 2026-10-25 (local implementation; application rollout pending)
 
 ## Purpose
 
@@ -61,6 +61,25 @@ The server generates the code with a cryptographically secure random generator o
 
 The short code is an application-level alias. Smart contracts never receive or interpret it. Before a contract write, the server resolves the code to its owner's EVM wallet.
 
+## Authentication and local migration dependencies
+
+Wallet verification consumes a SHA-256 challenge nonce hash in
+`public.consumed_wallet_nonces` (0017) in the same transaction as the user upsert.
+Unique consumption rejects concurrent replays; rollback allows a retry and
+expired entries are cleaned opportunistically in bounded batches. Deleting the
+browser challenge cookie alone is not replay protection. EOA signatures are
+verified locally, with contract-wallet RPC verification retained. The route
+bounds the streamed payload to 48 KiB, the message to 4,096 characters and the
+signature to 16 KiB, with IP/challenge limits before RPC.
+
+The local reader/publisher requires migrations through 0019: 0016 for compact
+market aggregates, 0017 for nonces, 0018 for upload reservations and 0019 for the
+delivery journal. These were applied to the configured testnet on 22 October;
+the application changes remain undeployed. Do not edit applied migrations.
+Coordinate reader, publisher and client rollout; the active journal can accumulate
+entries until the new recovery code runs. See the dated [audit report](audit-codebase-2026-10-21.md)
+for verification evidence and production limitations.
+
 ## Referral link flow
 
 A referral link may target any application page:
@@ -79,6 +98,11 @@ The current flow is:
 6. A short-lived server-confirmed notification is exposed through the header bell to tell the recipient that the referral is pending.
 7. Once the user is authenticated, `/api/referrals/pending` resolves the code to the referrer's wallet.
 8. The transaction UI passes that wallet as the `referrer` argument on the user's next eligible contract write.
+
+`usePendingReferral` shares one wallet/deployment-scoped query between mounted
+panels (60-second stale time, removal when inactive). Clearing it cancels the old
+request before updating that wallet's entry. The transaction path still verifies
+the current registry and session immediately before submission.
 
 The cookie is only pending attribution. It is not proof that a binding exists and must never be used to calculate or display authoritative referral rewards.
 
@@ -143,7 +167,7 @@ Before allowing publication, `CreateVersusForm` reads live protocol state throug
 - `KorumLens.quoteCreatorInitialBuy(configId, virtualQuote, graduationQuote, tokenAmount)` estimates each camp's purchase cost;
 - the connected wallet's native balance is compared with the estimated total.
 
-The form validates the debate metadata, distinct camp names and symbols, initial-purchase bounds, optional X handle, and acceptance of the Terms of Use. Camp image files are local previews only: the current application does not upload media. Each camp therefore requires a public `https://`, `ipfs://`, or `ar://` URI that can safely be stored on-chain.
+The form validates the debate metadata, distinct camp names and symbols, initial-purchase bounds, optional X handle, and acceptance of the Terms of Use. Both camp images are required local files, normalized to 256 × 256 WebP by the server and uploaded to Pinata before simulation/signing. The returned `ipfs://` URIs enter the on-chain payload. Short, owner-fenced SQL reservations deduplicate uploads without holding a connection during the external request. See [Token images](token-images.md). Equal initial token amounts share one preview quote; the final quote before submission remains fresh.
 
 Publication follows this sequence:
 
@@ -319,14 +343,14 @@ The watchlist is user-owned application data in Railway PostgreSQL, not an index
 
 `/api/watchlist` is the only browser-facing data boundary:
 
-- `GET` returns the authenticated wallet user's Versus IDs and their complete joined `indexer_v2.versuses`/`indexer_v2.versus_camps` projections for the configured chain;
+- `GET ?view=ids` returns only authenticated membership IDs; ordinary `GET` also hydrates Debate objects from shared indexed snapshots for Watchlist views;
 - `POST` verifies that the Versus exists in the Goldsky read model before inserting it;
 - `DELETE` removes the selected ID idempotently;
-- every operation requires the signed wallet session, and mutations enforce same-origin requests.
+- every operation requires the signed wallet session, rejects a mismatched `X-Korum-Wallet` expectation with 409, and mutations enforce same-origin requests.
 
-`useWatchlist()` loads both membership and display data from that API and no longer reads or writes watchlist data in `localStorage`. The Watchlist page and Profile watchlist tab resolve stored IDs exclusively against indexed on-chain Versus IDs. Mutations update mounted components optimistically, revert on API failure, and trigger a database refresh in other tabs through `BroadcastChannel`. Consequently, the watchlist follows the wallet across browsers and devices once that wallet authenticates.
+`WatchlistProvider` shares membership across cards and details for one wallet/deployment; `useWatchlist()` does not load full market objects for each star. Dedicated Watchlist views request those objects separately. Mutations are serialized and optimistic rollbacks remain wallet-scoped; cancellation and session checks prevent late results from contaminating another wallet. One `BroadcastChannel` subscription per session synchronizes tabs. A refresh failure retains membership and exposes an error instead of silently clearing stars. Membership is stored in PostgreSQL, with an event-invalidated private Redis source and 600-second idle retention; trades do not invalidate it.
 
-The star on an Explore card or table row and the star on `/vs/[id]` use the same database-backed toggle. Selecting an empty star adds the Versus; selecting its filled state removes it. After the server confirms either mutation, a `watchlist` notification is published to the shared header bell. Notification presentation history remains a browser UI concern, capped at ten entries under `korum-notifications-v1`; it is not the source of truth for watchlist membership.
+The star on an Explore card or table row and the star on `/vs/[id]` use the same database-backed toggle. Selecting an empty star adds the Versus; selecting its filled state removes it. After the server confirms either mutation, a `watchlist` notification is published to the shared header bell. Notification presentation history remains a browser UI concern, capped at ten entries under `korum-notifications-v2:<wallet-or-anonymous>`; it is not the source of truth for watchlist membership.
 
 ## Indexed read model
 
@@ -358,11 +382,11 @@ The browser never connects directly to PostgreSQL. Server Components and Route H
 
 ### Frontend read path
 
-`app/lib/db/debates.ts` is the server-only adapter between Railway's normalized indexer schema and the frontend `Debate` model. The Explore Server Component calls it directly, while browser-only consumers such as Watchlist and Analytics use `GET /api/versus`. Database credentials therefore remain on the server.
+`app/lib/db/debates.ts` maps the indexed schema into `Debate` objects. Explore's Server Component and `GET /api/versus?view=explore` use `app/lib/db/explore.ts`: rank/filter all complete indexed markets, select 12 IDs, and batch-hydrate compact objects with totals/page metadata. Analytics Top VS selects eight markets from this complete ranking by market cap. Watchlist uses its private endpoint. Analytics totals/categories come from `/api/analytics`, not the legacy latest-market list. Database credentials remain server-only.
 
-The query starts from `indexer_v2.versuses` and uses inner joins for side `0` and side `1` in `indexer_v2.versus_camps`. A Versus is intentionally hidden during the short interval where Goldsky has written only part of the three-event projection. Results are scoped to the active `KORUM_CHAIN_ID`, ordered newest first, and capped server-side.
+The query starts from `indexer_v2.versuses` and uses inner joins for side `0` and side `1` in `indexer_v2.versus_camps`. A Versus is intentionally hidden during the short interval where Goldsky has written only part of the three-event projection. Results are scoped to the active `KORUM_CHAIN_ID`. The legacy list remains newest-first and capped; the paginated projection ranks the whole catalog before selecting a page. Page selection survives background updates, is clamped if results shrink, and resets on deliberate filter/sort changes.
 
-The adapter exposes on-chain metadata plus the market view: current price, 24-hour volume/trades, distinct traders, `curveStatus`, graduation `poolId`, curve progress, circulating and locked supply, circulating market cap, adjusted FDV, and recent price history. Explore's `Traders` count comes from distinct non-zero `Trade.trader` addresses across both camps; per-token table rows use the corresponding camp count. Holder counts and liquidity remain absent until their own authoritative projections exist and never override trader counts. `ipfs://` and `ar://` media identifiers are translated to public gateways for the current image components.
+The adapter exposes on-chain metadata plus the market view: current price, 24-hour volume/trades, distinct traders, `curveStatus`, graduation `poolId`, curve progress, circulating and locked supply, circulating market cap, adjusted FDV, and 96 quarter-hour price samples over 24 hours. Migration 0016 maintains wallet/token memberships and exact-timestamp buckets on trade insert/update/delete; cumulative totals preserve exact rolling windows without sending raw trade arrays. Sparse histories carry known prices, preserve unknown slots, and show an empty sparkline if no price is known. Explore's `Traders` count comes from distinct non-zero `Trade.trader` addresses across both camps; per-token table rows use the corresponding camp count. Holder counts and liquidity remain absent until their own authoritative projections exist and never override trader counts. `ipfs://` and `ar://` media identifiers are translated to public gateways for the current image components.
 
 Goldsky/Railway is the source for Versus metadata, indexed market metrics and activity. Graduated chart rendering is supplied separately by the verified DEX Screener iframe. API or database failures produce an explicit empty or unavailable state. The dynamic `/vs/[id]` page resolves its numeric ID only against the indexed read model.
 
@@ -370,15 +394,17 @@ Goldsky/Railway is the source for Versus metadata, indexed market metrics and ac
 
 Railway Redis is a disposable performance layer in front of PostgreSQL and Alchemy. PostgreSQL remains authoritative for users, watchlists, Versus projections, and indexed trades; Alchemy remains authoritative for the ETH/USD response it returns. Losing or flushing Redis must only increase source traffic temporarily and must never lose application data.
 
-The `staging` environment contains one private service named `Redis`. The web service receives `REDIS_URL` through the Railway reference `${{Redis.REDIS_URL}}`; Redis has no browser-facing endpoint. `app/lib/cache/redis.ts` creates one lazy `ioredis` client per Next.js process. Multiple web replicas therefore keep separate client connections but share the same cached keys. Local development may omit `REDIS_URL`, and every cache operation fails open to its PostgreSQL or Alchemy loader after a short timeout. A five-second circuit breaker prevents a Redis outage from adding that timeout to every application request.
+The `staging` environment contains one private service named `Redis`. The web service receives `REDIS_URL` through the Railway reference `${{Redis.REDIS_URL}}`; Redis has no browser-facing endpoint. `app/lib/cache/redis.ts` creates one lazy `ioredis` client per Next.js process. Multiple web replicas therefore keep separate client connections but share the same cached keys. Local development may omit `REDIS_URL`, and cache I/O failures fall back to PostgreSQL or Alchemy after a short timeout. Maintained-cache fallbacks share in-flight loads within each process; cross-replica coalescing requires Redis. SQL errors and prolonged lease contention remain visible, and failed cache writes do not repeat an already successful SQL read. A five-second circuit breaker prevents a Redis outage from adding that timeout to every application request.
 
-By default, keys use the versioned `korum:v1:<chainId>:v<deploymentVersion>:` namespace, isolating chains and contract deployments. `KORUM_CACHE_NAMESPACE` can override the `korum:v1` prefix for isolated integration runs. Revisioned market reads append the current shared revision; maintained chart windows instead use a stable key with a token revision guard. Current entries and TTLs are:
+By default, keys use the versioned `korum:v1:<chainId>:v<deploymentVersion>:` namespace, isolating chains and contract deployments. `KORUM_CACHE_NAMESPACE` can override the `korum:v1` prefix for isolated integration runs. Token-scoped market reads use token and metadata revisions, while global feeds use the global revision; maintained chart windows instead use a stable key with a token revision guard. Current entries and TTLs are:
 
 | Data | Key suffix | TTL |
 | --- | --- | ---: |
 | ETH/USD quote | `quote:eth-usd` | 60 seconds |
-| Explore and public Versus list | `debates:list:<limit>` | 15 seconds |
-| Versus detail | `debates:detail:<versusId>` | 15 seconds |
+| Complete Explore ranking | `live:explore-ranking-v1` | 600 seconds idle, maintained by events |
+| Legacy catalog / selected Versus detail | `live:debate-catalog-v3` / `live:debate-row-v3:<id>` | 600 seconds idle, maintained by events |
+| List / detail fallback without live | `debates:list:price-windows-v2:<limit>` / `debates:detail:price-windows-v2:<id>` | 15 seconds |
+| Watchlist membership | `private:watchlist-ids-v1:<chainId>:<userId>` | 600 seconds idle; preference changes invalidate |
 | Recent token trades | `market:trades:<token>:<limit>` | 5 seconds |
 | Global recent-trade ticker | `market:recent-trades:<limit>` | 5 seconds |
 | Canonical latest curve chart (`limit=300`, live configured) | `live:chart-v1:<token>:<range>` | 600 seconds idle; consultations renew it, trade updates preserve it |
@@ -388,33 +414,37 @@ By default, keys use the versioned `korum:v1:<chainId>:v<deploymentVersion>:` na
 | Verified DEX Screener discovery | `dexscreener:pool-v1:<chainId>:<token>:<poolId>` | 3,600 seconds ready; 30 seconds pending/error |
 | Profile counters/positions | `private:profile-source-v1:<walletHash>` | 600 seconds idle, renewed on reads; trade/metadata invalidation |
 | Profile Activity page | `private:profile-activity-v1:<walletHash>:<page>:10` | 20 seconds |
-| Trader leaderboard page without search | `leaderboard:traders-v3:<sort>:<page>:12` | 300 seconds |
+| Trader ranking, all searches/pages/sorts | `leaderboard:projection-v1` | 30 seconds |
+| Analytics totals, categories and buckets | `analytics:snapshot-v3:<period>:<calendarScope…>` | 600 seconds |
 
-The quote retains a small per-process promise cache as an L1 deduplicator and uses Redis as the replica-shared L2 cache. Other cached loaders also deduplicate simultaneous misses inside one process. Chart snapshots, venue discovery and SSE use `Cache-Control: no-store`; this leaves shared server-side Redis caching enabled. See [Live market updates](market-live.md) for chart leases, incremental updates and recovery. Authentication, referral, notification, and watchlist endpoints remain private and `no-store`. The Profile and statistics-only endpoints also remain `private, no-store`, while expensive wallet aggregates use maintained private Redis sources. The displayed PNL and counters refresh through the shared SSE feed, with one-second coalescing, reconnect/focus recovery and a one-minute foreground fallback when disconnected; `/api/profile/stats` reads statistics without reloading identity/referrer records.
+The quote retains a small per-process promise cache as an L1 deduplicator and uses Redis as the replica-shared L2 cache. Other cached loaders also deduplicate simultaneous misses inside one process. Chart snapshots, venue discovery and SSE use `Cache-Control: no-store`; this leaves shared server-side Redis caching enabled. See [Live market updates](market-live.md) for chart leases, incremental updates and recovery. Authentication, referral, notification, and watchlist endpoints remain private and `no-store`. The Profile and statistics-only endpoints also remain `private, no-store`, while expensive wallet aggregates use maintained private Redis sources. The displayed PNL and counters refresh through the shared SSE feed, with authenticated wallet/held-token targeting and five-second coalescing, reconnect/focus recovery and a one-minute foreground fallback when disconnected; `/api/profile/stats` reads statistics without reloading identity/referrer records.
 
 Profile summary statistics and Activity history follow the same authenticated private path. `app/lib/db/profile-source.ts` scopes every aggregate query to the configured chain and the wallet recovered from the signed session. It counts reverse referral bindings, created and joined Versus, and reads trade count, gross volume, remaining token quantity, and net cash flow from `indexer_v2.trader_totals` and `indexer_v2.trader_positions`. Wallet counters and trade-derived positions are kept in maintained private Redis sources under network-scoped SHA-256 wallet keys. Reads renew ten-minute idle retention, and a Redis lease coalesces cold loads across replicas. The webhook invalidates only the trader, original creator and bound referrer affected by a trade, atomically with the shared market publication; retained event-to-wallet hashes also recover corrections/deletions. An old unmapped correction conservatively advances metadata to recover affected sources. The shared minute metadata probe includes referral bindings, so non-trade changes invalidate sources without a per-user timer. Estimated PNL hydrates current curve/pool values from the same exact-integer market snapshots as Explore and Top VS, then performs only local arithmetic and shared ETH/USD conversion. Holdings reuses those wallet sources and market snapshots; its existing short response cache still refreshes on-chain wallet balances. No pool-price query or statistics reconstruction repeats per user every 20 seconds in live Redis mode. Without Redis/live configuration, bounded source and shared-market fallbacks retain periodic reconciliation. Activity is deliberately separate: `app/lib/db/profile-activity.ts` performs an indexed `LIMIT 11 OFFSET …` read against raw trades only when the Activity tab mounts, returns 10 rows plus a `hasNext` signal, and caches each wallet/page pair privately for 20 seconds. Raw wallet addresses are not used in Redis key names, simultaneous misses are deduplicated per web process, and Redis failure falls through to PostgreSQL. Both authenticated responses retain `Cache-Control: private, no-store`, so neither a CDN nor a shared browser cache stores wallet data. `0007_add_profile_stats_index.sql` supports the remaining raw Activity and joined-Versus reads.
 
-Badge rules are centralized in `app/lib/badges.ts` and shared by Profile and Leaderboard. Each of the seven tiers requires both conditions for one path: Creator combines the number of created Versus with the sum of their camps' indexed cumulative curve volume; Trader combines `trader_totals.trade_count` with `trader_totals.total_volume_wei`; Referrer combines confirmed `referral_bindings` with the referred wallets' stored trader totals. The public badge is the maximum tier reached across those three independent paths, never a function of leaderboard rank. Railway stores the source counters and volumes, not a denormalized badge label: the label is derived using the current product thresholds and cached ETH/USD quote, preventing stale rows when thresholds or exchange rates change. Leaderboard badge enrichment runs only for the paginated wallets already selected by PostgreSQL and does not rescan complete trade history.
+Badge rules are centralized in `app/lib/badges.ts` and shared by Profile and Leaderboard. Each of the seven tiers requires both conditions for one path: Creator combines the number of created Versus with the sum of their camps' indexed cumulative curve volume; Trader combines `trader_totals.trade_count` with `trader_totals.total_volume_wei`; Referrer combines confirmed `referral_bindings` with the referred wallets' stored trader totals. The public badge is the maximum tier reached across those three independent paths, never a function of leaderboard rank. Railway stores the source counters and volumes, not a denormalized badge label: the label is derived using the current product thresholds and cached ETH/USD quote, preventing stale rows when thresholds or exchange rates change. Leaderboard badge enrichment runs only for the wallets selected from the shared ranking projection after filtering/pagination, and does not rescan complete trade history.
 
 Profile PNL is labeled **estimated**. For every traded token, the server calculates `net cash flow = Σ(sell ethGross - sell feeTotal) - Σ(buy ethGross)` and derives the remaining token quantity from buys minus sells. For an open curve position, it reconstructs `KorumLens.quoteSell` locally as `gross = (virtualEth + realEth) × tokensIn / (tokenReserve + tokensIn)`, selects the current sell fee from cumulative volume and the immutable on-chain launch configuration, then subtracts that fee. Curve inventory is never valued at its marginal price. For a migrated position (status 3), Profile accepts the same spot estimate as Holdings: remaining tokens multiplied by the latest indexed pool price, falling back to the graduation price before the first pool trade. These exact price integers are included in shared market snapshots and updated with trade batches; Profile makes no additional pool RPC request. Closed positions retain realized cash flows without requiring a current price. The server sums net cash flow plus estimated remaining-token value and groups wins/losses by Versus.
 
 `estimatedPnlUsesPoolPrice` identifies totals containing open migrated positions. Profile Overview and Activity disclose this basis: pool selling fees and price impact are omitted, and gas and external ERC-20 transfers remain excluded. PNL stays unavailable if any open position has no valid valuation, is still migrating, balances/cash flows cannot be reconciled, a required curve config is unavailable, or there are more than 25 open positions. Pool estimates do not require curve configs or curve reserves. Prices missing from one asset do not become zero or produce a partial total. `node scripts/check-profile-pnl.mjs` verifies the actual adapters/math and both Profile disclosures; `--redis` tests isolated real-Redis coordination and targeted invalidation, and `--live` uses SELECT-only configured-database diagnostics.
 
-The public trader leaderboard uses all-time net cash flow plus curve liquidation value and the same immutable launch-configuration reads. Its stricter valuation still excludes open migrated positions. It no longer scans and groups the complete `camp_trades` history. Migration `0008_create_trader_aggregates.sql` backfills `indexer_v2.trader_totals` and `indexer_v2.trader_positions`, then installs an `AFTER INSERT OR UPDATE OR DELETE` trigger on `camp_trades`; migration `0009_fix_trader_aggregate_deltas.sql` makes subtraction constraint-safe for replay updates and deletions. Every Goldsky sink write therefore updates total gross volume, trade count, remaining token quantity, and net cash flow in the same PostgreSQL transaction; replayed upserts subtract the previous event contribution before applying the new one. At read time PostgreSQL only combines these compact rows with current curve reserves to calculate executable liquidation PNL. It joins `public.users` only to display an optional username. Sorting, wallet/username search, rank assignment, and 12-row pagination are server-side. `/api/leaderboard` never sends the complete trader population to the browser. Only unfiltered sort/page combinations are stored in Redis for 300 seconds and receive `s-maxage=300, stale-while-revalidate=300`, limiting their maximum routine staleness to about ten minutes while protecting the most frequently requested rankings. Free-text searches bypass Redis and shared HTTP caches (`private, no-store`) because their high-cardinality keys have little reuse; they query the compact aggregate tables directly. PNL is not presented for a trader whose position cannot be valued accurately, including a graduated open position. Period filters are intentionally absent: computing “weekly PNL” without the acquisition cost of inventory held before the week would not represent actual PNL.
+The public trader leaderboard uses all-time net cash flow plus curve liquidation value and the same immutable launch-configuration reads. Its stricter valuation still excludes open migrated positions. It no longer scans and groups the complete `camp_trades` history. Migration `0008_create_trader_aggregates.sql` backfills `indexer_v2.trader_totals` and `indexer_v2.trader_positions`, then installs an `AFTER INSERT OR UPDATE OR DELETE` trigger on `camp_trades`; migration `0009_fix_trader_aggregate_deltas.sql` makes subtraction constraint-safe for replay updates and deletions. Every Goldsky sink write therefore updates total gross volume, trade count, remaining token quantity, and net cash flow in the same PostgreSQL transaction; replayed upserts subtract the previous event contribution before applying the new one. At read time PostgreSQL only combines these compact rows with current curve reserves to calculate executable liquidation PNL. It joins `public.users` only to display an optional username. Sorting, wallet/username search, rank assignment, and 12-row pagination are server-side. `/api/leaderboard` never sends the complete trader population to the browser. PostgreSQL computes both global PNL and volume ranks before filtering. A single 30-second Redis projection shares ranking and grouped creator/referral inputs across searches/pages/sorts; server code filters it and selects 12 rows. Concurrent cold fills coalesce per process, without a distributed fill lease. Unfiltered HTTP responses retain `s-maxage=300, stale-while-revalidate=300`, so CDN-served results can outlive the Redis projection. Search responses are `private, no-store` but reuse the same server projection, with 30 searches/minute/IP. Projection size and cold computation grow with the trader population. PNL is not presented for a trader whose position cannot be valued accurately, including a graduated open position. Period filters are intentionally absent: computing “weekly PNL” without the acquisition cost of inventory held before the week would not represent actual PNL.
 
 Public Versus and market API responses expose `X-Korum-Cache` (`HIT`, `MISS`, `DEDUPED`, or `BYPASS`) and `X-Korum-Cache-Layer` (`redis`, `memory`, or `postgres`) for operational diagnostics in browser developer tools. `MISS` means Redis was reachable but did not contain the key, while `BYPASS` means Redis was not configured or temporarily unavailable and the authoritative loader was used directly. These headers describe the server-side request that originally produced the response; when browser developer tools show `(memory cache)` or `(disk cache)`, the browser may be replaying those original headers without contacting the server again.
 
-Goldsky writes PostgreSQL and sends authenticated trade notifications to the app. Once the projection is committed, Redis advances the market-cache revision and broadcasts invalidations over SSE. TTL expiry and polling remain recovery paths. The application must continue distinguishing wallet receipt confirmation from read-model availability. See [Live market updates](market-live.md).
+Goldsky writes PostgreSQL and sends authenticated trade notifications to the app. Once the projection is committed, Redis publishes maintained snapshot changes and SSE notifications atomically. Migration 0019 journals trade insert/update/delete in the SQL transaction. Publishers acknowledge only captured journal versions after successful Redis publication; a shared minute lease detects missed deliveries and invalidates affected sources. There is no new periodic SQL reconstruction per user; idle expiry, existing browser recovery and metadata probes retain their distinct roles. The application must continue distinguishing wallet receipt confirmation from read-model availability. See [Live market updates](market-live.md).
 
 ### Reactive public market reads
 
-TanStack Query supplies the browser-side refresh layer and reuses the `QueryClient` already mounted for Wagmi. Explore's card list and Hot Trending section share the same `indexed-debates` key, so rendering both does not duplicate the network request. Analytics consumes that same query. `/vs/[id]` uses the dedicated `GET /api/versus/[id]` snapshot.
+TanStack Query supplies the browser refresh layer. Explore queries are keyed by deployment and page/filter/sort options beneath `indexed-debates`; identical readers share a request. Analytics uses the same paginated API for Top VS and shared period queries for complete SQL totals/categories (`GROUPING SETS`, without a third category query). `/vs/[id]` uses `GET /api/versus/[id]`. [Frontend Architecture](frontend-architecture.md) describes route-group providers, wallet activation, private query isolation and shared client timers.
 
 Visible curve charts receive trades over SSE and periodically reconcile their latest page from the maintained snapshot. A browser request does not necessarily cause a PostgreSQL read. Current refresh intervals are:
 
 | Visible surface | Browser interval |
 | --- | --- |
-| Explore, Analytics, and Versus detail metrics | 15 seconds |
+| Explore, Analytics Top VS, and Versus detail metrics | 15 seconds |
+| Analytics totals/categories | 5 minutes; annual refresh also respects the UTC month boundary |
+| Profile statistics | Targeted events coalesced over 5 seconds; 60-second fallback only without SSE |
+| Profile Holdings | 120 seconds only while the Holdings panel is active |
 | Open Activity tab | 5 seconds |
 | Explore buy/sell ticker | 30 seconds with SSE; 5 seconds without SSE |
 | Curve charts `1s`, `1m`, `5m`, `15m`, `1h` | 60 seconds with SSE; 5 seconds without SSE |

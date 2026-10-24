@@ -1,10 +1,18 @@
 import type { CacheDiagnostic } from '../../lib/cache/redis';
 import { getIndexedDebatesWithDiagnostic } from '../../lib/db/debates';
+import { getExplorePage } from '../../lib/db/explore';
+import { parseExploreOptions } from '../../lib/explore-page';
 
-export async function GET() {
+export async function GET(request: Request) {
+  const params = new URL(request.url).searchParams;
+  let options;
+  if (params.get("view") === "explore") {
+    try { options = parseExploreOptions(params); }
+    catch { return Response.json({ error: "Invalid Explore filters." }, { status: 400 }); }
+  }
   const cache: CacheDiagnostic = { status: "BYPASS" };
   try {
-    return Response.json(await getIndexedDebatesWithDiagnostic(cache), {
+    return Response.json(options ? await getExplorePage(options, cache) : await getIndexedDebatesWithDiagnostic(cache), {
       headers: {
         "Cache-Control": "no-store",
         "X-Korum-Cache": cache.status,

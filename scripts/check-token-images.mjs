@@ -77,9 +77,7 @@ try {
   await assert.rejects(pinTokenImage(source, "hash"), /PINATA_JWT/);
   process.env.PINATA_JWT = "test-only-jwt";
   const compressed = await compressTokenImage(source);
-  let pinCount = 0;
   const pinSuccess = async (url, options) => {
-    pinCount++;
     assert.equal(url, "https://uploads.pinata.cloud/v3/files");
     assert.equal(options.headers.Authorization, "Bearer test-only-jwt");
     assert.equal(options.body.get("network"), "public");
@@ -101,49 +99,17 @@ try {
     await assert.rejects(pinTokenImage(compressed, "hash"), /invalid upload response/);
   }
 
-  let rows = [], events = [], failInsert = false, failCommit = false;
-  const sql = async (strings, ...values) => {
-    const query = strings.join("?");
-    if (query.includes("advisory")) { events.push("lock"); return []; }
-    if (query.includes("SELECT cid")) return rows.filter(row => row.sha256 === values[0]);
-    if (query.includes("INSERT")) {
-      events.push("insert");
-      if (failInsert) throw new Error("DB write unavailable");
-      assert.equal(values[3], compressed.length);
-      assert.equal(values[4], wallet.toLowerCase());
-      rows.push({ sha256: values[0], cid: values[1], bytes: values[3] });
-      return [];
-    }
-    throw new Error(`Unexpected query ${query}`);
-  };
-  overrides.set(path.resolve("app/lib/db/client.ts"), { getDatabase: () => ({ begin: async callback => {
-    const before = [...rows];
-    try {
-      const result = await callback(sql);
-      if (failCommit) throw new Error("Commit failed");
-      events.push("commit"); return result;
-    } catch (error) { rows = before; throw error; }
-  } }) });
-  const { storeTokenImage } = load("app/lib/db/token-images.ts");
+  // Transaction/lease concurrency is verified against real PostgreSQL by
+  // check-market-delivery.mjs. Keep route/provider failures isolated here.
+  let failCommit = false;
   const wallet = `0x${"Ab".repeat(20)}`;
-  fetchImpl = pinSuccess;
-  pinCount = 0;
-  assert.equal((await storeTokenImage(compressed, wallet)).uri, `ipfs://${cid}`);
-  assert.deepEqual(events, ["lock", "insert", "commit"]);
-  await storeTokenImage(compressed, wallet);
-  assert.equal(pinCount, 1, "Retries reuse the stored CID without another Pinata request");
-  rows = [];
-  fetchImpl = async () => new Response("failed", { status: 503 });
-  await assert.rejects(storeTokenImage(compressed, wallet), /503/);
-  assert.equal(rows.length, 0);
-  fetchImpl = pinSuccess;
-  failInsert = true;
-  await assert.rejects(storeTokenImage(compressed, wallet), /DB write unavailable/);
-  failInsert = false;
-  failCommit = true;
-  await assert.rejects(storeTokenImage(compressed, wallet), /Commit failed/);
-  assert.equal(rows.length, 0);
-  failCommit = false;
+  overrides.set(path.resolve("app/lib/db/token-images.ts"), {
+    TokenImageBusyError: class extends Error {},
+    storeTokenImage: async () => {
+      if (failCommit) throw new Error("Commit failed");
+      return { cid, uri: `ipfs://${cid}`, bytes: compressed.length };
+    },
+  });
 
   let session = { userId: "user", address: wallet }, sameOrigin = true, allowed = true;
   overrides.set(path.resolve("app/lib/auth/session.ts"), {
@@ -206,4 +172,4 @@ try {
   if (originalJwt === undefined) delete process.env.PINATA_JWT; else process.env.PINATA_JWT = originalJwt;
   if (originalGateway === undefined) delete process.env.PINATA_GATEWAY; else process.env.PINATA_GATEWAY = originalGateway;
 }
-console.log("Token images passed: real compression, limits, animation flattening, Pinata contract, database commit/deduplication, auth, failures and gateway URLs.");
+console.log("Token images passed: real compression, limits, animation flattening, Pinata contract, route commit failures, auth, failures and gateway URLs.");

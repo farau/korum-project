@@ -92,7 +92,7 @@ const markets = await load('app/lib/db/markets.ts', {
   '../markets/math': { tokenPriceWad: () => null, unitsNumber: () => null },
   '../live/chart-cache': { readLiveChart: () => { throw new Error('Must not read a graduated chart'); } },
   './client': { getDatabase: () => ({ unsafe: async statement => { sqlReads++; sql.push(statement); return []; } }) },
-  './token-venue': { getTokenVenue: async () => ({ ...venue, curveStatus: status }) },
+  './debates': { reconcileIndexedMarkets: async () => {} }, './token-venue': { getTokenVenue: async () => ({ ...venue, curveStatus: status }) },
   '../markets/venue': venueModel,
 });
 for (status of [2, 3]) for (const range of ['1s', '1m', '5m', '15m', '1h', '4h', '1d', '7d', '30d', '180d', 'all']) {
@@ -118,8 +118,8 @@ const live = await load('app/lib/live/server.ts', {
   '../markets/venue': venueModel,
   './chart-cache': { prepareChartMutations: async (...args) => { mutations = args; return { mutations: [], revisions: [] }; }, publishChartScript: '' },
   './debate-cache': { prepareDebateMutations: async () => ({ mutations: [], revisions: [], mappings: [] }) },
-  './profile-cache': { prepareProfileInvalidations: async () => ({ revisions: [], mappings: [] }) },
-  '../db/debates': { loadIndexedDebateRowsByIds: async () => [] },
+  './explore-cache': { prepareExploreMutation: async () => ({ revisions: [], mutations: [] }) }, '../db/explore': {}, './profile-cache': { prepareProfileInvalidations: async () => ({ revisions: [], mappings: [] }) },
+  '../db/market-delivery': { pendingMarketDeliveries: async () => [], acknowledgeMarketDeliveries: async () => {} }, '../db/debates': { loadIndexedDebateRowsByIds: async () => [] },
 });
 const notice = { event_id: 'pool-trade', chain_id: 4663, token_address: token, block_hash: 'hash', operation: 'i' };
 await live.publishMarketNotice([notice]);
@@ -294,6 +294,7 @@ const detail = await load('app/components/VsDetailClient.tsx', {
   'next/link': { __esModule: true, default: ({ children }) => React.createElement('a', null, children) },
   'next/image': { __esModule: true, default: () => null },
   './BellIcon': {},
+  './MarketStatIcon': { __esModule: true, default: () => null },
   '@tanstack/react-query': {
     useQueryClient: () => ({}), useQuery: () => ({}),
     useInfiniteQuery: options => { chartOptions = options; return { data: chartData }; },

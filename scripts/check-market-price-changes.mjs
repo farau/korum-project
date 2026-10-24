@@ -53,13 +53,19 @@ for (const side of ['A', 'B']) {
     [`token${side}PriceHistory`]: [root(1), root(1)],
     [`token${side}ReferencePrices`]: [root(2), root(3), root(1), null],
     [`token${side}PriorPrice`]: null,
-    [`token${side}WindowTrades`]: [
+    [`token${side}FixtureTrades`]: [
       { time: now - 22000, sqrtPrice: root(1), volume: '7' },
       { time: now - 4000, sqrtPrice: root(3), volume: '11' },
       { time: now - 600, sqrtPrice: root(2), volume: '13' },
       { time: now - 60, sqrtPrice: root(1), volume: '17' },
     ],
   });
+}
+for (const side of ['A', 'B']) {
+  let volume = 0n;
+  row[`token${side}WindowBuckets`] = row[`token${side}FixtureTrades`].map((trade, index) => [
+    trade.time, trade.sqrtPrice, String(volume += BigInt(trade.volume)), index + 1,
+  ]);
 }
 let actualSql;
 const dependencies = {
@@ -70,7 +76,7 @@ const dependencies = {
   '../cache/redis': { redisCacheKey: (...parts) => parts.join(':'), rememberJson: (_key, _ttl, fn) => fn(), connectedRedis: async () => null },
   '../cache/maintained': {},
   '../live/debate-cache': {},
-  '../live/debate-reconcile': {},
+  './market-delivery': { recoverMarketDeliveries: async () => {} }, '../live/debate-reconcile': {},
   '../live/debate-snapshot': snapshot,
   './watchlist': { getUserWatchlist: async () => [1] },
   '../markets/quote-usd': { getEthUsdQuote: async () => null },
@@ -103,14 +109,46 @@ const nextDay = snapshot.slideDebateRow(row, now + 86401);
 assert.equal(nextDay.tokenAVolume24h, '0');
 assert.equal(nextDay.tokenATrades24h, 0);
 assert.equal(model.mapForCheck(nextDay, null).tokenA.change24h, 0, '24h rolls forward on a quiet market');
-assert.deepEqual(Array.from(nextDay.tokenAPriceHistory), []);
+assert.deepEqual(Array.from(nextDay.tokenAPriceHistory), Array(96).fill(root(1)), 'Quiet markets retain the last known price across all time slots');
+// Every slot represents a quarter-hour close: oldest now-23h45, newest now.
+const sampleNow = 2_000_000_000;
+function samples({ buckets = [], prior = null, age = 172800 } = {}) {
+  const fixture = { ...row, createdAt: new Date((sampleNow - age) * 1000), tokenAWindowBuckets: buckets, tokenAPriorPrice: prior };
+  return snapshot.slideDebateRow(fixture, sampleNow);
+}
+let sampled = samples();
+assert.deepEqual(Array.from(sampled.tokenAPriceHistory), Array(96).fill(null), 'Never traded: no invented launch or zero price');
+assert.equal(sampled.tokenAVolume24h, '0');
+assert.equal(sampled.tokenATrades24h, 0);
+sampled = samples({ prior: root(2) });
+assert.ok(sampled.tokenAPriceHistory.every(p => p === root(2)), 'No trades in 24h: carry the older known price');
+const sparse = [[sampleNow - 3600, root(2), '5', 1], [sampleNow - 900, root(3), '12', 2]];
+sampled = samples({ buckets: sparse });
+assert.deepEqual(Array.from(sampled.tokenAPriceHistory.slice(0, 6)), [root(3), root(3), root(2), root(2), root(2), null], 'Boundary prices included; empty slots carry forward only');
+assert.equal(sampled.tokenAPriceHistory.filter(p => p !== null).length, 5);
+const dense = Array.from({ length: 200 }, (_, i) => [sampleNow - 600 + i * 3, root(i + 1), String(i + 1), i + 1]);
+sampled = samples({ buckets: dense });
+assert.equal(sampled.tokenAPriceHistory[0], root(200));
+assert.equal(sampled.tokenAPriceHistory.filter(p => p !== null).length, 1, '200 trades in ten minutes do not stretch across 24 hours');
+assert.equal(sampled.tokenATrades24h, 200);
+sampled = samples({ buckets: sparse, prior: root(1), age: 1000 });
+assert.equal(sampled.tokenAPriceHistory.filter(p => p !== null).length, 2, 'No points before token creation, even with an inconsistent old anchor');
+sampled = samples({ buckets: [[sampleNow, root(2), '1', 1]], age: 0 });
+assert.equal(sampled.tokenAPriceHistory[0], root(2));
+assert.ok(sampled.tokenAPriceHistory.slice(1).every(p => p === null), 'A token launched now has at most one observed point');
+sampled = samples({ buckets: [[sampleNow + 1, root(3), '1', 1]] });
+assert.ok(sampled.tokenAPriceHistory.every(p => p === null), 'Future trades cannot leak into historical points');
+const publicSeries = model.mapForCheck(samples({ buckets: sparse }), null).tokenA.priceHistory;
+assert.equal(publicSeries.length, 96);
+assert.equal(publicSeries[0], null, 'Unknown slots survive DTO conversion without collapsing the time axis');
+assert.equal(publicSeries[95], math.unitsNumber(math.tokenPriceWad(root(3))), 'Public series is chronological');
 await model.readForCheck();
 for (const side of ['a', 'b']) {
-  assert.ok(actualSql.includes(`history.token_address = camp_${side}.token_address`));
+  assert.ok(actualSql.includes(`token_address = camp_${side}.token_address`));
 }
-assert.ok(actualSql.includes("history.traded_at <= NOW() - INTERVAL '24 hours'"));
-assert.ok(actualSql.includes('ORDER BY history.traded_at DESC, history.block_number DESC, history.log_index DESC'));
-assert.ok(actualSql.includes('AS window_trades'), 'One timeline provides all four rolling windows');
+assert.ok(actualSql.includes("bucket.traded_at <= NOW() - INTERVAL '24 hours'"));
+assert.ok(!actualSql.includes('LIMIT 96'), 'Sparklines no longer read a raw tail of trades');
+assert.ok(actualSql.includes('AS window_buckets'), 'One bucket timeline provides all four rolling windows');
 const watched = await model.getIndexedWatchlistDebates('00000000-0000-0000-0000-000000000001');
 assert.equal(watched[0].tokenA.change5m, 300);
 assert.equal(watched[0].tokenB.change1h, 800);

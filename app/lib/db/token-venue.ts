@@ -22,5 +22,5 @@ export async function getTokenVenue(tokenAddress: string): Promise<TokenVenue | 
       LIMIT 1
     `, [KORUM_CHAIN_ID, token]);
     return rows[0] ?? null;
-  });
+  }, undefined, token);
 }

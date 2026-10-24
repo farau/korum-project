@@ -93,7 +93,7 @@ Either camp's **current on-chain fee recipient** can edit the Versus X, Telegram
 
 ## Architecture Decisions
 
-The accepted separation between application referral codes, the on-chain `ReferralRegistry`, Goldsky, and the Railway PostgreSQL read model is documented in [Referral and Indexer Architecture](./docs/referral-and-indexer-architecture.md). Read it before changing referral attribution, transaction arguments, indexer tables, or versus ingestion.
+The accepted separation between application referral codes, the on-chain `ReferralRegistry`, Goldsky, and the Railway PostgreSQL read model is documented in [Referral and Indexer Architecture](./docs/referral-and-indexer-architecture.md). Read it before changing referral attribution, transaction arguments, indexer tables, or versus ingestion. [Frontend Architecture](docs/frontend-architecture.md) covers route groups and client state; [Live market updates](docs/market-live.md) covers snapshots/SSE/recovery; [Token images](docs/token-images.md) covers upload reservations.
 
 Contract ABI conventions and chain-specific public addresses are documented in [Contract Artifacts](./contracts/README.md).
 
@@ -218,15 +218,20 @@ app/
 │   └── explore/            # Search, filters, ticker, cards, and feed
 ├── hooks/                  # Reactive indexed-market and Railway-backed watchlist hooks
 ├── lib/                    # Typed models, cache, contracts, auth, and server database adapters
-├── vs/[id]/                # Dynamic matchup route
-├── */page.tsx              # App Router pages
+├── (app)/                  # Interactive pages, including vs/[id], with wallet providers
+├── (public)/               # Static Concept, Earn, Privacy and Terms pages
 ├── globals.css             # Shared design system and responsive styles
 └── layout.tsx              # Metadata, fonts, theme initialization
 public/
 └── korum-reference/        # Visual assets adapted from the reference design
 ```
 
-The root layout mounts the SSR-aware RainbowKit and wallet providers. `PageWrapper` supplies the shared header and footer to application pages.
+The root layout supplies metadata, fonts, theme initialization and global CSS.
+`app/(app)/layout.tsx` reads the raw cookie header and mounts RainbowKit/Wagmi,
+wallet authentication and the shared application frame. `app/(public)/layout.tsx`
+keeps Concept, Earn, Privacy and Terms static with deferred wallet loading.
+`AppFrame` supplies the header and footer; `PageWrapper` is a legacy pass-through.
+Route groups do not change public URLs. See [Frontend Architecture](docs/frontend-architecture.md).
 
 ## Data Contract
 
@@ -275,11 +280,11 @@ Example response shape:
 }
 ```
 
-Treat this type as the frontend boundary. Avoid adding temporary aliases for database column names; normalize indexed rows in the server-only adapter before returning them to components. Explore and Analytics share its reactive client query, while watchlist membership remains an authenticated database read.
+Treat this type as the frontend boundary. Avoid adding temporary aliases for database column names; normalize indexed rows in the server-only adapter before returning them to components. Explore and Analytics Top VS use the paginated `ExplorePage` contract from `app/lib/explore-page.ts`; Analytics totals/categories use `AnalyticsSnapshot`. Watchlist membership uses a separate authenticated IDs-only response, with full Debate objects loaded in Watchlist views.
 
 ## Wallet Authentication
 
-The wallet layer uses RainbowKit, Wagmi, Viem, and React Query. RainbowKit receives a custom authentication adapter while Wagmi receives its initial cookie state from the root server layout.
+The wallet layer uses RainbowKit, Wagmi, Viem, and React Query. RainbowKit receives a custom authentication adapter while Wagmi receives its initial raw cookie state from the interactive route-group layout. Public pages activate the wallet runtime on connection intent or returning-wallet restoration.
 
 Authentication follows this flow:
 
@@ -287,17 +292,17 @@ Authentication follows this flow:
 2. RainbowKit requests a five-minute, server-signed nonce, then asks the server to construct the exact challenge message for the connected address and chain.
 3. The wallet signs that message without submitting a transaction.
 4. The server verifies the nonce, origin, expiration, address, network, message, and EVM signature.
-5. PostgreSQL atomically creates the wallet user or updates the existing user's last-login metadata.
+5. PostgreSQL consumes the challenge nonce and creates or updates the wallet user in one transaction (migration 0017). A unique nonce hash rejects concurrent/replayed verification; a rollback preserves retryability.
 6. The server creates a signed 12-hour session cookie containing the internal user ID and wallet address.
 7. Server Components and private API routes require both signed identifiers before reading or updating a profile.
 
 The session cookie is `HttpOnly`, `SameSite=Strict`, scoped to `/`, and marked `Secure` in production. It contains only a signed session identifier, wallet address, chain ID, and timestamps. It never contains profile records, private keys, signatures, or Railway credentials.
 
-The challenge cookie is also `HttpOnly`, short-lived, and limited to `/api/auth`. It is deleted after successful verification. Disconnecting through the Korum header deletes the authenticated session as well as the RainbowKit connection.
+The challenge cookie is also `HttpOnly`, short-lived, and limited to `/api/auth`. It is deleted after successful verification. Verification limits streamed bodies to 48 KiB, messages to 4,096 characters and hex signatures to 16 KiB. Shared rate limits allow 60 attempts/minute/IP and 10 attempts/challenge/five minutes before RPC verification; without Redis, limits fall back to each process. Disconnecting through the Korum header deletes the authenticated session as well as the RainbowKit connection.
 
 `/profile` reads the session on the server and does not send profile data to unauthenticated clients. `/api/profile` applies the same protection to profile reads, indexed wallet statistics, and username/bio updates. Every future wallet-specific Railway query must repeat this server-side authorization check; hiding content in React is not a security boundary.
 
-The current profile mirrors the Korum reference layout while keeping its controls reactive. Its Information, My Holdings, Activity, Referrals, Badges, and Watchlist tabs are client-side React views. The server derives referral count from `indexer_v2.referral_bindings`, created Versus from `indexer_v2.versuses`, joined Versus from indexed trades, and trade count, gross volume, net positions, and cash flow from the trigger-maintained `indexer_v2.trader_totals` and `indexer_v2.trader_positions` aggregates. Every read is scoped to the configured chain and authenticated wallet. These wallet-scoped statistics are cached for 20 seconds in the private server-side Redis service under a hashed wallet key; the authenticated Profile response remains `private, no-store` and is never stored by a shared HTTP cache. Activity is loaded lazily in pages of 10 raw trades through `/api/profile/activity`, with a separate 20-second private Redis entry for each wallet and page. Gross volume is displayed in USD with the shared ETH/USD quote, falling back to ETH when no quote is available. Estimated PNL is sales received net of fees plus the full-position liquidation value of each remaining trade-derived position minus purchases paid. For an active curve, the server reconstructs `KorumLens.quoteSell` locally from indexed reserves and reads only the public launch configuration on-chain; it therefore includes bonding-curve price impact and current sell fees without disclosing position sizes to an RPC provider. It excludes gas and cannot account for ERC-20 transfers outside Korum until `Transfer` events are indexed. My Holdings uses traded token addresses as candidates, verifies each current `balanceOf` on-chain, and combines priced curve positions with the native ETH balance using the shared ETH/USD quote. It does not discover tokens received without any trade in the wallet, and a total is withheld when a known position cannot be valued or the candidate limit is reached. My Holdings estimates graduated positions from the latest indexed pool spot price (or the graduation price before the first pool trade), without selling fees or price impact; executable liquidation valuation still requires pool quoting. Badge progression is derived from the seven threshold pairs shown in Profile: Creator uses created Versus plus generated curve volume, Trader uses trade count plus gross volume, and Referrer uses confirmed referrals plus their wallets' gross volume. Both conditions are required within a path, and the highest tier reached across the three paths becomes the public leaderboard badge. The tier itself is not persisted because thresholds and the ETH/USD conversion can change; authoritative counters and volumes remain in Railway. Profile-image uploads are available in Account information; X account linking remains disabled.
+The current profile mirrors the Korum reference layout while keeping its controls reactive. Its Information, My Holdings, Activity, Referrals, Badges, and Watchlist tabs are client-side React views. The server derives referral count from `indexer_v2.referral_bindings`, created Versus from `indexer_v2.versuses`, joined Versus from indexed trades, and trade count, gross volume, net positions, and cash flow from the trigger-maintained `indexer_v2.trader_totals` and `indexer_v2.trader_positions` aggregates. Every read is scoped to the configured chain and authenticated wallet. With Redis/live configured, wallet counters and positions use event-invalidated private sources under hashed wallet keys, with 600 seconds of idle retention renewed by reads. Prices are hydrated from shared market snapshots. Authenticated SSE targets personal changes and the prices of up to 25 open positions, coalesces refreshes over five seconds, and retains the existing one-minute fallback only while disconnected; the authenticated Profile response remains `private, no-store` and is never stored by a shared HTTP cache. Activity is loaded lazily in pages of 10 raw trades through `/api/profile/activity`, with a separate 20-second private Redis entry for each wallet and page. Gross volume is displayed in USD with the shared ETH/USD quote, falling back to ETH when no quote is available. Estimated PNL is sales received net of fees plus the full-position liquidation value of each remaining trade-derived position minus purchases paid. For an active curve, the server reconstructs `KorumLens.quoteSell` locally from indexed reserves and reads only the public launch configuration on-chain; it therefore includes bonding-curve price impact and current sell fees without disclosing position sizes to an RPC provider. It excludes gas and cannot account for ERC-20 transfers outside Korum until `Transfer` events are indexed. My Holdings uses traded token addresses as candidates, verifies each current `balanceOf` on-chain, and combines priced curve positions with the native ETH balance using the shared ETH/USD quote. It does not discover tokens received without any trade in the wallet, and a total is withheld when a known position cannot be valued or the candidate limit is reached. My Holdings estimates graduated positions from the latest indexed pool spot price (or the graduation price before the first pool trade), without selling fees or price impact; executable liquidation valuation still requires pool quoting. Badge progression is derived from the seven threshold pairs shown in Profile: Creator uses created Versus plus generated curve volume, Trader uses trade count plus gross volume, and Referrer uses confirmed referrals plus their wallets' gross volume. Both conditions are required within a path, and the highest tier reached across the three paths becomes the public leaderboard badge. The tier itself is not persisted because thresholds and the ETH/USD conversion can change; authoritative counters and volumes remain in Railway. Profile-image uploads are available in Account information; X account linking remains disabled.
 
 ## User Database
 
@@ -346,7 +351,7 @@ The flow check requires the local app and a migrated development/staging databas
 
 ## Goldsky Read Model
 
-Migration `0002_create_indexer_read_model.sql` creates the isolated `indexer_v2` schema in the Railway PostgreSQL database. Migration `0005_create_market_read_model.sql` adds trade and curve-lifecycle projections, `0006_add_trade_feed_index.sql` adds the ticker timeline index, `0007_add_profile_stats_index.sql` adds the wallet-oriented Activity index, `0008_create_trader_aggregates.sql` adds incrementally maintained trader totals and positions, and `0009_fix_trader_aggregate_deltas.sql` makes replay updates and deletions constraint-safe:
+Migration `0002_create_indexer_read_model.sql` originally creates `indexer`; migration `0011_create_v2_read_model.sql` recreates the projections from 0002–0009 in the isolated `indexer_v2` namespace while preserving v1. Migration `0005_create_market_read_model.sql` adds trade and curve-lifecycle projections, `0006_add_trade_feed_index.sql` adds the ticker timeline index, `0007_add_profile_stats_index.sql` adds the wallet-oriented Activity index, `0008_create_trader_aggregates.sql` adds incrementally maintained trader totals and positions, and `0009_fix_trader_aggregate_deltas.sql` makes replay updates and deletions constraint-safe:
 
 - `indexer_v2.referral_bindings` mirrors confirmed `ReferrerBound` events, keyed by chain and referred wallet.
 - `indexer_v2.versuses` mirrors `VersusCreated`, including the descriptive strings that are emitted but not stored by the contract.
@@ -363,6 +368,10 @@ The deployed Goldsky pipeline lowercases every EVM address and hash, converts ev
 Goldsky can write these projections directly into Railway PostgreSQL through its externally reachable connection URL. The frontend must still read them through server-side Korum queries or API routes; neither the browser nor the smart contracts write directly to PostgreSQL.
 
 The migration runner serializes concurrent runs with a PostgreSQL advisory lock and stores each migration checksum in `korum_schema_migrations`. Never edit an applied migration; add a new numbered file instead.
+
+Explore uses `/api/versus?view=explore` with `page`, `sort`, `category`, `age`, `marketCapMin` and `tradersMin`. The server ranks the complete indexed catalog and returns 12 compact items plus `total`, `totalPages`, `page` and `catalogTotal`. Ranking snapshots and market details are shared across users and maintained by live events; quiet volume windows slide without periodic SQL reconstruction. The legacy `/api/versus` array response remains available to other consumers. Local coverage: `scripts/check-explore-pagination.mjs` (PostgreSQL/Redis fixtures), `scripts/check-cache-resilience.mjs` and `scripts/check-explore-browser.mjs` (local build, optional Playwright path).
+
+Before running the latest audit corrections on a new environment, apply all migrations through 0019. Migration 0016 supplies market memberships/buckets and 0017 durable nonce consumption; 0018 and 0019 add upload reservations and the delivery journal. Migration 0018 reserves duplicate image uploads without holding a SQL connection during Pinata requests; a competing replica returns HTTP 503 with `Retry-After: 3`. Migration 0019 journals trade changes for shared missed-webhook recovery. Its initial seed briefly locks trade writes and schedules one cache refresh per existing camp. See [market delivery and recovery](./docs/market-live.md). Both migrations were applied and verified on the configured Railway testnet database on 2026-10-22; see the [verification record](./docs/performance-2026-10-22/migrations-0018-0019-remote.json). The application changes remain undeployed, so journal entries can accumulate until the new publisher/recovery code runs.
 
 For local access without a public database proxy, open a Railway SSH tunnel and run commands with the database service variables:
 
@@ -413,19 +422,27 @@ Run these commands before opening a pull request:
 npx next typegen
 npx tsc --noEmit
 npm run lint
+npm test
+npm run test:integration
 npm run build -- --webpack
 ```
+
+`npm test` runs 22 isolated checks. The eight integration checks require local PostgreSQL and Redis; defaults are `postgres://korum_test@127.0.0.1:16482/postgres` and `redis://127.0.0.1:16481`. Override them with `KORUM_TEST_DATABASE_URL` and `KORUM_TEST_REDIS_URL`; remote hosts are rejected. Tests create and remove isolated databases/cache namespaces. `npm run test:all` runs all 30 checks. `.github/workflows/checks.yml` provisions PostgreSQL 15 and Redis 7 and runs installation, lint, tests and build on Node 22.18, without production credentials. Its first GitHub execution is still pending.
+
+The public route group (Concept, Earn, Privacy and Terms) renders with lightweight providers and loads wallet modules on connection intent or returning-wallet restoration. Interactive routes retain the full wallet stack. Analytics categories cover all indexed trades in the selected period, and its top markets use Explore's global ranking. Leaderboard shares a 30-second Redis ranking projection between searches and pages.
 
 The Webpack build command is useful as a fallback in restricted environments where Turbopack workers cannot bind an internal port.
 
 ## Known Limitations
 
+- Final dependency verification on 2026-10-25 reports 17 high-severity npm entries, all tracing to [Zod advisory GHSA-mrhx-c7xc-m3w5](https://github.com/advisories/GHSA-mrhx-c7xc-m3w5), including production dependencies. Several wallet SDKs require Zod 3 while the advisory identifies 4.6.6 as patched. Do not force a major Zod override or the suggested SDK downgrades without compatibility validation; this remains an open pre-deployment issue. See the [final verification](docs/audit-followup-2026-10-25/verification-final.json).
+
 - Creator/referrer ranking models and analytics projections are not yet backed by dedicated indexed aggregates; the trader leaderboard is live.
 - My Holdings discovers tokens from the wallet's indexed trades, so transferred-in tokens never traded by that wallet are omitted. Graduated tokens use the latest indexed pool spot price (or the graduation price before the first pool trade) times the on-chain balance; this market estimate does not include selling fees or price impact. Profile PNL remains a trade-derived estimate excluding transfers and gas.
-- Profile-image uploads and X account linking are intentionally disabled.
+- Profile-avatar uploads are available; X account linking remains disabled.
 - Advanced numeric filters and quick-amount configuration are visual placeholders.
-- Automated unit, integration, and end-to-end tests have not been added yet.
-- The current signature verifier supports standard EVM account signatures; contract-wallet authentication requires an ERC-1271-aware verifier before production use.
+- Local browser checks cover public wallet activation, Analytics and Explore using synthetic data; they do not replace real-extension signing/transaction tests or production Core Web Vitals. See [the audit report](docs/audit-codebase-2026-10-21.md) for evidence and remaining rollout checks.
+- Authentication verifies EOA signatures locally and falls back to the configured RPC for contract wallets. Apply migration 0017 before running the updated verifier: nonce consumption and the user update must commit together to prevent replay.
 
 ## Changelog
 

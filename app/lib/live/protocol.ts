@@ -9,7 +9,7 @@ export type TradeNotice = {
   block_hash: string;
   operation: "i" | "u" | "d";
 };
-export type MarketNotice = { revision: string; tokens: string[]; reset: boolean; trades?: ChartTrade[] };
+export type MarketNotice = { revision: string; tokens: string[]; reset: boolean; trades?: ChartTrade[]; profileWallets?: string[]; profileWallet?: string; profileChanged?: boolean };
 
 export function parseTradeNotices(value: unknown, chainId: number): TradeNotice[] {
   const rows = Array.isArray(value) ? value : [value];

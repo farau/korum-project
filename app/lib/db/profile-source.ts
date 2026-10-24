@@ -6,8 +6,7 @@ import { connectedRedis, redisCacheKey, rememberJson, type CacheDiagnostic } fro
 import { MAINTAINED_IDLE_SECONDS, readMaintained } from "../cache/maintained";
 import { activeProfileKey, profileSourceKeys, profileWalletHash } from "../live/profile-cache";
 import { getDatabase } from "./client";
-import { indexedDebateMetadataFingerprint } from "./debates";
-import { reconcileDebateMetadata } from "../live/debate-reconcile";
+import { reconcileIndexedMarkets } from "./debates";
 
 export type ProfileStatsRow = {
   referralCount: number;
@@ -122,6 +121,15 @@ async function loadProfileSource(wallet: string): Promise<ProfileSource[]> {
 // Without live delivery, a short, bounded fallback keeps local/degraded reads
 // available. Live Redis uses idle retention and targeted event invalidation.
 const fallback = new Map<string, { until: number; pending: Promise<ProfileSource[]> }>();
+const degraded = new Map<string, Promise<ProfileSource[]>>();
+function degradedSource(wallet: string, diagnostic?: CacheDiagnostic) {
+  if (diagnostic) diagnostic.status = "BYPASS";
+  const existing = degraded.get(wallet);
+  if (existing) return existing;
+  const pending = loadProfileSource(wallet).finally(() => degraded.delete(wallet));
+  degraded.set(wallet, pending);
+  return pending;
+}
 async function fallbackSource(wallet: string, diagnostic?: CacheDiagnostic) {
   const existing = fallback.get(wallet);
   if (existing && existing.until > Date.now()) return existing.pending;
@@ -138,10 +146,13 @@ export async function getProfileSource(address: `0x${string}`, diagnostic?: Cach
   if (process.env.REDIS_URL && (process.env.KORUM_GOLDSKY_WEBHOOK_SECRET?.length ?? 0) >= 32) {
     try { redis = await connectedRedis(); } catch { /* Use the bounded fallback. */ }
   }
-  if (!redis || redis.status !== "ready") return (await fallbackSource(wallet, diagnostic))[0];
-  await reconcileDebateMetadata(redis, redisCacheKey, indexedDebateMetadataFingerprint);
-  // Outlive a cold fill's 30s lease as well as its 10-minute idle retention.
-  await redis.set(activeProfileKey(redisCacheKey), "1", "EX", MAINTAINED_IDLE_SECONDS + 30);
+  const liveConfigured = process.env.REDIS_URL && (process.env.KORUM_GOLDSKY_WEBHOOK_SECRET?.length ?? 0) >= 32;
+  if (!redis || redis.status !== "ready") return (await (liveConfigured ? degradedSource(wallet, diagnostic) : fallbackSource(wallet, diagnostic)))[0];
+  try {
+    await reconcileIndexedMarkets(redis);
+    // Outlive a cold fill's 30s lease as well as its 10-minute idle retention.
+    await redis.set(activeProfileKey(redisCacheKey), "1", "EX", MAINTAINED_IDLE_SECONDS + 30);
+  } catch { return (await degradedSource(wallet, diagnostic))[0]; }
   return (await readMaintained(redis, profileSourceKeys(redisCacheKey, profileWalletHash(wallet)),
     () => loadProfileSource(wallet), diagnostic))[0];
 }

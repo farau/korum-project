@@ -1,0 +1,148 @@
+
+> korum-project@0.3.2 test:all
+> node scripts/check-suite.mjs all
+
+
+Checking annual-analytics
+Annual analytics checks passed: UTC calendar windows, chronological recorded months, empty current month, year/month rollovers, SQL bounds, real totals, ETH fallback and chart states.
+
+Checking audit-followup
+Audit follow-up passed: Profile tab requests and wallet isolation, stable/clamped pagination, 100 coalesced SQL fallbacks, Redis recovery, search throttling and cached global ranks.
+
+Checking avatar-images
+(node:45443) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///Users/faresomari/Code/korum-project/app/lib/avatar-image.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /Users/faresomari/Code/korum-project/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+Avatar image checks passed: formats, crop, metadata removal, invalid/animated/oversized inputs and bounded streams.
+
+Checking create-images
+Creation images passed: local files only, upload-before-sign order, partial failure/retry, wallet changes, rejected signatures, pending lock and file limits.
+
+Checking creator-fee-claim
+Profile fee claim checks passed: both Profile tabs, wallet-wide balance, retained rights, successful payout, fresh zero balance, failures and network switching. No transaction sent.
+
+Checking graduated-markets
+Graduated market checks passed: migration locks buy/sell despite Dexscreener availability, contract graduation unlocks trading without a chart, fresh pre-trade status checks, stale indexer isolation, retained metrics and verified chart embeds.
+
+Checking graduation-button
+Graduation button checks passed: permissionless wallet flow, status guard, gas reserve, simulation before write, correct Core/token/network, rejected/reverted/replaced transactions, pending-hash retries and double-click prevention.
+
+Checking local-sharing
+Local sharing passed: 100 clock subscribers / one timer, two referral panels / one request, wallet switch and pending-clear isolation.
+
+Checking market-hub
+Market hub passed: 100 subscribers share one connection and recovery timer; no overlapping probes; idle cleanup and remount.
+
+Checking market-live-chart
+(node:45450) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///Users/faresomari/Code/korum-project/app/lib/live/chart.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /Users/faresomari/Code/korum-project/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+Live chart checks passed: OHLC, market cap, volume, same-block trades, duplicate delivery, gaps, ordering, sliding retention and minute aggregation.
+Loaded history is retained when the latest page advances.
+
+Checking market-live-protocol
+(node:45451) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///Users/faresomari/Code/korum-project/app/lib/live/protocol.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /Users/faresomari/Code/korum-project/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+Live webhook validation passed: chain, addresses, bounded batches, correction ordering and invalid input.
+
+Checking market-price-changes
+Market price change checks passed: window baselines, first trade, idle periods, drops, missing prices, USD invariance and shared snapshot fields.
+
+Checking notification-isolation
+(node:45453) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///Users/faresomari/Code/korum-project/app/lib/notifications/client.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /Users/faresomari/Code/korum-project/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+Notification isolation passed: legacy cleanup, wallet switching, disconnected scope, delayed events, case normalization and owner filtering.
+
+Checking price-sparkline
+Sparkline rendering passed: fixed time positions, missing history, single point, flat prices, gaps and accessible labels.
+
+Checking profile-live
+Profile live PNL checks passed: authenticated stats-only route, coalesced trades, in-flight recovery, reconnect and wallet isolation.
+Live cadence passed: 40 notices/second, one list reload, targeted details, direct chart updates and pending-request recovery.
+
+Checking profile-pnl
+Profile PNL checks passed: curve fees, migrated pool estimates, mixed/closed positions, missing prices, limits, USD fallback, Holdings consistency and UI disclosure.
+
+Checking profile-sse
+Profile SSE passed: authenticated wallet scope, unrelated events suppressed, open-position price changes, correction recovery and no actor hashes exposed publicly.
+
+Checking public-wallet
+Public wallet boundary passed: raw cookie round-trip, restored state and safe malformed-cookie fallback.
+
+Checking referral-eligibility
+(node:45459) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///Users/faresomari/Code/korum-project/app/lib/referrals/eligibility.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /Users/faresomari/Code/korum-project/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+Referral checks passed: reciprocal referrals allowed, self-referral and rebinding rejected, wallet isolation and unavailable verification.
+
+Checking token-images
+Token images passed: real compression, limits, animation flattening, Pinata contract, route commit failures, auth, failures and gateway URLs.
+
+Checking wallet-session-isolation
+(node:45461) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///Users/faresomari/Code/korum-project/app/lib/auth/wallet-session-guard.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /Users/faresomari/Code/korum-project/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+Wallet session isolation passed: active-account matching, stale reads, delayed signatures, ordered logout/login, network recovery.
+Anonymous mount: zero DELETE/refresh without a session; restored cookie still cleared.
+
+Checking watchlist-client
+Watchlist checks passed: deduplicated IDs, retained errors, cancellation, wallet isolation, ordered optimism/rollback, queued writes and IDs-only API.
+
+Checking auth-replay
+Auth replay passed: real EOA signatures, 8 concurrent requests, durable consumption, transaction rollback/retry, expiry, contract signatures, rate limits and bounded streams.
+
+Checking cache-resilience
+Cache resilience passed: token isolation, metadata invalidation, raced fills, 100 shared readers through read/lease/store/release failures, SQL error propagation.
+
+Checking debate-cache
+Debate cache checks passed: 100 readers across 4 replicas share one SQL load; warm reuse, idle TTL, affected-row refresh, detail/catalog consistency, unknown tokens, raced fills, metadata reconciliation and private watchlist invalidation.
+
+Checking explore-pagination
+Page detail SQL ms: 45
+Page detail SQL ms: 7
+Analytics/Leaderboard passed: complete categories, period boundaries, shared aggregate scan, 100 filtered readers and global ranks.
+{"verifiedAt":"2026-10-24T22:42:22.643Z","passed":true,"analytics":{"markets":300,"categoryTotalsComplete":true,"sharedAggregateScan":true,"periodBoundaries":true},"leaderboard":{"readers":100,"configAndRankingSqlReads":2,"globalRanksPreserved":true},"markets":300,"trades":3,"plannerStatistics":"ANALYZE after fixture insertion","fullRankingSqlMs":9.7,"rankingBytes":69106,"pageBytes":18586,"checks":"old-market ranking, filters, stable ties, quiet windows, bounded DTO, 100 readers, targeted live update, validation and legacy API"}
+
+Checking market-chart-cache
+Real Redis chart-cache checks passed: cross-replica cold loads, reuse beyond 2s, live OHLC/volume, multiple resolutions, idle TTL, dedupe, token isolation, concurrent publishers, gaps, corrections, quiet-market reuse and shared reconstruction, raced fills and corrupt-cache recovery.
+
+Checking market-delivery
+Market delivery passed: Pinata releases the SQL pool, deduplication/leases/crash recovery, outbox insert/update/delete/rollback, stale ACK protection, 100 readers/4 replicas/one probe, chain isolation and Redis failure.
+
+Checking market-snapshot-aggregates
+{
+  "bulkTrades": 20000,
+  "insertMs": 25541.191917,
+  "writeBatchSize": 500,
+  "writeMs": {
+    "existing": [
+      288.054208,
+      285.0707090000001
+    ],
+    "withSnapshots": [
+      293.14033400000005,
+      301.178125
+    ]
+  },
+  "tokenABuckets": 111,
+  "sparklineSlots": 96,
+  "rawWindowBytes": 2119917,
+  "bucketBytes": 9794,
+  "fullSnapshotMs": 13.094,
+  "oldSingleTokenWindowMs": 44.543
+}
+PostgreSQL snapshot checks passed: transactional backfill, replay, out-of-order events, corrections, deletes, concurrency, rollback, exact rolling windows and fixed-time 24h sparklines.
+
+Checking profile-pnl --redis
+Real Redis Profile checks passed: one cold load across 4 replicas, reuse beyond 20s, targeted invalidation, unrelated-wallet reuse and correction recovery.
+Profile PNL checks passed: curve fees, migrated pool estimates, mixed/closed positions, missing prices, limits, USD fallback, Holdings consistency and UI disclosure.
+
+30 checks passed (all).

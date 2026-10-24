@@ -1,0 +1,18 @@
+[
+  {
+    "theme": "dark",
+    "original": 752186,
+    "one": 10050,
+    "two": 38214,
+    "reductionOne": 98.66389430273895,
+    "reductionTwo": 94.91960765023545
+  },
+  {
+    "theme": "light",
+    "original": 1385118,
+    "one": 26358,
+    "two": 116598,
+    "reductionOne": 98.09705743481783,
+    "reductionTwo": 91.58208903501362
+  }
+]

@@ -58,7 +58,7 @@ let release;
 const statsHook = await load('app/hooks/useProfileStats.ts', {
   '@tanstack/react-query': { useQuery: options => options },
   './useIndexedMarkets': keys,
-  './useMarketLive': { useMarketLive: value => { interest = value; return live; } },
+  './useMarketLive': { useMarketConnection: () => live, useMarketSubscription: value => { interest = value; } },
 }, { fetch: async (_url, options) => {
   assert.equal(options.cache, 'no-store');
   assert.equal(options.credentials, 'same-origin');
@@ -68,7 +68,7 @@ const statsHook = await load('app/hooks/useProfileStats.ts', {
   return result;
 } });
 let options = statsHook.useProfileStats(wallet.toUpperCase(), { estimatedPnlEth: 0 });
-assert.equal(interest, 'feed');
+assert.equal(interest, `profile:${wallet}:`);
 assert.equal(options.queryKey[1], wallet);
 assert.equal(options.refetchInterval, 60_000, 'Disconnected recovery is bounded and not 20-second SQL polling');
 assert.equal(options.refetchIntervalInBackground, false);
@@ -116,7 +116,7 @@ const market = await load('app/hooks/useMarketLive.ts', {
   react: { useEffect: fn => effects.push(fn), useSyncExternalStore: (_subscribe, snapshot) => snapshot() },
   '@tanstack/react-query': { useQueryClient: () => client },
   './useIndexedMarkets': keys,
-  '../lib/live/chart': {},
+  '../lib/live/chart': { mergeChartTrades: page => page, replaceChartHead: (data, page) => ({ ...data, pages: [page] }) },
 }, { document, EventSource: FakeEventSource,
   setTimeout: (fn, ms) => { timers.set(++timerId, { fn, at: now + ms }); return timerId; },
   clearTimeout: id => timers.delete(id),
@@ -132,12 +132,18 @@ await advance(50);
 assert.equal(connections.length, 1);
 const stream = connections[0];
 stream.emit('ready');
-await advance(1_000);
+await advance(5_000);
 reads = 0;
 pricePnl = 2;
-const trade = { revision: 'new', tokens: [`0x${'c'.repeat(40)}`], reset: false };
+const trade = { revision: 'new', tokens: [`0x${'c'.repeat(40)}`], reset: false, profileChanged: true, profileWallet: wallet };
+stream.emit('market', { ...trade, profileChanged: false });
+await advance(5_000);
+assert.equal(reads, 0, 'Unrelated market notices do not reload Profile');
+stream.emit('market', { ...trade, profileWallet: otherWallet });
+await advance(5_000);
+assert.equal(reads, 0, 'Delayed notices for a previous wallet cannot refresh the new wallet');
 for (let i = 0; i < 30; i++) stream.emit('market', trade);
-await advance(999);
+await advance(4_999);
 assert.equal(reads, 0);
 await advance(1);
 assert.equal(reads, 1, 'A burst of trade notices makes one stats request');
@@ -146,14 +152,14 @@ assert.equal(observer.getCurrentResult().data.estimatedPnlEth, 2, 'The displayed
 pause = new Promise(resolve => { release = resolve; });
 pricePnl = 3;
 stream.emit('market', trade);
-await advance(1_000);
+await advance(5_000);
 assert.equal(reads, 2);
 pricePnl = 4;
 stream.emit('market', trade);
-await advance(1_000);
+await advance(5_000);
 assert.equal(reads, 2, 'Live refresh requests never overlap or repeatedly cancel each other');
 release(); await tick();
-await advance(1_000);
+await advance(5_000);
 assert.equal(reads, 3, 'A trade during a request schedules a follow-up read');
 assert.equal(observer.getCurrentResult().data.estimatedPnlEth, 4);
 
@@ -162,7 +168,7 @@ await tick();
 const beforeHide = reads;
 document.visibilityState = 'hidden';
 documentListeners.get('visibilitychange')();
-await advance(1_000);
+await advance(5_000);
 assert.ok(stream.closed);
 assert.equal(reads, beforeHide, 'A queued refresh does not fetch while the tab is hidden');
 pricePnl = 5;
@@ -170,7 +176,7 @@ document.visibilityState = 'visible';
 documentListeners.get('visibilitychange')();
 await advance(50);
 connections.at(-1).emit('ready');
-await advance(1_000);
+await advance(5_000);
 assert.equal(observer.getCurrentResult().data.estimatedPnlEth, 5, 'Returning to the tab reconciles trades missed while hidden');
 connections.at(-1).emit('market', trade);
 await tick();
@@ -180,3 +186,43 @@ await advance(5_000);
 assert.equal(reads, beforeUnmount, 'Unmount removes scheduled private refreshes');
 assert.equal(connections.length, 2, 'Profile reuses one shared SSE connection');
 console.log('Profile live PNL checks passed: authenticated stats-only route, coalesced trades, in-flight recovery, reconnect and wallet isolation.');
+
+// A busy stream keeps charts incremental while lists and detail HTTP reads are bounded.
+const busyToken = `0x${'c'.repeat(40)}`;
+const unrelatedToken = `0x${'d'.repeat(40)}`;
+const counts = { list: 0, detail: 0, unrelated: 0, chart: 0, trades: 0 };
+const stops = [];
+let listGate, releaseList;
+function observe(name, queryKey, data) {
+  const observer = new QueryObserver(client, { queryKey, initialData: data, staleTime: Infinity,
+    queryFn: async () => { counts[name]++; if (name === 'list' && listGate) await listGate; return data; } });
+  stops.push(observer.subscribe(() => {}));
+}
+observe('list', keys.INDEXED_DEBATES_QUERY_KEY, []);
+observe('detail', [keys.INDEXED_DEBATE_QUERY_KEY, '1'], { tokenA: { address: busyToken }, tokenB: { address: wallet } });
+observe('unrelated', [keys.INDEXED_DEBATE_QUERY_KEY, '2'], { tokenA: { address: unrelatedToken } });
+observe('chart', [keys.TOKEN_CHART_QUERY_KEY, busyToken], { pages: [{ lastTradeCursor: { block: 1, log: 0 } }] });
+observe('trades', [keys.TOKEN_TRADES_QUERY_KEY, busyToken], []);
+market.useMarketLive('feed');
+const cleanupBusy = effects.pop()();
+await advance(50);
+const busyStream = connections.at(-1);
+busyStream.emit('ready'); await advance(1_000);
+Object.keys(counts).forEach(key => { counts[key] = 0; });
+for (let i = 0; i < 40; i++) {
+  busyStream.emit('market', { tokens: [busyToken], reset: false, trades: [{ token: busyToken }] });
+  await advance(25);
+}
+assert.equal(counts.list, 1, '40 notices/second produce one list reload');
+assert.equal(counts.detail, 1); assert.equal(counts.unrelated, 0, 'Unrelated detail queries stay cached');
+assert.equal(counts.chart, 0, 'Incremental charts do not wait for list HTTP refreshes');
+assert.equal(counts.trades, 4, 'Token history retains its faster cadence');
+listGate = new Promise(resolve => { releaseList = resolve; });
+busyStream.emit('market', { tokens: [busyToken], reset: false, trades: [] });
+await advance(1_000); assert.equal(counts.list, 2);
+for (let i = 0; i < 10; i++) busyStream.emit('market', { tokens: [busyToken], reset: false, trades: [] });
+await advance(2_000); assert.equal(counts.list, 2, 'Slow list requests are not restarted by later trades');
+releaseList(); listGate = null; await tick(); await advance(1_000);
+assert.equal(counts.list, 3, 'A trade during the request causes a follow-up after it finishes');
+cleanupBusy(); stops.forEach(stop => stop()); client.clear(); await advance(5_000);
+console.log('Live cadence passed: 40 notices/second, one list reload, targeted details, direct chart updates and pending-request recovery.');

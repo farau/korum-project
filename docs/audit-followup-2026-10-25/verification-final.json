@@ -1,0 +1,37 @@
+{
+  "verifiedAt": "2026-10-24T22:45:50.781698+00:00",
+  "scope": "Local working tree, synthetic PostgreSQL/Redis; no remote database changes or deployment",
+  "baseCommit": "e0b50c0424166cc92d1870b316460955f1f4676b",
+  "nodeVersion": "v26.10.0",
+  "packageLockSha256": "4b06dde98ebdf3f782bdb5b7d4b0f132a6008c7b51c23c92bca0e0923cc7b358",
+  "checks": {
+    "lint": {
+      "exitCode": 0
+    },
+    "productionBuildWithTypeScript": {
+      "exitCode": 0
+    },
+    "testAll": {
+      "exitCode": 0,
+      "isolated": 22,
+      "integration": 8
+    },
+    "npmAudit": {
+      "exitCode": 1,
+      "high": 17,
+      "uniqueAdvisories": [
+        "GHSA-mrhx-c7xc-m3w5"
+      ]
+    },
+    "npmAuditProduction": {
+      "exitCode": 1,
+      "high": 17
+    }
+  },
+  "browser": "Earlier same-day desktop/mobile checks retained in public-browser.json and explore-browser.json; not rerun for the subsequent CSS-only border change",
+  "limitations": [
+    "Unresolved Zod advisory in production dependency tree; exploitability in application not demonstrated",
+    "First GitHub Actions run pending (local Node differs from CI Node 22.18)",
+    "No deployed-site or real-wallet measurements in this verification"
+  ]
+}

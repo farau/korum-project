@@ -53,3 +53,41 @@ await guard.run(async () => { cookie = null; });
 await guard.settled();
 assert.equal(cookie, null, "A failed request must not prevent a subsequent logout");
 console.log("Wallet session isolation passed: active-account matching, stale reads, delayed signatures, ordered logout/login, network recovery.");
+
+// Exercise the provider's mount effect: anonymous visits do not mutate cookies
+// or refresh RSC, but a restored session without a wallet must still be cleared.
+const { readFile } = await import('node:fs/promises');
+const { createRequire } = await import('node:module');
+const { runInNewContext } = await import('node:vm');
+const { default: ts } = await import('typescript');
+const require = createRequire(import.meta.url);
+const React = require('react');
+const source = await readFile(new URL('../app/components/WalletProvider.tsx', import.meta.url), 'utf8');
+const code = ts.transpileModule(source, { compilerOptions: {
+  target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX,
+} }).outputText;
+for (const hasSessionCookie of [false, true]) {
+  const effects = [];
+  let deletes = 0, refreshes = 0;
+  const exports = {};
+  const dependencies = {
+    react: { ...React, useState: initial => [typeof initial === 'function' ? initial() : initial, () => {}],
+      useRef: initial => ({ current: initial }), useMemo: fn => fn(), useCallback: fn => fn, useEffect: fn => effects.push(fn) },
+    '@rainbow-me/rainbowkit': { createAuthenticationAdapter: value => value, RainbowKitAuthenticationProvider: () => null },
+    'next/navigation': { useRouter: () => ({ refresh: () => refreshes++ }) },
+    wagmi: { useAccount: () => ({ isConnected: false, status: 'disconnected' }), useDisconnect: () => ({ disconnectAsync: async () => {} }) },
+    './WalletContext': { WalletContext: React.createContext(null) },
+    '../lib/auth/wallet-session-guard': { WalletSessionGuard, walletMatches, isWalletConnectorReady },
+  };
+  runInNewContext(code, { exports, console, window: { setTimeout, clearTimeout },
+    fetch: async (_url, options) => { assert.equal(options.method, 'DELETE'); deletes++; return { ok: true }; },
+    require: name => dependencies[name] ?? require(name),
+  });
+  exports.WalletAuthenticationProvider({ children: null, hasSessionCookie });
+  const cleanup = effects.map(effect => effect());
+  await new Promise(resolve => setTimeout(resolve, 20));
+  assert.equal(deletes, Number(hasSessionCookie));
+  assert.equal(refreshes, Number(hasSessionCookie));
+  cleanup.forEach(fn => fn?.());
+}
+console.log('Anonymous mount: zero DELETE/refresh without a session; restored cookie still cleared.');

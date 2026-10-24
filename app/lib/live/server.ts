@@ -10,8 +10,11 @@ import type { ChartTrade } from "./chart";
 import type { MarketNotice, TradeNotice } from "./protocol";
 import { usesKorumCandles } from "../markets/venue";
 import { prepareDebateMutations } from "./debate-cache";
-import { loadIndexedDebateRowsByIds } from "../db/debates";
+import { loadIndexedDebateRowsByIds, reconcileIndexedMarkets } from "../db/debates";
+import { pendingMarketDeliveries, acknowledgeMarketDeliveries } from "../db/market-delivery";
 import { prepareProfileInvalidations } from "./profile-cache";
+import { prepareExploreMutation } from "./explore-cache";
+import { loadExploreRanks } from "../db/explore";
 
 const channel = redisCacheKey("live", "markets");
 export const marketRevisionKey = redisCacheKey("live", "revision");
@@ -121,11 +124,14 @@ export async function publishMarketNotice(notices: TradeNotice[]) {
   const signatures = notices.map(row => `${row.block_hash}:${row.operation}`);
   const delivered = await redis.mget(...keys);
   if (delivered.every((signature, index) => signature === signatures[index])) return 0;
-  const reset = notices.some(row => row.operation !== "i");
+  const pending = await pendingMarketDeliveries(notices.map(row => row.event_id));
+  // A delayed insertion webhook can arrive after SQL already corrected it.
+  const pendingReset = pending.some(row => row.needsReset);
+  const reset = pendingReset || notices.some(row => row.operation !== "i");
   const chartUpdates = reset ? undefined : await readChartTrades(notices);
   const trades = chartUpdates?.trades;
   const notice: MarketNotice = {
-    revision: randomUUID(), tokens: [...new Set(notices.map(row => row.token_address))],
+    revision: randomUUID(), tokens: [...new Set([...notices.map(row => row.token_address), ...pending.flatMap(row => row.tokens)])],
     reset, trades,
   };
   for (let attempt = 0; attempt < 8; attempt++) {
@@ -133,17 +139,24 @@ export async function publishMarketNotice(notices: TradeNotice[]) {
     const { mutations, revisions } = await prepareChartMutations(redis, redisCacheKey, notice.tokens, notice.revision, trades ?? [], reset, chartUpdates?.disabledTokens);
     const snapshots = await prepareDebateMutations(redis, redisCacheKey, notice.tokens, notice.revision, loadIndexedDebateRowsByIds);
     const profiles = await prepareProfileInvalidations(redis, redisCacheKey, notices, readAffectedProfileWallets);
+    const ranking = await prepareExploreMutation(redis, redisCacheKey, notice.tokens, notice.revision, loadExploreRanks);
+    // Intermediate actors from a missed correction may never have been mapped.
+    if (pendingReset) profiles.revisions.push(redisCacheKey("live", "snapshot-metadata"));
+    notice.profileWallets = pendingReset ? undefined : profiles.wallets;
     const published = await redis.eval(publishChartScript, 2 + keys.length, marketRevisionKey, channel, ...keys,
       notice.revision, JSON.stringify(notice), previous, notices.length,
-      ...signatures, JSON.stringify([...revisions, ...snapshots.revisions, ...profiles.revisions]),
-      JSON.stringify([...mutations, ...snapshots.mutations]), JSON.stringify([...snapshots.mappings, ...profiles.mappings]));
-    if (published !== -1) return published;
+      ...signatures, JSON.stringify([...revisions, ...snapshots.revisions, ...profiles.revisions, ...ranking.revisions]),
+      JSON.stringify([...mutations, ...snapshots.mutations, ...ranking.mutations]), JSON.stringify([...snapshots.mappings, ...profiles.mappings]));
+    if (published !== -1) {
+      if (published === 1) await acknowledgeMarketDeliveries(pending);
+      return published;
+    }
   }
   throw new Error("Concurrent live publications; retry the batch");
 }
 
 type Listener = (notice: MarketNotice) => void;
-type Hub = { listeners: Set<Listener>; subscriber?: Redis; connecting?: Promise<void> };
+type Hub = { listeners: Set<Listener>; subscriber?: Redis; connecting?: Promise<void>; recoveryTimer?: ReturnType<typeof setInterval>; recovering?: boolean };
 declare global { var __korumMarketHub: Hub | undefined }
 function hub() { return globalThis.__korumMarketHub ??= { listeners: new Set() }; }
 export async function subscribeMarkets(listener: Listener) {
@@ -174,5 +187,26 @@ export async function subscribeMarkets(listener: Listener) {
     await state.connecting;
   }
   state.listeners.add(listener);
-  return () => { state.listeners.delete(listener); };
+  if (!state.recoveryTimer) {
+    const recover = async () => {
+      if (state.recovering || !state.listeners.size) return;
+      state.recovering = true;
+      try {
+        const redis = await connectedRedis();
+        if (redis?.status === "ready") await reconcileIndexedMarkets(redis);
+      } catch (error) {
+        console.error("Unable to reconcile market delivery.", error instanceof Error ? error.message : "Unknown error");
+      } finally { state.recovering = false; }
+    };
+    // One timer per process; the Redis lease elects one SQL probe across replicas.
+    state.recoveryTimer = setInterval(() => { void recover(); }, 60_000);
+    state.recoveryTimer.unref?.();
+    void recover();
+  }
+  return () => {
+    state.listeners.delete(listener);
+    if (!state.listeners.size && state.recoveryTimer) {
+      clearInterval(state.recoveryTimer); state.recoveryTimer = undefined;
+    }
+  };
 }

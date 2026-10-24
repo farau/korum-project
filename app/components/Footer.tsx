@@ -24,7 +24,7 @@ function XIcon() {
   );
 }
 
-export default function Footer() {
+export default function Footer({ publicPage = false }: { publicPage?: boolean }) {
   const marqueeItems = Array.from({ length: 8 }, (_, index) => index);
 
   return (
@@ -50,16 +50,16 @@ export default function Footer() {
           </div>
           <div className="footer-col">
             <span className="footer-col-title">Product</span>
-            <Link href="/explore">Explore</Link>
-            <Link href="/concept">Concept</Link>
-            <Link href="/analytics">Analytics</Link>
-            <Link href="/create">Create a VS</Link>
-            <Link href="/profile">Profile</Link>
+            <Link prefetch={publicPage ? false : undefined} href="/explore">Explore</Link>
+            <Link prefetch={publicPage ? false : undefined} href="/concept">Concept</Link>
+            <Link prefetch={publicPage ? false : undefined} href="/analytics">Analytics</Link>
+            <Link prefetch={publicPage ? false : undefined} href="/create">Create a VS</Link>
+            <Link prefetch={publicPage ? false : undefined} href="/profile">Profile</Link>
           </div>
           <div className="footer-col">
             <span className="footer-col-title">Legal</span>
-            <Link href="/privacy">Privacy Policy</Link>
-            <Link href="/terms">Terms of Use</Link>
+            <Link prefetch={publicPage ? false : undefined} href="/privacy">Privacy Policy</Link>
+            <Link prefetch={publicPage ? false : undefined} href="/terms">Terms of Use</Link>
           </div>
           <div className="footer-col footer-risk">
             <span className="footer-col-title">Risk warning</span>

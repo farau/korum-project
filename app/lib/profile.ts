@@ -26,6 +26,8 @@ export type UserProfile = {
 };
 
 export type UserProfileStats = {
+  /** Open positions whose market prices affect the displayed PNL (at most 25). */
+  liveTokens?: string[];
   referralCount: number;
   activeReferralCount: number;
   versusCreated: number;

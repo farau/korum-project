@@ -1,0 +1,412 @@
+{
+  "auditReportVersion": 2,
+  "vulnerabilities": {
+    "@coinbase/cdp-sdk": {
+      "name": "@coinbase/cdp-sdk",
+      "severity": "high",
+      "isDirect": false,
+      "via": [
+        "@x402/core",
+        "@x402/evm",
+        "@x402/extensions",
+        "@x402/svm",
+        "abitype",
+        "zod"
+      ],
+      "effects": [],
+      "range": ">=1.0.0",
+      "nodes": [
+        "node_modules/@coinbase/cdp-sdk"
+      ],
+      "fixAvailable": true
+    },
+    "@reown/appkit": {
+      "name": "@reown/appkit",
+      "severity": "high",
+      "isDirect": false,
+      "via": [
+        "@reown/appkit-controllers",
+        "@reown/appkit-pay",
+        "@reown/appkit-scaffold-ui",
+        "@reown/appkit-ui",
+        "@reown/appkit-utils",
+        "@reown/appkit-wallet"
+      ],
+      "effects": [
+        "@walletconnect/ethereum-provider"
+      ],
+      "range": "*",
+      "nodes": [
+        "node_modules/@reown/appkit"
+      ],
+      "fixAvailable": {
+        "name": "wagmi",
+        "version": "2.15.0",
+        "isSemVerMajor": true
+      }
+    },
+    "@reown/appkit-controllers": {
+      "name": "@reown/appkit-controllers",
+      "severity": "high",
+      "isDirect": false,
+      "via": [
+        "@reown/appkit-wallet"
+      ],
+      "effects": [
+        "@reown/appkit",
+        "@reown/appkit-pay",
+        "@reown/appkit-scaffold-ui",
+        "@reown/appkit-ui",
+        "@reown/appkit-utils"
+      ],
+      "range": "*",
+      "nodes": [
+        "node_modules/@reown/appkit-controllers"
+      ],
+      "fixAvailable": {
+        "name": "wagmi",
+        "version": "2.15.0",
+        "isSemVerMajor": true
+      }
+    },
+    "@reown/appkit-pay": {
+      "name": "@reown/appkit-pay",
+      "severity": "high",
+      "isDirect": false,
+      "via": [
+        "@reown/appkit-controllers",
+        "@reown/appkit-ui",
+        "@reown/appkit-utils"
+      ],
+      "effects": [
+        "@reown/appkit",
+        "@reown/appkit-scaffold-ui"
+      ],
+      "range": "*",
+      "nodes": [
+        "node_modules/@reown/appkit-pay"
+      ],
+      "fixAvailable": {
+        "name": "wagmi",
+        "version": "2.15.0",
+        "isSemVerMajor": true
+      }
+    },
+    "@reown/appkit-scaffold-ui": {
+      "name": "@reown/appkit-scaffold-ui",
+      "severity": "high",
+      "isDirect": false,
+      "via": [
+        "@reown/appkit-controllers",
+        "@reown/appkit-pay",
+        "@reown/appkit-ui",
+        "@reown/appkit-utils",
+        "@reown/appkit-wallet"
+      ],
+      "effects": [
+        "@reown/appkit"
+      ],
+      "range": "*",
+      "nodes": [
+        "node_modules/@reown/appkit-scaffold-ui"
+      ],
+      "fixAvailable": {
+        "name": "wagmi",
+        "version": "2.15.0",
+        "isSemVerMajor": true
+      }
+    },
+    "@reown/appkit-ui": {
+      "name": "@reown/appkit-ui",
+      "severity": "high",
+      "isDirect": false,
+      "via": [
+        "@reown/appkit-controllers",
+        "@reown/appkit-wallet"
+      ],
+      "effects": [
+        "@reown/appkit",
+        "@reown/appkit-pay",
+        "@reown/appkit-scaffold-ui"
+      ],
+      "range": ">=1.7.1-449657bc8f95adcfd295a2e883c4bcd439045044.0",
+      "nodes": [
+        "node_modules/@reown/appkit-ui"
+      ],
+      "fixAvailable": {
+        "name": "wagmi",
+        "version": "2.15.0",
+        "isSemVerMajor": true
+      }
+    },
+    "@reown/appkit-utils": {
+      "name": "@reown/appkit-utils",
+      "severity": "high",
+      "isDirect": false,
+      "via": [
+        "@reown/appkit-controllers",
+        "@reown/appkit-wallet"
+      ],
+      "effects": [
+        "@reown/appkit",
+        "@reown/appkit-pay",
+        "@reown/appkit-scaffold-ui"
+      ],
+      "range": "*",
+      "nodes": [
+        "node_modules/@reown/appkit-utils"
+      ],
+      "fixAvailable": {
+        "name": "wagmi",
+        "version": "2.15.0",
+        "isSemVerMajor": true
+      }
+    },
+    "@reown/appkit-wallet": {
+      "name": "@reown/appkit-wallet",
+      "severity": "high",
+      "isDirect": false,
+      "via": [
+        "zod"
+      ],
+      "effects": [
+        "@reown/appkit",
+        "@reown/appkit-controllers",
+        "@reown/appkit-scaffold-ui",
+        "@reown/appkit-ui",
+        "@reown/appkit-utils"
+      ],
+      "range": "*",
+      "nodes": [
+        "node_modules/@reown/appkit-wallet"
+      ],
+      "fixAvailable": {
+        "name": "wagmi",
+        "version": "2.15.0",
+        "isSemVerMajor": true
+      }
+    },
+    "@wagmi/connectors": {
+      "name": "@wagmi/connectors",
+      "severity": "high",
+      "isDirect": false,
+      "via": [
+        "@walletconnect/ethereum-provider"
+      ],
+      "effects": [
+        "wagmi"
+      ],
+      "range": "<=0.0.0-wc-20250213165818 || >=5.8.0",
+      "nodes": [
+        "node_modules/@wagmi/connectors"
+      ],
+      "fixAvailable": {
+        "name": "wagmi",
+        "version": "2.15.0",
+        "isSemVerMajor": true
+      }
+    },
+    "@walletconnect/ethereum-provider": {
+      "name": "@walletconnect/ethereum-provider",
+      "severity": "high",
+      "isDirect": false,
+      "via": [
+        "@reown/appkit"
+      ],
+      "effects": [
+        "@wagmi/connectors"
+      ],
+      "range": "0.0.0-canary-rollup.0 || 2.17.1-canary-0 - 2.17.1-canary-appkit.0 || 2.17.4-canary-ak-1 - 2.17.4-canary-ak-4 || 2.18.0-canary-ak-1 - 2.18.0-rc-1 || 2.19.0-canary-ak-1 - 2.19.0-rc-1 || 2.19.4-canary-ak-1 || >=2.20.0",
+      "nodes": [
+        "node_modules/@walletconnect/ethereum-provider"
+      ],
+      "fixAvailable": {
+        "name": "wagmi",
+        "version": "2.15.0",
+        "isSemVerMajor": true
+      }
+    },
+    "@x402/core": {
+      "name": "@x402/core",
+      "severity": "high",
+      "isDirect": true,
+      "via": [
+        "zod"
+      ],
+      "effects": [
+        "@coinbase/cdp-sdk",
+        "@x402/evm",
+        "@x402/extensions",
+        "@x402/svm"
+      ],
+      "range": ">=2.0.0",
+      "nodes": [
+        "node_modules/@x402/core"
+      ],
+      "fixAvailable": {
+        "name": "@x402/core",
+        "version": "0.0.1",
+        "isSemVerMajor": true
+      }
+    },
+    "@x402/evm": {
+      "name": "@x402/evm",
+      "severity": "high",
+      "isDirect": true,
+      "via": [
+        "@x402/core",
+        "zod"
+      ],
+      "effects": [
+        "@coinbase/cdp-sdk"
+      ],
+      "range": ">=2.0.0",
+      "nodes": [
+        "node_modules/@x402/evm"
+      ],
+      "fixAvailable": {
+        "name": "@x402/evm",
+        "version": "0.0.1",
+        "isSemVerMajor": true
+      }
+    },
+    "@x402/extensions": {
+      "name": "@x402/extensions",
+      "severity": "high",
+      "isDirect": true,
+      "via": [
+        "@x402/core",
+        "zod"
+      ],
+      "effects": [
+        "@coinbase/cdp-sdk"
+      ],
+      "range": ">=2.0.0",
+      "nodes": [
+        "node_modules/@x402/extensions"
+      ],
+      "fixAvailable": {
+        "name": "@x402/extensions",
+        "version": "0.0.1",
+        "isSemVerMajor": true
+      }
+    },
+    "@x402/svm": {
+      "name": "@x402/svm",
+      "severity": "high",
+      "isDirect": true,
+      "via": [
+        "@x402/core"
+      ],
+      "effects": [
+        "@coinbase/cdp-sdk"
+      ],
+      "range": ">=2.0.0",
+      "nodes": [
+        "node_modules/@x402/svm"
+      ],
+      "fixAvailable": {
+        "name": "@x402/svm",
+        "version": "0.0.1",
+        "isSemVerMajor": true
+      }
+    },
+    "abitype": {
+      "name": "abitype",
+      "severity": "high",
+      "isDirect": false,
+      "via": [
+        "zod"
+      ],
+      "effects": [
+        "@coinbase/cdp-sdk"
+      ],
+      "range": "<=0.0.0-main-20230430000127 || 0.7.0-canary.20230307T162852 - 1.0.9",
+      "nodes": [
+        "node_modules/@coinbase/cdp-sdk/node_modules/abitype"
+      ],
+      "fixAvailable": true
+    },
+    "wagmi": {
+      "name": "wagmi",
+      "severity": "high",
+      "isDirect": true,
+      "via": [
+        "@wagmi/connectors"
+      ],
+      "effects": [],
+      "range": ">=2.15.1",
+      "nodes": [
+        "node_modules/wagmi"
+      ],
+      "fixAvailable": {
+        "name": "wagmi",
+        "version": "2.15.0",
+        "isSemVerMajor": true
+      }
+    },
+    "zod": {
+      "name": "zod",
+      "severity": "high",
+      "isDirect": false,
+      "via": [
+        {
+          "source": 1243066,
+          "name": "zod",
+          "dependency": "zod",
+          "title": "Zod can exhaust memory while validating oversized constrained collections",
+          "url": "https://github.com/advisories/GHSA-mrhx-c7xc-m3w5",
+          "severity": "high",
+          "cwe": [
+            "CWE-770"
+          ],
+          "cvss": {
+            "score": 7.5,
+            "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H"
+          },
+          "range": "<4.6.6"
+        }
+      ],
+      "effects": [
+        "@coinbase/cdp-sdk",
+        "@reown/appkit-wallet",
+        "@x402/core",
+        "@x402/evm",
+        "@x402/extensions",
+        "abitype"
+      ],
+      "range": "<4.6.6",
+      "nodes": [
+        "node_modules/@coinbase/cdp-sdk/node_modules/zod",
+        "node_modules/@reown/appkit-wallet/node_modules/zod",
+        "node_modules/@x402/core/node_modules/zod",
+        "node_modules/@x402/evm/node_modules/zod",
+        "node_modules/@x402/extensions/node_modules/zod",
+        "node_modules/zod"
+      ],
+      "fixAvailable": {
+        "name": "@x402/evm",
+        "version": "0.0.1",
+        "isSemVerMajor": true
+      }
+    }
+  },
+  "metadata": {
+    "vulnerabilities": {
+      "info": 0,
+      "low": 0,
+      "moderate": 0,
+      "high": 17,
+      "critical": 0,
+      "total": 17
+    },
+    "dependencies": {
+      "prod": 515,
+      "dev": 347,
+      "optional": 92,
+      "peer": 0,
+      "peerOptional": 0,
+      "total": 897
+    }
+  }
+}

@@ -59,20 +59,27 @@ start, ordered by trade time and then block/log position. Before the first trade
 the reference is the initial curve price (`virtual_eth / total_supply`). Missing
 or invalid prices remain unavailable rather than becoming a fabricated zero.
 The calculation uses ETH prices, so a refreshed ETH/USD quote cannot introduce
-a spurious token return. The 24h change is independent of the 96-trade sparkline
-limit. Explore and Top VS refresh these snapshots every 15
+a spurious token return. Sparklines contain 96 quarter-hour closes over 24 hours,
+not the latest 96 trades. They retain unknown slots before the first known price,
+carry known prices through inactive intervals, and display an empty state when
+no price is known. Explore and Top VS refresh these snapshots every 15
 seconds; the visible authenticated Watchlist does the same and refreshes on
 focus/return to the tab, without adding polling to each star button.
 
-With Redis and authenticated live delivery configured, these requests reuse a
-maintained catalog of the latest 250 indexed Versus, shared across list limits,
-Top VS, detail pages and users' watchlists. Older requested IDs use maintained
-per-Versus entries. The ten-minute TTL measures inactivity: a read renews it,
+With Redis and authenticated live delivery configured, the legacy list path
+reuses a maintained catalog of the latest 250 indexed Versus. Details and
+watchlists can reuse a warm catalog or maintained per-Versus entries; a cold
+single-market read does not build the full catalog. Explore and Analytics Top VS
+use the complete ranking projection described below and hydrate only their
+selected IDs in a single SQL batch, without initializing that legacy catalog. The ten-minute TTL measures inactivity: a read renews it,
 so a quiet market stays cached beyond 15 seconds and does not periodically
-reload PostgreSQL. A snapshot keeps each token's last 24 hours of trade times,
-exact price/volume values and the price preceding that history. The server slides
-5m/1h/6h/24h references, 24h volume/trade counts and sparklines from this timeline
-without another SQL read. The separately cached ETH/USD quote can refresh without
+reload PostgreSQL. Migration 0016 maintains per-token/per-wallet memberships
+and per-timestamp trade buckets transactionally on insertion, correction and
+deletion. Snapshots retain compact cumulative volumes/counts, the closing price
+at each timestamp, and the price preceding the window. Binary searches slide
+5m/1h/6h/24h references, exact rolling volumes/counts and sparklines without
+loading arrays of raw trades or making another SQL read. Snapshot keys use v3;
+96 sparkline slots do not limit the history used for exact rolling statistics. The separately cached ETH/USD quote can refresh without
 rebuilding market data.
 
 Before publishing a trade batch, the webhook refreshes only affected warm Versus
@@ -88,13 +95,39 @@ parallel SQL reconstructions when another replica owns the lease.
 
 Creation, lifecycle, graduation, recipient and creator-name changes also need
 detection without a trade. A Redis lease limits their metadata fingerprint probe
-to once per minute across all replicas, while the site receives requests. This
+to once per minute across all replicas, while the site receives requests or has active SSE subscribers. This
 reads control-plane rows, not trade history, holder counts or OHLC aggregates.
 Unchanged metadata leaves market snapshots intact; a changed fingerprint
 invalidates them for one shared reconstruction. Metadata API edits advance the
 same guard immediately. This check's SQL frequency is independent of visitor
-count, though its work grows with metadata size. Trade freshness still relies on
-webhook delivery: this metadata probe does not scan for missed trades.
+count, though its work grows with metadata size.
+
+Migration `0019_create_market_delivery_outbox.sql` adds a durable trade-delivery
+journal, written atomically with inserts, corrections and deletions. Webhook
+publishers capture its versions before reading market data and acknowledge those
+exact versions only after Redis publication. A correction recorded before a delayed
+insertion webhook forces chart recovery and invalidates private sources too.
+The same shared minute lease adds one indexed check for deliveries pending over
+30 seconds. Empty checks leave cache revisions and idle retention unchanged.
+An actual miss advances affected chart revisions and the shared metadata guard,
+then emits an SSE reset. Maintained public/private sources rebuild on demand
+through their existing shared leases; there is no periodic wallet snapshot reload.
+One timer per server process keeps this probe active while SSE clients are open,
+including quiet Profile-only sessions; the Redis lease elects one probe across
+processes. The last subscriber's departure stops that process's timer.
+
+Recovery selects up to 100 pending events, then clears all visible journal entries
+fully covered by those tokens in a repeatable-read transaction. Events committed
+after the Redis invalidation remain pending; concurrent corrections can abort the
+deletion and retry on a later probe. A burst of 1,000 missed trades for one token
+therefore needs one invalidation. With healthy services and a small backlog, allow
+roughly 30–90 seconds; a backlog across other tokens or retries can take longer.
+With no readers/subscribers, recovery waits for activity to resume. The journal adds
+a write per changed trade and a version read/conditional acknowledgement per
+successful webhook batch. No-op upserts changing only `ingested_at` are ignored.
+The write overhead has not been benchmarked on production traffic. SQL/Redis are
+not a distributed transaction: restoring stale Redis persistence after a SQL
+acknowledgement is outside this missed-webhook repair mechanism.
 
 Watchlist membership is a separate private maintained cache keyed by deployment,
 chain and authenticated user. A first/idle-expired visit loads that user's IDs;
@@ -128,17 +161,24 @@ and disclosed pool spot estimates for migrated tokens, without extra pool RPCs.
 Without live Redis configuration, bounded fallbacks still reconcile periodically.
 
 Profile's displayed statistics subscribe to the same browser SSE connection via
-`useProfileStats`. Trade notifications coalesce over one second before an
+`useProfileStats`, with an authenticated wallet interest and up to 25 position
+tokens (the existing PNL calculation limit). Personal trader/creator/referrer
+changes and held-token price changes coalesce over five seconds before an
 authenticated `GET /api/profile/stats` reads cached positions and shared market
 prices; it does not load identity/referrer records or fetch Holdings balances.
 Only mounted statistics queries refresh, requests never overlap, and trades
 arriving during a request schedule a follow-up. Reconnection and window focus
 reconcile missed updates. While SSE is unavailable, a one-minute foreground
-interval provides recovery. The global feed also catches a wallet's first trade
-in a new token; unrelated trades reuse its maintained private source rather than
-rebuilding it. Browser query keys include the wallet and deployment, private
+interval provides recovery. Wallet targeting also catches a first trade in a new
+token. Unrelated events do not refresh that wallet's statistics; resets and
+unknown actors conservatively refresh them. Browser query keys include the wallet and deployment, private
 responses are `no-store`, and inactive private statistics are removed from the
-browser cache. Verify with `node scripts/check-profile-live.mjs`.
+browser cache. Verify with `node scripts/check-profile-live.mjs` and
+`node scripts/check-profile-sse.mjs`. The SSE parameters `profile=<wallet>` and
+`profileTokens=<comma-separated tokens>` require a session matching that wallet;
+other subscriptions remain public. Internal actor hashes are stripped before
+sending browser events. Above 25 open positions, PNL remains unavailable and
+price-token interests are empty; personal changes still refresh the profile.
 
 `GET /api/markets/live?tokens=0x...&feed=1` uses SSE. Token subscriptions are limited
 to 20; `feed=1` requests all trade notifications for the Explore ticker. There is
@@ -156,7 +196,34 @@ bucket, or appends a new bucket. OHLC, market cap and volume are merged in chain
 order for every resolution. Duplicate cursors are ignored. A missing predecessor or reconnection requests the maintained snapshot; an indexed
 update/deletion invalidates the affected Redis charts for PostgreSQL reconstruction.
 Recoveries coalesce over 250 ms; ongoing recovery is allowed to finish under a
-busy stream. The other market queries still use notification-driven invalidation.
+busy stream. Token trade history retains the 250 ms cadence. Lists and the ticker
+coalesce notifications over one second; detail queries refresh only when their
+tokens are affected (or after a reset). Slow list responses finish without being
+cancelled by the next event, then queued events schedule one follow-up. Profile
+statistics use the separate five-second cadence described above. These are
+event-triggered browser refreshes, not periodic SQL reloads. Token chart/history
+and venue request caches use the token revision plus the metadata revision, so
+unrelated trades preserve those entries. Global feeds still use the global revision.
+
+Explore's paginated endpoint ranks all complete indexed markets through a compact
+shared projection, then hydrates only the requested 12 IDs. The ranking retains
+timestamp volume prefixes so quiet windows slide without SQL reloads. A publisher
+updates affected ranking rows in the same atomic Redis publication as charts and
+details; missing deliveries invalidate it through the metadata guard. A cold page
+shares one batch of detail reads and does not initialize the 250-market catalog.
+The legacy list API retains its old bounded contract for existing consumers.
+Analytics now uses this complete ranking for its top markets, and SQL grouping
+sets compute categories and total volume together over the selected period.
+Leaderboard uses a separate 30-second Redis projection shared across searches,
+pages and sorts, with global ranks computed before filtering. Concurrent fills
+are coalesced per process, without a distributed cold-fill lease. Neither change
+introduces a per-user SQL timer.
+
+Maintained-cache Redis failures fall back to fresh SQL inside the process's shared
+promise. A successful SQL read is returned if only cache persistence fails; lease
+cleanup errors do not replace successful results. SQL errors and prolonged lease
+contention remain errors. During a Redis outage, deduplication is per process;
+cross-replica coordination resumes once Redis is available.
 SSE sends price values only for the explicit chart token interests, including
 when the same connection subscribes to the global ticker feed.
 
@@ -185,12 +252,12 @@ Missing predecessors, late historical insertions and indexed corrections discard
 affected cached charts, which are rebuilt from PostgreSQL on the next request.
 
 Trade projections remain authoritative in PostgreSQL, while only bounded derived
-candle windows live in Redis. No additional RPC call, migration or pipeline change
-is required. If Redis/live configuration is absent or Redis is unavailable, the
+candle windows live in Redis. Missed-delivery recovery requires migration 0019;
+it adds no RPC call or pipeline change. If Redis/live configuration is absent or Redis is unavailable, the
 short request-cache/database fallback remains enabled. Redis Pub/Sub has no replay;
 reconnection and periodic browser reads reconcile from the maintained snapshot.
-The cache relies on Goldsky webhook delivery/retries: browser synchronization
-alone cannot discover PostgreSQL trades if that delivery stops silently.
+Browser synchronization alone cannot discover a silently missed backend delivery;
+the shared SQL journal probe described above detects it and invalidates stale data.
 
 The last candle uses incremental updates when earlier buckets are unchanged;
 corrections or sliding windows replace the dataset while preserving the visible
@@ -325,7 +392,10 @@ verify that graduation discards cached curve windows.
 
 1. Generate a random token and configure the same value in the app's
    `KORUM_GOLDSKY_WEBHOOK_SECRET` and Goldsky's httpauth secret. Never commit it.
-2. Deploy the app before activating the webhook sink. Verify unauthorized requests
+2. Apply pending database migrations before deploying the app, including 0019 for
+   delivery recovery (and 0018 for image uploads). Migration 0019 briefly locks
+   trade writes while installing its trigger and seeding existing camps for repair.
+   Deploy the app before activating the webhook sink. Verify unauthorized requests
    return 401 and the SSE endpoint emits `ready` with Redis connected.
 3. Validate then apply `goldsky/pipelines/korum-robinhood-testnet.yaml`. Keep the
    current pipeline/source names to preserve indexing checkpoints. Do not replay
@@ -334,9 +404,10 @@ verify that graduation discards cached curve windows.
    is inferred from the 250 ms batching interval; source lag still applies.
 
 To disable live delivery, remove the webhook sink and apply the pipeline first;
-then remove the app secret. Charts and ticker continue polling. No migration is
-required. Redis Pub/Sub is transient; missed notifications are recovered by
-snapshots, not replayed from a durable message log.
+then remove the app secret. Charts and ticker continue polling. Disabling delivery
+requires no further migration. With live configuration disabled, the existing
+short-lived cache fallback applies. Redis Pub/Sub is transient; the SQL journal
+repairs cache freshness rather than replaying every trade notification to browsers.
 
 ## Checks
 

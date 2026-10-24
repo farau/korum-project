@@ -1,0 +1,22 @@
+{
+  "verifiedAt": "2026-10-24T22:34:46.322Z",
+  "passed": true,
+  "analytics": {
+    "markets": 300,
+    "categoryTotalsComplete": true,
+    "sharedAggregateScan": true,
+    "periodBoundaries": true
+  },
+  "leaderboard": {
+    "readers": 100,
+    "configAndRankingSqlReads": 2,
+    "globalRanksPreserved": true
+  },
+  "markets": 300,
+  "trades": 3,
+  "plannerStatistics": "ANALYZE after fixture insertion",
+  "fullRankingSqlMs": 9.4,
+  "rankingBytes": 69106,
+  "pageBytes": 18586,
+  "checks": "old-market ranking, filters, stable ties, quiet windows, bounded DTO, 100 readers, targeted live update, validation and legacy API"
+}

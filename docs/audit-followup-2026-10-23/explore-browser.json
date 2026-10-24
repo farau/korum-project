@@ -1,0 +1,23 @@
+{
+  "verifiedAt": "2026-10-23T12:30:53.148Z",
+  "results": [
+    {
+      "width": 1440,
+      "pagePreservedOnRefresh": true,
+      "tableRows": 12,
+      "oldMarketFound": true,
+      "filtersAndRetry": true,
+      "apiCalls": 9,
+      "errors": []
+    },
+    {
+      "width": 390,
+      "pagePreservedOnRefresh": true,
+      "tableRows": 12,
+      "oldMarketFound": true,
+      "filtersAndRetry": true,
+      "apiCalls": 9,
+      "errors": []
+    }
+  ]
+}

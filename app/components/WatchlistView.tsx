@@ -2,7 +2,7 @@
 
 import React, { useMemo } from "react";
 import Link from "next/link";
-import { useWatchlist } from "../hooks/useWatchlist";
+import { useWatchlist, useWatchlistDebates } from "../hooks/useWatchlist";
 import ExploreVsCard from "./explore/ExploreVsCard";
 
 function formatMoney(value: number) {
@@ -10,7 +10,8 @@ function formatMoney(value: number) {
 }
 
 export default function WatchlistView() {
-  const { ids, debates, ready } = useWatchlist(15_000);
+  const { ids } = useWatchlist();
+  const { debates, ready, error } = useWatchlistDebates();
   const items = debates.filter((debate) => ids.includes(debate.id));
   const stats = useMemo(() => {
     const volume = items.reduce((sum, debate) => sum + debate.volume24h, 0);
@@ -36,9 +37,10 @@ export default function WatchlistView() {
             <div className="glass-stat-card"><span className="lbl">Exposed traders</span><span className="val">{stats.traders.toLocaleString("en-US")}</span></div>
           </div>
 
+          {error && <p role="alert">Your watchlist could not be refreshed. Please try again shortly.</p>}
           {!ready ? (
             <div className="empty-state-card">Loading your watchlist...</div>
-          ) : ids.length === 0 ? (
+          ) : ids.length === 0 && !error ? (
             <div className="empty-state-card">
               <span className="empty-kicker">No pinned VS</span>
               <h2>Your watchlist is empty</h2>

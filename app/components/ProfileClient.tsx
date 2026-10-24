@@ -3,8 +3,9 @@
 import Link from "next/link";
 import React, { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { KORUM_CHAIN } from "../config/korum-network";
-import { useWatchlist } from "../hooks/useWatchlist";
+import { useWatchlist, useWatchlistDebates } from "../hooks/useWatchlist";
 import { useProfileStats } from "../hooks/useProfileStats";
+import { useProfileHoldings } from "../hooks/useProfileHoldings";
 import { BADGE_TIERS, calculateBadgeProgress, type BadgeTier } from "../lib/badges";
 import type { Debate } from "../lib/debates";
 import { formatMarketValue, formatTokenAmount } from "../lib/markets/format";
@@ -585,7 +586,8 @@ function watchlistAgeLabel(debate: Debate, now: number | null) {
 }
 
 function WatchlistPanel() {
-  const { ids, debates, ready, remove } = useWatchlist(15_000);
+  const { ids, remove } = useWatchlist();
+  const { debates, ready, error } = useWatchlistDebates();
   const [now, setNow] = useState<number | null>(null);
   const watched = useMemo(() => debates.filter((debate) => ids.includes(debate.id)), [debates, ids]);
 
@@ -599,7 +601,8 @@ function WatchlistPanel() {
   return (
     <div className="profile-tab-panel" role="tabpanel" id="profile-panel-watchlist">
       <div className="profile-section-title"><div><span className="profile-eyebrow">Saved markets</span><h2>Watchlist</h2></div><span className="profile-count-pill">{watched.length}</span></div>
-      {!ready ? <div className="profile-empty-state"><Icon name="bolt" /><strong>Loading your watchlist...</strong></div> : watched.length ? <VsTableView debates={watched} ageLabel={(debate) => watchlistAgeLabel(debate, now)} isWatched={(id) => ids.includes(id)} onWatchlistToggle={remove} /> : <div className="profile-empty-state"><Icon name="bolt" /><strong>Your watchlist is empty</strong><p>Save a versus from Explore to find it here.</p><Link className="btn" href="/explore">Explore versus</Link></div>}
+      {error && <p role="alert">Your watchlist could not be refreshed. Please try again shortly.</p>}
+      {!ready ? <div className="profile-empty-state"><Icon name="bolt" /><strong>Loading your watchlist...</strong></div> : watched.length ? <VsTableView debates={watched} ageLabel={(debate) => watchlistAgeLabel(debate, now)} isWatched={(id) => ids.includes(id)} onWatchlistToggle={remove} /> : error ? null : <div className="profile-empty-state"><Icon name="bolt" /><strong>Your watchlist is empty</strong><p>Save a versus from Explore to find it here.</p><Link className="btn" href="/explore">Explore versus</Link></div>}
     </div>
   );
 }
@@ -685,30 +688,10 @@ function WalletProfile({ profile, stats: initialStats, sessionAddress, sessionCh
   const { data: stats } = useProfileStats(statsAddress, initialStats);
   const [activeTab, setActiveTab] = useState<ProfileTab>("information");
   const [currentProfile, setCurrentProfile] = useState(profile);
-  const [holdings, setHoldings] = useState<ProfileHoldings | null>(null);
-  const [holdingsLoading, setHoldingsLoading] = useState(true);
-  const [holdingsError, setHoldingsError] = useState<string | null>(null);
-  const [holdingsRetry, setHoldingsRetry] = useState(0);
-
-  useEffect(() => {
-    if (!authenticated || !address || !sessionAddress || address.toLowerCase() !== sessionAddress.toLowerCase()) return;
-    const controller = new AbortController();
-    async function load() {
-      try {
-        const response = await fetch("/api/profile/holdings", { credentials: "same-origin", cache: "no-store", signal: controller.signal });
-        if (!response.ok) throw new Error(`Holdings service returned ${response.status}.`);
-        const result = await response.json() as ProfileHoldings;
-        if (!controller.signal.aborted) { setHoldings(result); setHoldingsError(null); setHoldingsLoading(false); }
-      } catch (error) {
-        if (!controller.signal.aborted) { setHoldingsError(error instanceof Error ? error.message : "Unable to refresh holdings."); setHoldingsLoading(false); }
-      }
-    }
-    void load();
-    const timer = activeTab === "holdings"
-      ? window.setInterval(() => { if (!document.hidden) void load(); }, 120_000)
-      : null;
-    return () => { controller.abort(); if (timer !== null) window.clearInterval(timer); };
-  }, [authenticated, address, sessionAddress, holdingsRetry, activeTab]);
+  const holdingsQuery = useProfileHoldings(statsAddress, activeTab === "holdings");
+  const holdings = holdingsQuery.data ?? null;
+  const holdingsLoading = holdingsQuery.isPending;
+  const holdingsError = holdingsQuery.error?.message ?? null;
 
   if (!hydrated) return <LockedProfile connected={false} authenticating={false} authError={null} connect={() => undefined} loading />;
 
@@ -721,7 +704,7 @@ function WalletProfile({ profile, stats: initialStats, sessionAddress, sessionCh
 
   const panels: Record<ProfileTab, React.ReactNode> = {
     information: <InformationPanel profile={currentProfile} stats={stats} referral={referral} holdings={holdings} holdingsLoading={holdingsLoading} onOpenHoldings={() => setActiveTab("holdings")} onProfileChange={setCurrentProfile} />,
-    holdings: <HoldingsPanel holdings={holdings} loading={holdingsLoading} error={holdingsError} retry={() => { setHoldingsLoading(true); setHoldingsRetry((count) => count + 1); }} />,
+    holdings: <HoldingsPanel holdings={holdings} loading={holdingsLoading} error={holdingsError} retry={() => { void holdingsQuery.refetch(); }} />,
     managed: <ManagedVersusPanel />,
     activity: <ActivityPanel stats={stats} />,
     referrals: <ReferralsPanel code={currentProfile.referralCode} stats={stats} />,

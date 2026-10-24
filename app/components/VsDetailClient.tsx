@@ -160,7 +160,7 @@ function marketPreferenceLabel(
 function hasTokenMarketData(token?: DebateToken) {
   const values = [token?.marketCap, token?.volume24h, token?.trades24h, token?.priceEth];
   const histories = token?.priceHistory ?? [];
-  return values.some((value) => typeof value === "number" && value !== 0) || histories.some((value) => value !== 0);
+  return values.some((value) => typeof value === "number" && value !== 0) || histories.some((value) => typeof value === "number" && value !== 0);
 }
 
 function hasMarketData(debate: Debate) {

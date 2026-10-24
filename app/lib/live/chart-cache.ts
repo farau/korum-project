@@ -98,7 +98,7 @@ async function loadLiveChart<T extends ChartSnapshot>(
     }
     return load();
   } finally {
-    await redis.eval(releaseScript, 1, lockKey, owner);
+    await redis.eval(releaseScript, 1, lockKey, owner).catch(() => undefined);
   }
 }
 

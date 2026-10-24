@@ -16,8 +16,15 @@ The normalized bytes go to [Pinata's v3 upload API](https://docs.pinata.cloud/ap
 with `network=public` and `cid_version=v1`. Only the server receives the JWT.
 PostgreSQL stores the CID, SHA-256, Pinata file ID, byte count, dimensions, first
 uploader wallet and timestamp in `public.token_images`; it stores no image bytes.
-A content-hash transaction lock deduplicates concurrent/retried uploads. Identical
-logos can share a CID: IPFS identifies content, not a token's identity.
+A short transaction claims a 90-second, content-hash reservation in
+`public.token_image_upload_leases` (migration 0018), then releases its SQL
+connection before the Pinata request. Identical uploads share a promise within
+one process; another replica's active reservation produces HTTP 503 with
+`Retry-After: 3`. Expired reservations are reclaimed opportunistically in bounded
+batches. A second transaction verifies the reservation owner, inserts the image
+record and releases the reservation. Ownership checks prevent an expired worker
+from deleting a replacement worker's reservation. Identical logos can share a
+CID: IPFS identifies content, not a token's identity.
 
 The endpoint returns only after the DB commit. The form uploads both files before
 simulation or wallet signing and supplies `ipfs://<cid>` as each camp's on-chain
@@ -38,8 +45,8 @@ Historical HTTPS and Arweave images remain supported for display.
 
 ## Configuration
 
-1. Apply migration `0015_create_token_images.sql` using the existing migration
-   runner: `npm run db:migrate`, with Railway's `DATABASE_URL` (or
+1. Apply migrations `0015_create_token_images.sql` and
+   `0018_create_token_image_upload_leases.sql` using the existing migration runner: `npm run db:migrate`, with Railway's `DATABASE_URL` (or
    `DATABASE_PUBLIC_URL` for an external connection) injected into the process.
    The runner does not automatically load `.env.local`.
 2. Add server-only `PINATA_JWT` with `org:files:write` permission in `.env.local`
@@ -55,3 +62,7 @@ Run `npm run images:check` for real decoding/compression and mocked Pinata, DB,
 route, client and creation-form checks. These checks do not upload live files or
 send blockchain transactions. A real Pinata/Railway end-to-end check still requires
 the configured services and a signed-in test wallet.
+
+`npm run test:integration` also runs `check-market-delivery.mjs` against local
+PostgreSQL and Redis, verifying pool release during upload, reservation ownership,
+concurrent uploads and crash recovery without calling Pinata.

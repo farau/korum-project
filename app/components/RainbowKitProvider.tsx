@@ -1,5 +1,7 @@
 "use client";
 
+import "@rainbow-me/rainbowkit/styles.css";
+
 import {
   darkTheme,
   lightTheme,
@@ -10,6 +12,7 @@ import React, { useEffect, useMemo, useState, type ReactNode } from "react";
 import { cookieToInitialState, WagmiProvider } from "wagmi";
 import { defaultChain, wagmiConfig } from "../config/rainbowkit";
 import { WalletAuthenticationProvider, WalletProvider } from "./WalletProvider";
+import { WatchlistProvider } from "../hooks/useWatchlist";
 
 function ThemedRainbowKitProvider({ children }: { children: ReactNode }) {
   const [themeMode, setThemeMode] = useState<"dark" | "light">("dark");
@@ -35,20 +38,25 @@ function ThemedRainbowKitProvider({ children }: { children: ReactNode }) {
 
   return (
     <RainbowKit initialChain={defaultChain} locale="en-US" theme={theme}>
-      <WalletProvider>{children}</WalletProvider>
+      <WalletProvider><WatchlistProvider>{children}</WatchlistProvider></WalletProvider>
     </RainbowKit>
   );
 }
 
-export default function RainbowKitProvider({ children, cookies }: { children: ReactNode; cookies: string | null }) {
+export default function RainbowKitProvider({ children, cookies, hasSessionCookie }: {
+  children: ReactNode; cookies: string | null; hasSessionCookie: boolean;
+}) {
   // Each render tree owns its cache so server requests cannot share changing market quotes.
   const [queryClient] = useState(() => new QueryClient());
-  const initialState = cookieToInitialState(wagmiConfig, cookies);
+  const initialState = useMemo(() => {
+    try { return cookieToInitialState(wagmiConfig, cookies); }
+    catch { return undefined; }
+  }, [cookies]);
 
   return (
     <WagmiProvider config={wagmiConfig} initialState={initialState}>
       <QueryClientProvider client={queryClient}>
-        <WalletAuthenticationProvider>
+        <WalletAuthenticationProvider hasSessionCookie={hasSessionCookie}>
           <ThemedRainbowKitProvider>{children}</ThemedRainbowKitProvider>
         </WalletAuthenticationProvider>
       </QueryClientProvider>

@@ -1,14 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
-import { headers } from "next/headers";
-import "@rainbow-me/rainbowkit/styles.css";
 import "./globals.css";
 
-import Script from 'next/script';
-import RainbowKitProvider from "./components/RainbowKitProvider";
-import Header from "./components/Header";
-import Footer from "./components/Footer";
-import { ExploreCategoryProvider } from "./components/explore/ExploreCategoryProvider";
 import "./design-vdef.css";
 
 const geistSans = Geist({
@@ -26,12 +19,10 @@ export const metadata: Metadata = {
   description: "Korum brings online debates to token markets. Pick your side and trade the debate.",
 };
 
-export default async function RootLayout({ children }: LayoutProps<"/">) {
+export default function RootLayout({ children }: LayoutProps<"/">) {
   // Minimal deterministic head to avoid server/client mismatches. Do not inject the
   // original korum.html head here — it caused hydration issues and nested <script>.
   const themeInitScript = `try{const t=localStorage.getItem('korum-theme'); if(t) document.documentElement.setAttribute('data-theme', t);}catch(e){};`;
-  const requestHeaders = await headers();
-  const cookieHeader = requestHeaders.get("cookie");
 
   return (
     <html
@@ -45,20 +36,12 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <meta name="color-scheme" content="dark light" />
         <link rel="icon" href="/favicon.ico" />
-        {/* Run a minimal theme init before React hydrates to avoid hydration mismatch */}
-        <Script id="korum-theme-init" strategy="beforeInteractive">{themeInitScript}</Script>
+        {/* Apply the saved theme during HTML parsing, before artwork is requested. */}
+        <script id="korum-theme-init" dangerouslySetInnerHTML={{ __html: themeInitScript }} />
       </head>
 
       <body className="min-h-full flex flex-col">
-        <RainbowKitProvider cookies={cookieHeader}>
-          <ExploreCategoryProvider>
-            <div className="korum-app-root">
-              <Header />
-              <main>{children}</main>
-              <Footer />
-            </div>
-          </ExploreCategoryProvider>
-        </RainbowKitProvider>
+        {children}
       </body>
     </html>
   );

@@ -12,7 +12,10 @@
     "db:check": "node scripts/check-users-db.mjs",
     "db:check:indexer": "node scripts/check-indexer-db.mjs",
     "db:check:watchlist": "node scripts/check-watchlist-db.mjs",
-    "auth:check": "node scripts/check-auth-flow.mjs"
+    "auth:check": "node scripts/check-auth-flow.mjs",
+    "test": "node scripts/check-suite.mjs",
+    "test:integration": "node scripts/check-suite.mjs integration",
+    "test:all": "node scripts/check-suite.mjs all"
   },
   "dependencies": {
     "@rainbow-me/rainbowkit": "2.2.11",
@@ -23,11 +26,11 @@
     "@x402/svm": "^2.25.0",
     "ioredis": "^5.11.1",
     "lightweight-charts": "^5.2.1",
-    "next": "16.3.4",
+    "next": "16.4.2",
     "postgres": "^3.4.9",
     "react": "19.2.8",
     "react-dom": "19.2.8",
-    "sharp": "^0.35.4",
+    "sharp": "^0.35.5",
     "viem": "^2.56.3",
     "wagmi": "2.19.5"
   },
@@ -37,13 +40,13 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
-    "eslint-config-next": "16.3.4",
+    "eslint-config-next": "16.4.2",
     "tailwindcss": "^4",
     "typescript": "^5"
   },
   "overrides": {
     "@walletconnect/ethereum-provider": "2.24.0",
-    "axios": "1.18.0",
+    "axios": "1.20.0",
     "uuid": "11.1.1",
     "ws": "8.21.3"
   }

@@ -140,6 +140,7 @@ runInNewContext(profileCode + '\nexports.testPanels = [ManagedVersusPanel, Refer
   require: name => {
     if (name === 'react') return { ...React, default: React, ...dependencies.react, useEffect: () => {} };
     if (name === 'react/jsx-runtime') return require(name);
+    if (name === '../lib/markets/format') return { formatMarketValue: value => String(value ?? 0) };
     if (name === './ProfileFeeClaim') return { default: exports.default };
     return {};
   },
@@ -151,6 +152,6 @@ function hasClaim(node) {
 }
 for (const panel of profileExports.testPanels) {
   reset();
-  assert.ok(hasClaim(panel({ code: 'TEST' })), 'Managed Versus and Referrals must both expose the shared withdrawal');
+  assert.ok(hasClaim(panel({ code: 'TEST', stats: { referredVolumeUsd: 0, referredVolumeEth: 0, referralCount: 0, activeReferralCount: 0 } })), 'Managed Versus and Referrals must both expose the shared withdrawal');
 }
 console.log('Profile fee claim checks passed: both Profile tabs, wallet-wide balance, retained rights, successful payout, fresh zero balance, failures and network switching. No transaction sent.');

@@ -45,10 +45,10 @@ try {
   const callers = [main, ...replicas];
   await Promise.all(Array.from({ length: 100 }, (_, index) => read(callers[index % callers.length])));
   assert.equal(reads, 1, '100 readers across 4 replicas cause one cold SQL load');
-  // Age the snapshot without waiting: lifetime is idle retention, not freshness.
+  // Reads renew idle retention without introducing an age-based SQL refresh.
   await redis.expire(keys.value, 580);
   assert.deepEqual(await read(), rows);
-  assert.equal(reads, 1, 'A snapshot older than 15 seconds stays reusable');
+  assert.equal(reads, 1, 'A hot snapshot remains reusable when its idle TTL is renewed');
   assert.ok(await redis.ttl(keys.value) > 590, 'Read renews the 10-minute idle TTL');
   let affectedReads = 0;
   const refresh = async ids => {
@@ -189,7 +189,7 @@ try {
     [`token${side}GraduationEth`]: '1000000000000000000',
     [`token${side}SqrtPriceX96`]: String(2n ** 96n),
     [`token${side}PriorPrice`]: null,
-    [`token${side}WindowTrades`]: [{ time: Date.now() / 1000 - 60, sqrtPrice: String(2n ** 96n), volume: '7' }],
+    [`token${side}WindowBuckets`]: [[Date.now() / 1000 - 60, String(2n ** 96n), '7', 1]],
   });
   let catalogReads = 0;
   let metadataReads = 0;
@@ -202,7 +202,7 @@ try {
     '../badges': { calculateBadgeProgress: () => ({ creator: null }) },
     '../cache/redis': { connectedRedis: async () => redis, redisCacheKey: adapterKey },
     '../cache/maintained': main, '../live/debate-cache': debate,
-    '../live/debate-reconcile': reconcile, '../live/debate-snapshot': windows,
+    './market-delivery': { recoverMarketDeliveries: async () => {} }, '../live/debate-reconcile': reconcile, '../live/debate-snapshot': windows,
     '../markets/quote-usd': { getEthUsdQuote: async () => null }, '../markets/math': math,
     '../public-asset-url': { publicAssetUrl: () => undefined },
     './watchlist': { getUserWatchlist: async () => [1] },
@@ -223,6 +223,7 @@ try {
   // Establish the metadata fingerprint before the cold burst, so this test
   // counts market reads independently of the first ever metadata probe.
   await reconcile.reconcileDebateMetadata(redis, adapterKey, async () => 'same');
+  await adapterExports.getIndexedDebates();
   const snapshots = await Promise.all(Array.from({ length: 90 }, (_, index) => {
     if (index % 3 === 0) return adapterExports.getIndexedDebates(index % 2 ? 100 : 250);
     if (index % 3 === 1) return adapterExports.getIndexedDebateById('1').then(value => [value]);
@@ -245,8 +246,18 @@ try {
   assert.equal(catalogReads, 2, 'An older warm detail does not repeat SQL');
   assert.ok(await redis.ttl(olderMapping) > 86000, 'Reads also retain discovery mappings for older active details');
 
+  // A cold targeted read must not initialize the full catalog.
+  const catalogKey = debate.debateCatalogKey(adapterKey);
+  await redis.del(catalogKey, debate.debateRowKey(adapterKey, '2'));
+  const targetedBefore = catalogReads;
+  await adapterExports.getIndexedDebateById('2');
+  assert.equal(catalogReads, targetedBefore + 1);
+  assert.equal(await redis.get(catalogKey), null, 'A detail-only visit leaves the full catalog cold');
+
   // Actual publisher skips repeat deliveries before any market reconstruction.
   let publicationsLoaded = 0;
+  let pendingDeliveries = [], deliveryReads = 0;
+  const acknowledgements = [];
   const serverExports = {};
   const serverDependencies = {
     'server-only': {}, 'node:crypto': { createHash, randomUUID },
@@ -255,8 +266,8 @@ try {
     '../db/client': { getDatabase: () => ({ unsafe: async () => assert.fail('A deletion does not read chart trades') }) },
     '../markets/math': math, '../markets/venue': { usesKorumCandles: () => true },
     './chart-cache': chart, './debate-cache': debate,
-    './profile-cache': await import(await moduleFile('profile-cache', 'app/lib/live/profile-cache.ts')),
-    '../db/debates': { loadIndexedDebateRowsByIds: async () => { publicationsLoaded++; return [rows[0]]; } },
+    './explore-cache': { prepareExploreMutation: async () => ({ revisions: [], mutations: [] }) }, '../db/explore': {}, './profile-cache': await import(await moduleFile('profile-cache', 'app/lib/live/profile-cache.ts')),
+    '../db/market-delivery': { pendingMarketDeliveries: async () => { deliveryReads++; return pendingDeliveries; }, acknowledgeMarketDeliveries: async rows => { acknowledgements.push(rows); } }, '../db/debates': { loadIndexedDebateRowsByIds: async () => { publicationsLoaded++; return [rows[0]]; } },
   };
   const serverSource = await readFile(new URL('../app/lib/live/server.ts', import.meta.url), 'utf8');
   const serverCode = ts.transpileModule(serverSource, { compilerOptions: {
@@ -270,6 +281,15 @@ try {
   assert.equal(publicationsLoaded, 1);
   assert.equal(await serverExports.publishMarketNotice([notice]), 0);
   assert.equal(publicationsLoaded, 1, 'A duplicate webhook causes no repeated market SQL');
+  assert.equal(deliveryReads, 1, 'A duplicate skips the outbox read too');
+  assert.equal(acknowledgements.length, 1, 'Only a successful publication is acknowledged');
+  const delayedInsert = { ...notice, event_id: randomUUID(), operation: 'i' };
+  pendingDeliveries = [{ eventId: delayedInsert.event_id, version: randomUUID(), tokens: ['old-token', notice.token_address], needsReset: true }];
+  const metadataBefore = await redis.get(key('live', 'snapshot-metadata'));
+  assert.equal(await serverExports.publishMarketNotice([delayedInsert]), 1, 'A delayed insertion resets charts without an incremental chart read');
+  assert.equal(acknowledgements[1], pendingDeliveries);
+  assert.notEqual(await redis.get(key('live', 'snapshot-metadata')), metadataBefore, 'Missed correction also invalidates former profile actors');
+  assert.ok(await redis.get(chart.tokenRevisionKey(key, 'old-token')), 'The former token is invalidated too');
   console.log('Debate cache checks passed: 100 readers across 4 replicas share one SQL load; warm reuse, idle TTL, affected-row refresh, detail/catalog consistency, unknown tokens, raced fills, metadata reconciliation and private watchlist invalidation.');
 } finally {
   if (redis.status === 'ready') {

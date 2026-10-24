@@ -1,0 +1,173 @@
+{
+  "browser": "155.0.8059.85",
+  "scenarios": [
+    {
+      "theme": "dark",
+      "baseline": true,
+      "dpr": 1,
+      "width": 390,
+      "run": 1,
+      "lcp": {
+        "ms": 9808,
+        "size": 265200,
+        "tag": "DIV",
+        "url": "http://127.0.0.1:3317/design-vdef/home/dark.webp"
+      },
+      "background": "url(\"http://127.0.0.1:3317/design-vdef/home/dark.webp\")",
+      "scrollWidth": 390,
+      "text": "HOT TAKES\nVersus of the week\n\nTwo sides. One question. What do you think?",
+      "images": [
+        {
+          "url": "http://127.0.0.1:3317/design-vdef/home/dark.webp",
+          "type": "Image",
+          "status": 200,
+          "mime": "image/webp",
+          "bytes": 752470
+        }
+      ],
+      "requests": 48,
+      "completedBytes": 1867935,
+      "errors": []
+    },
+    {
+      "theme": "dark",
+      "baseline": false,
+      "dpr": 1,
+      "width": 390,
+      "run": 1,
+      "lcp": {
+        "ms": 1648,
+        "size": 265200,
+        "tag": "DIV",
+        "url": "http://127.0.0.1:3317/design-vdef/home/dark-mobile.webp"
+      },
+      "background": "image-set(url(\"http://127.0.0.1:3317/design-vdef/home/dark-mobile.webp\") 1dppx, url(\"http://127.0.0.1:3317/design-vdef/home/dark-mobile@2x.webp\") 2dppx)",
+      "scrollWidth": 390,
+      "text": "HOT TAKES\nVersus of the week\n\nTwo sides. One question. What do you think?",
+      "images": [
+        {
+          "url": "http://127.0.0.1:3317/design-vdef/home/dark-mobile.webp",
+          "type": "Image",
+          "status": 200,
+          "mime": "image/webp",
+          "bytes": 10332
+        }
+      ],
+      "requests": 48,
+      "completedBytes": 1125542,
+      "errors": []
+    },
+    {
+      "theme": "dark",
+      "baseline": true,
+      "dpr": 1,
+      "width": 390,
+      "run": 2,
+      "lcp": {
+        "ms": 9816,
+        "size": 265200,
+        "tag": "DIV",
+        "url": "http://127.0.0.1:3317/design-vdef/home/dark.webp"
+      },
+      "background": "url(\"http://127.0.0.1:3317/design-vdef/home/dark.webp\")",
+      "scrollWidth": 390,
+      "text": "HOT TAKES\nVersus of the week\n\nTwo sides. One question. What do you think?",
+      "images": [
+        {
+          "url": "http://127.0.0.1:3317/design-vdef/home/dark.webp",
+          "type": "Image",
+          "status": 200,
+          "mime": "image/webp",
+          "bytes": 752470
+        }
+      ],
+      "requests": 48,
+      "completedBytes": 1867996,
+      "errors": []
+    },
+    {
+      "theme": "dark",
+      "baseline": false,
+      "dpr": 1,
+      "width": 390,
+      "run": 2,
+      "lcp": {
+        "ms": 1680,
+        "size": 265200,
+        "tag": "DIV",
+        "url": "http://127.0.0.1:3317/design-vdef/home/dark-mobile.webp"
+      },
+      "background": "image-set(url(\"http://127.0.0.1:3317/design-vdef/home/dark-mobile.webp\") 1dppx, url(\"http://127.0.0.1:3317/design-vdef/home/dark-mobile@2x.webp\") 2dppx)",
+      "scrollWidth": 390,
+      "text": "HOT TAKES\nVersus of the week\n\nTwo sides. One question. What do you think?",
+      "images": [
+        {
+          "url": "http://127.0.0.1:3317/design-vdef/home/dark-mobile.webp",
+          "type": "Image",
+          "status": 200,
+          "mime": "image/webp",
+          "bytes": 10332
+        }
+      ],
+      "requests": 48,
+      "completedBytes": 1120500,
+      "errors": []
+    },
+    {
+      "theme": "dark",
+      "baseline": true,
+      "dpr": 1,
+      "width": 390,
+      "run": 3,
+      "lcp": {
+        "ms": 9824,
+        "size": 265200,
+        "tag": "DIV",
+        "url": "http://127.0.0.1:3317/design-vdef/home/dark.webp"
+      },
+      "background": "url(\"http://127.0.0.1:3317/design-vdef/home/dark.webp\")",
+      "scrollWidth": 390,
+      "text": "HOT TAKES\nVersus of the week\n\nTwo sides. One question. What do you think?",
+      "images": [
+        {
+          "url": "http://127.0.0.1:3317/design-vdef/home/dark.webp",
+          "type": "Image",
+          "status": 200,
+          "mime": "image/webp",
+          "bytes": 752470
+        }
+      ],
+      "requests": 48,
+      "completedBytes": 1867996,
+      "errors": []
+    },
+    {
+      "theme": "dark",
+      "baseline": false,
+      "dpr": 1,
+      "width": 390,
+      "run": 3,
+      "lcp": {
+        "ms": 1652,
+        "size": 265200,
+        "tag": "DIV",
+        "url": "http://127.0.0.1:3317/design-vdef/home/dark-mobile.webp"
+      },
+      "background": "image-set(url(\"http://127.0.0.1:3317/design-vdef/home/dark-mobile.webp\") 1dppx, url(\"http://127.0.0.1:3317/design-vdef/home/dark-mobile@2x.webp\") 2dppx)",
+      "scrollWidth": 390,
+      "text": "HOT TAKES\nVersus of the week\n\nTwo sides. One question. What do you think?",
+      "images": [
+        {
+          "url": "http://127.0.0.1:3317/design-vdef/home/dark-mobile.webp",
+          "type": "Image",
+          "status": 200,
+          "mime": "image/webp",
+          "bytes": 10332
+        }
+      ],
+      "requests": 48,
+      "completedBytes": 1120496,
+      "errors": []
+    }
+  ]
+}

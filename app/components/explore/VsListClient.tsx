@@ -1,17 +1,16 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useState } from "react";
+import { useMinuteClock } from "../../hooks/useMinuteClock";
 import ExploreVsCard from "./ExploreVsCard";
 import VsTable from "./VsTable";
 import type { Debate } from "../../lib/debates";
-import { useIndexedDebates } from "../../hooks/useIndexedMarkets";
+import { useExplorePage } from "../../hooks/useIndexedMarkets";
 import { useExploreCategory } from "./ExploreCategoryProvider";
 
-type SortMode = "trending" | "marketCap" | "volume" | "holders" | "recent";
-type AgeFilter = "all" | "1h" | "24h" | "7d";
+import { EXPLORE_PAGE_SIZE as PAGE_SIZE, type ExplorePage, type ExploreOptions, type ExploreSort as SortMode, type ExploreAge as AgeFilter } from "../../lib/explore-page";
 type PaginationItem = number | "start-ellipsis" | "end-ellipsis";
 
-const PAGE_SIZE = 12;
 const ageFilters: Array<{ value: AgeFilter; label: string; minutes: number | null }> = [
   { value: "all", label: "All dates", minutes: null },
   { value: "1h", label: "< 1h", minutes: 60 },
@@ -24,16 +23,6 @@ function minimumValue(value: string) {
   return Number.isFinite(number) && number > 0 ? number : 0;
 }
 
-function matchesAdvancedFilters(debate: Debate, marketCapMin: number, tradersMin: number, maxAgeMinutes: number | null, now: number | null) {
-  if (totalMarketCap(debate) < marketCapMin || debateParticipants(debate) < tradersMin) return false;
-  if (maxAgeMinutes === null) return true;
-  const timestamp = newestTimestamp(debate);
-  const ageMinutes = timestamp && now !== null
-    ? Math.max(0, (now - timestamp) / 60_000)
-    : Math.max(0, debate.createdMinutesAgo);
-  return ageMinutes < maxAgeMinutes;
-}
-
 const sortLabels: Array<{ value: SortMode; label: string }> = [
   { value: "trending", label: "Trending" },
   { value: "marketCap", label: "Market cap" },
@@ -41,18 +30,6 @@ const sortLabels: Array<{ value: SortMode; label: string }> = [
   { value: "holders", label: "Most traders" },
   { value: "recent", label: "Newest" },
 ];
-
-function totalMarketCap(debate: Debate) {
-  return (debate.tokenA?.marketCap ?? debate.marketCapA ?? 0) + (debate.tokenB?.marketCap ?? debate.marketCapB ?? 0);
-}
-
-function debateVolume(debate: Debate) {
-  return debate.volume24h;
-}
-
-function debateParticipants(debate: Debate) {
-  return debate.participantCount ?? 0;
-}
 
 function timestampMs(value?: string | number) {
   if (typeof value === "number") return value < 10_000_000_000 ? value * 1000 : value;
@@ -80,14 +57,6 @@ function ageLabel(debate: Debate, now: number | null) {
   return `${Math.floor(hours / 24)}d ago`;
 }
 
-function normalizeCategory(value: string) {
-  return value
-    .normalize("NFD")
-    .replace(/\p{Diacritic}/gu, "")
-    .toLowerCase()
-    .trim();
-}
-
 function paginationItems(currentPage: number, totalPages: number): PaginationItem[] {
   if (totalPages <= 7) return Array.from({ length: totalPages }, (_, index) => index + 1);
 
@@ -102,11 +71,24 @@ function paginationItems(currentPage: number, totalPages: number): PaginationIte
   return items;
 }
 
-function PaginatedResults({ debates, view, now }: { debates: Debate[]; view: "grid" | "table"; now: number | null }) {
+function PaginatedResults({ initialPage, options, view, now, resetFilters }: { initialPage?: ExplorePage; options: ExploreOptions; view: "grid" | "table"; now: number | null; resetFilters: () => void }) {
   const [currentPage, setCurrentPage] = useState(1);
-  const totalPages = Math.ceil(debates.length / PAGE_SIZE);
-  const pageStart = (currentPage - 1) * PAGE_SIZE;
-  const pageDebates = debates.slice(pageStart, pageStart + PAGE_SIZE);
+  const query = useExplorePage({ ...options, page: currentPage }, initialPage);
+  const result = query.data;
+  const totalPages = result?.totalPages ?? 1;
+  if (result && currentPage !== result.page) setCurrentPage(result.page);
+  const pageStart = ((result?.page ?? currentPage) - 1) * PAGE_SIZE;
+  const pageDebates = result?.items ?? [];
+  if (!result) return <div className="explore-empty-versus" role="status">
+    <h2>{query.isError ? "Live versus are temporarily unavailable" : "Loading versus…"}</h2>
+    {query.isError ? <button type="button" className="btn" onClick={() => { void query.refetch(); }}>Try again</button> : null}
+  </div>;
+  if (!result.total) return <div className="explore-empty-versus" role="status">
+    <span className="explore-empty-versus-icon" aria-hidden="true">VS</span>
+    <h2>{result.catalogTotal ? "No matching versus" : "No versus available yet"}</h2>
+    <p>{result.catalogTotal ? "Try a different category or filter." : "No Versus have been created yet."}</p>
+    <button type="button" className="btn" onClick={resetFilters}>Reset filters</button>
+  </div>;
 
   function goToPage(page: number) {
     setCurrentPage(Math.max(1, Math.min(page, totalPages)));
@@ -116,6 +98,7 @@ function PaginatedResults({ debates, view, now }: { debates: Debate[]; view: "gr
 
   return (
     <>
+      {query.isError ? <p role="status">Unable to refresh versus. Showing the last available results.</p> : null}
       {view === "grid" ? (
         <div className="card-grid explore-versus-grid">
           {pageDebates.map((debate, index) => <ExploreVsCard key={debate.id} debate={debate} index={pageStart + index} />)}
@@ -127,7 +110,7 @@ function PaginatedResults({ debates, view, now }: { debates: Debate[]; view: "gr
       {totalPages > 1 ? (
         <nav className="explore-pagination" aria-label="Explore results pagination">
           <p className="explore-pagination-status">
-            Showing {pageStart + 1}–{Math.min(pageStart + PAGE_SIZE, debates.length)} of {debates.length} Versus
+            Showing {pageStart + 1}–{Math.min(pageStart + PAGE_SIZE, result.total)} of {result.total} Versus
           </p>
           <div className="explore-pagination-controls">
             <button type="button" className="explore-pagination-nav" disabled={currentPage === 1} onClick={() => goToPage(currentPage - 1)} aria-label="Previous page">← <span>Previous</span></button>
@@ -152,12 +135,10 @@ function PaginatedResults({ debates, view, now }: { debates: Debate[]; view: "gr
 }
 
 type VsListClientProps = {
-  indexedDebates: Debate[];
-  indexedReadFailed: boolean;
+  initialPage?: ExplorePage;
 };
 
-export default function VsListClient({ indexedDebates, indexedReadFailed }: VsListClientProps) {
-  const liveDebates = useIndexedDebates(indexedDebates);
+export default function VsListClient({ initialPage }: VsListClientProps) {
   const { category } = useExploreCategory();
   const [sortMode, setSortMode] = useState<SortMode>("trending");
   const [menuOpen, setMenuOpen] = useState(false);
@@ -166,37 +147,11 @@ export default function VsListClient({ indexedDebates, indexedReadFailed }: VsLi
   const [ageFilter, setAgeFilter] = useState<AgeFilter>("all");
   const marketCapMin = minimumValue(marketCapMinInput);
   const tradersMin = minimumValue(tradersMinInput);
-  const maxAgeMinutes = ageFilters.find((filter) => filter.value === ageFilter)!.minutes;
   const activeFilterCount = Number(marketCapMin > 0) + Number(tradersMin > 0) + Number(ageFilter !== "all");
   const [view, setView] = useState<"grid" | "table">("grid");
-  const [now, setNow] = useState<number | null>(null);
-  const currentIndexedDebates = liveDebates.data ?? indexedDebates;
-  const currentIndexedReadFailed = currentIndexedDebates.length === 0 && (indexedReadFailed || liveDebates.isError);
-  const indexedFeedEmpty = currentIndexedDebates.length === 0;
+  const now = useMinuteClock();
 
-  useEffect(() => {
-    const syncNow = () => setNow(Date.now());
-    const kickoff = window.setTimeout(syncNow, 0);
-    const timer = window.setInterval(syncNow, 60_000);
-    return () => {
-      window.clearTimeout(kickoff);
-      window.clearInterval(timer);
-    };
-  }, []);
-
-  const filtered = useMemo(() => {
-    const debates = currentIndexedDebates.filter((debate) => matchesAdvancedFilters(debate, marketCapMin, tradersMin, maxAgeMinutes, now));
-    const list = category === "HotTake"
-      ? [...debates].sort((a, b) => debateVolume(b) - debateVolume(a)).slice(0, 12)
-      : debates.filter((debate) => category === "All" || normalizeCategory(debate.category) === normalizeCategory(category));
-    if (sortMode === "marketCap" || sortMode === "trending") list.sort((a, b) => totalMarketCap(b) - totalMarketCap(a));
-    if (sortMode === "volume") list.sort((a, b) => debateVolume(b) - debateVolume(a));
-    if (sortMode === "holders") list.sort((a, b) => debateParticipants(b) - debateParticipants(a));
-    if (sortMode === "recent") list.sort((a, b) => newestTimestamp(b) - newestTimestamp(a));
-    return list;
-  }, [category, currentIndexedDebates, sortMode, marketCapMin, tradersMin, maxAgeMinutes, now]);
-
-  const paginationKey = `indexed:${category}:${sortMode}:${marketCapMin}:${tradersMin}:${ageFilter}:${filtered.map((debate) => debate.id).join(",")}`;
+  const paginationKey = `indexed:${category}:${sortMode}:${marketCapMin}:${tradersMin}:${ageFilter}`;
 
   function resetAdvancedFilters() {
     setMarketCapMinInput("");
@@ -279,24 +234,8 @@ export default function VsListClient({ indexedDebates, indexedReadFailed }: VsLi
           </div>
         </div>
 
-        {filtered.length === 0 ? (
-          <div className="explore-empty-versus" role="status">
-            <span className="explore-empty-versus-icon" aria-hidden="true">VS</span>
-            <h2>{currentIndexedReadFailed
-              ? "Live versus are temporarily unavailable"
-              : indexedFeedEmpty
-                ? "No versus available yet"
-                : "No matching versus"}</h2>
-            <p>{currentIndexedReadFailed
-              ? "Versus are temporarily unavailable. Try again shortly."
-              : indexedFeedEmpty
-                ? "No Versus have been created yet."
-                : "Try a different category or filter."}</p>
-            {activeFilterCount > 0 ? <button type="button" className="btn" onClick={resetAdvancedFilters}>Reset filters</button> : null}
-          </div>
-        ) : (
-          <PaginatedResults debates={filtered} view={view} now={now} key={paginationKey} />
-        )}
+        <PaginatedResults initialPage={initialPage} options={{ category, sort: sortMode, marketCapMin, tradersMin, age: ageFilter, page: 1 }}
+          view={view} now={now} resetFilters={resetAdvancedFilters} key={paginationKey} />
       </div>
     </section>
   );

@@ -1,0 +1,23 @@
+{
+  "verifiedAt": "2026-10-22T15:51:46.883Z",
+  "target": "Application DATABASE_URL, Railway testnet chain 46630",
+  "migration": {
+    "name": "0016_create_market_snapshot_aggregates.sql",
+    "checksum": "88d2e273c0424d831b9dcbd69d70bf5a0f222b99f34baf1fe2ad42bd1c846691",
+    "applied_at": "2026-10-22T15:50:20.781Z"
+  },
+  "checks": {
+    "membershipCountsEqual": true,
+    "bucketCountsVolumesClosingPricesEqual": true,
+    "triggerEnabled": true,
+    "coveringIndexPresent": true,
+    "supersededIndexAbsent": true,
+    "applicationSqlReaderPassed": true
+  },
+  "counts": {
+    "trades": 64,
+    "memberships": 17,
+    "buckets": 64,
+    "versuses": 6
+  }
+}

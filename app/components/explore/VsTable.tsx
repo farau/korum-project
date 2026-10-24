@@ -5,6 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 import type { Debate } from "../../lib/debates";
 import { formatMarketValue } from "../../lib/markets/format";
+import PriceSparkline from "./PriceSparkline";
 import { useWatchlist } from "../../hooks/useWatchlist";
 
 function Change({ value }: { value?: number }) {
@@ -29,7 +30,7 @@ export function VsTableView({ debates, ageLabel, isWatched, onWatchlistToggle }:
     <div className="vs-table-wrap" tabIndex={0} role="region" aria-label="Versus token market data">
         <table className="vs-table">
           <thead><tr>
-            <th scope="col">VS</th><th scope="col">Token</th><th scope="col">Graph</th>
+            <th scope="col">VS</th><th scope="col">Token</th><th scope="col">Graph 24h</th>
             {["MCap", "Age", "Vol 24h", "Traders", "5m", "1h", "6h", "24h"].map(label => <th scope="col" className="num" key={label}>{label}</th>)}
             {showWatchlist && <th scope="col"><span className="sr-only">Watchlist</span></th>}
           </tr></thead>
@@ -43,8 +44,6 @@ export function VsTableView({ debates, ageLabel, isWatched, onWatchlistToggle }:
               const series = token?.priceHistory;
               const currency = debate.marketCurrency ?? "USD";
               const watched = isWatched?.(debate.id) ?? false;
-              const min = series?.length ? Math.min(...series) : 0;
-              const range = series?.length ? Math.max(...series) - min || 1 : 1;
               return <tr className="table-token-row" key={side}>
                 {index === 0 && <td className="col-matchup" rowSpan={2}>
                   <Link className="table-matchup-link" href={`/vs/${debate.id}`}>
@@ -56,7 +55,7 @@ export function VsTableView({ debates, ageLabel, isWatched, onWatchlistToggle }:
                   </Link>
                 </td>}
                 <td><Link href={`/vs/${debate.id}`} className="table-vs-link"><TokenImage src={token?.image || token?.imageRef || (side === "A" ? debate.imageA : debate.imageB)} name={name} /><span className="table-vs-title">{symbol}</span></Link></td>
-                <td>{series && series.length > 1 ? <svg className={`table-spark ${series[series.length - 1] >= series[0] ? "buy" : "sell"}`} viewBox="0 0 84 28" role="img" aria-label={`${name} price trend`}><polyline fill="none" stroke="currentColor" strokeWidth="1.4" points={series.map((value, i) => `${i * 84 / (series.length - 1)},${25 - (value - min) / range * 22}`).join(" ")} /></svg> : <span className="muted">—</span>}</td>
+                <td><PriceSparkline name={name} series={series} /></td>
                 <td className="num table-mcap">{formatMarketValue(token?.marketCap ?? (side === "A" ? debate.marketCapA : debate.marketCapB), currency, 1)}</td>
                 <td className="num muted">{ageLabel(debate)}</td>
                 <td className="num">{formatMarketValue(token?.volume24h, currency, 1)}</td>

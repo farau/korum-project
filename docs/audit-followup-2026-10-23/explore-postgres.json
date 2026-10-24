@@ -1,0 +1,11 @@
+{
+  "verifiedAt": "2026-10-23T12:19:37.809Z",
+  "passed": true,
+  "markets": 300,
+  "trades": 3,
+  "plannerStatistics": "ANALYZE after fixture insertion",
+  "fullRankingSqlMs": 9.2,
+  "rankingBytes": 69106,
+  "pageBytes": 18586,
+  "checks": "old-market ranking, filters, stable ties, quiet windows, bounded DTO, 100 readers, targeted live update, validation and legacy API"
+}

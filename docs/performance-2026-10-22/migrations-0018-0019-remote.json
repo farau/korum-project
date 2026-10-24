@@ -1,0 +1,147 @@
+{
+  "verifiedAt": "2026-10-22T20:11:12.955Z",
+  "target": "Application DATABASE_URL, Railway testnet chain 46630",
+  "migrations": [
+    {
+      "name": "0018_create_token_image_upload_leases.sql",
+      "checksum": "efa070035d388522b633921d1bbda0d7de826c2da630e689fe58329743dc9dce",
+      "applied_at": "2026-10-22T20:10:41.311Z"
+    },
+    {
+      "name": "0019_create_market_delivery_outbox.sql",
+      "checksum": "e4d0e3d2b502f258801854497642f927a0ca18e8b472fe7a3c348f78115c26fe",
+      "applied_at": "2026-10-22T20:10:42.149Z"
+    }
+  ],
+  "columns": [
+    {
+      "table_schema": "indexer_v2",
+      "table_name": "market_delivery_outbox",
+      "column_name": "chain_id",
+      "data_type": "bigint",
+      "is_nullable": "NO",
+      "column_default": null
+    },
+    {
+      "table_schema": "indexer_v2",
+      "table_name": "market_delivery_outbox",
+      "column_name": "event_id",
+      "data_type": "text",
+      "is_nullable": "NO",
+      "column_default": null
+    },
+    {
+      "table_schema": "indexer_v2",
+      "table_name": "market_delivery_outbox",
+      "column_name": "version",
+      "data_type": "uuid",
+      "is_nullable": "NO",
+      "column_default": "gen_random_uuid()"
+    },
+    {
+      "table_schema": "indexer_v2",
+      "table_name": "market_delivery_outbox",
+      "column_name": "tokens",
+      "data_type": "ARRAY",
+      "is_nullable": "NO",
+      "column_default": null
+    },
+    {
+      "table_schema": "indexer_v2",
+      "table_name": "market_delivery_outbox",
+      "column_name": "needs_reset",
+      "data_type": "boolean",
+      "is_nullable": "NO",
+      "column_default": "false"
+    },
+    {
+      "table_schema": "indexer_v2",
+      "table_name": "market_delivery_outbox",
+      "column_name": "first_pending_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO",
+      "column_default": "now()"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "token_image_upload_leases",
+      "column_name": "sha256",
+      "data_type": "character varying",
+      "is_nullable": "NO",
+      "column_default": null
+    },
+    {
+      "table_schema": "public",
+      "table_name": "token_image_upload_leases",
+      "column_name": "owner",
+      "data_type": "uuid",
+      "is_nullable": "NO",
+      "column_default": null
+    },
+    {
+      "table_schema": "public",
+      "table_name": "token_image_upload_leases",
+      "column_name": "expires_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO",
+      "column_default": null
+    }
+  ],
+  "indexes": [
+    {
+      "name": "market_delivery_outbox_pending_idx",
+      "primary": false,
+      "valid": true,
+      "definition": "CREATE INDEX market_delivery_outbox_pending_idx ON indexer_v2.market_delivery_outbox USING btree (chain_id, first_pending_at, event_id)"
+    },
+    {
+      "name": "market_delivery_outbox_pkey",
+      "primary": true,
+      "valid": true,
+      "definition": "CREATE UNIQUE INDEX market_delivery_outbox_pkey ON indexer_v2.market_delivery_outbox USING btree (chain_id, event_id)"
+    },
+    {
+      "name": "market_delivery_outbox_tokens_idx",
+      "primary": false,
+      "valid": true,
+      "definition": "CREATE INDEX market_delivery_outbox_tokens_idx ON indexer_v2.market_delivery_outbox USING gin (tokens)"
+    },
+    {
+      "name": "token_image_upload_leases_expiry_idx",
+      "primary": false,
+      "valid": true,
+      "definition": "CREATE INDEX token_image_upload_leases_expiry_idx ON public.token_image_upload_leases USING btree (expires_at)"
+    },
+    {
+      "name": "token_image_upload_leases_pkey",
+      "primary": true,
+      "valid": true,
+      "definition": "CREATE UNIQUE INDEX token_image_upload_leases_pkey ON public.token_image_upload_leases USING btree (sha256)"
+    }
+  ],
+  "triggers": [
+    {
+      "name": "camp_trades_delivery_outbox_trigger",
+      "enabled": "O",
+      "definition": "CREATE TRIGGER camp_trades_delivery_outbox_trigger AFTER INSERT OR DELETE OR UPDATE ON indexer_v2.camp_trades FOR EACH ROW EXECUTE FUNCTION indexer_v2.track_market_delivery()"
+    }
+  ],
+  "functions": [
+    {
+      "name": "mark_market_delivery",
+      "definition": "CREATE OR REPLACE FUNCTION indexer_v2.mark_market_delivery(p_chain bigint, p_event text, p_token text, p_reset boolean)\n RETURNS void\n LANGUAGE sql\nAS $function$\n  INSERT INTO indexer_v2.market_delivery_outbox (chain_id, event_id, tokens, needs_reset)\n  VALUES (p_chain, p_event, ARRAY[p_token], p_reset)\n  ON CONFLICT (chain_id, event_id) DO UPDATE SET\n    version = gen_random_uuid(),\n    needs_reset = indexer_v2.market_delivery_outbox.needs_reset OR EXCLUDED.needs_reset,\n    tokens = ARRAY(SELECT DISTINCT token FROM unnest(indexer_v2.market_delivery_outbox.tokens || EXCLUDED.tokens) token ORDER BY token)\n$function$\n"
+    },
+    {
+      "name": "track_market_delivery",
+      "definition": "CREATE OR REPLACE FUNCTION indexer_v2.track_market_delivery()\n RETURNS trigger\n LANGUAGE plpgsql\nAS $function$\nBEGIN\n  IF TG_OP = 'UPDATE' AND (to_jsonb(OLD) - 'ingested_at') = (to_jsonb(NEW) - 'ingested_at') THEN\n    RETURN NEW;\n  END IF;\n  IF TG_OP = 'DELETE' THEN\n    PERFORM indexer_v2.mark_market_delivery(OLD.chain_id, OLD.event_id, OLD.token_address, TRUE);\n    RETURN OLD;\n  END IF;\n  IF TG_OP = 'UPDATE' AND (OLD.chain_id, OLD.event_id, OLD.token_address)\n    IS DISTINCT FROM (NEW.chain_id, NEW.event_id, NEW.token_address) THEN\n    PERFORM indexer_v2.mark_market_delivery(OLD.chain_id, OLD.event_id, OLD.token_address, TRUE);\n  END IF;\n  PERFORM indexer_v2.mark_market_delivery(NEW.chain_id, NEW.event_id, NEW.token_address, TG_OP = 'UPDATE');\n  RETURN NEW;\nEND;\n$function$\n"
+    }
+  ],
+  "counts": {
+    "upload_leases": 0,
+    "pending_deliveries": 12,
+    "bootstrap_entries": 12,
+    "camps": 12,
+    "trades": 64
+  },
+  "uncoveredCampsAtVerification": 0
+}

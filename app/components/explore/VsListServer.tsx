@@ -1,10 +1,9 @@
 import React from 'react';
 import VsListClient from './VsListClient';
-import type { Debate } from '../../lib/debates';
+import type { ExplorePage } from '../../lib/explore-page';
 
 type VsListServerProps = {
-  indexedDebates: Debate[];
-  indexedReadFailed: boolean;
+  initialPage?: ExplorePage;
 };
 
 export default function VsListServer(props: VsListServerProps) {

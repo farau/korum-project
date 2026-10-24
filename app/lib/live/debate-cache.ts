@@ -4,8 +4,8 @@ import { parseMaintained, type MaintainedKeys, type CacheMapping, type Maintaine
 import type { ChartCacheMutation } from "./chart-cache";
 
 type Key = (...parts: Array<string | number>) => string;
-export function debateCatalogKey(key: Key) { return key("live", "debate-catalog-v2"); }
-export function debateRowKey(key: Key, id: string) { return key("live", "debate-row-v2", id); }
+export function debateCatalogKey(key: Key) { return key("live", "debate-catalog-v3"); }
+export function debateRowKey(key: Key, id: string) { return key("live", "debate-row-v3", id); }
 export function snapshotKeys(key: Key, value: string): MaintainedKeys {
   return { value, revision: `${value}:revision`, metadata: key("live", "snapshot-metadata"), guard: key("live", "revision") };
 }

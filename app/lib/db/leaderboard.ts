@@ -13,13 +13,13 @@ import { getDatabase } from "./client";
 
 type ConfigIdRow = { configId: number | string };
 type LeaderboardDatabaseRow = {
-  rank: number | string;
+  pnlRank: number | string;
+  volumeRank: number | string;
   traderWallet: string;
   displayName: string;
   pnlWei: string | null;
   volumeWei: string;
   tradeCount: number;
-  totalItems: number;
   versusCreated: number;
   creatorVolumeWei: string;
   referralCount: number;
@@ -36,12 +36,7 @@ function amountEth(value: string | null) {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
-async function loadTraderLeaderboard(
-  page: number,
-  pageSize: number,
-  sort: LeaderboardSort,
-  search: string,
-): Promise<TraderLeaderboardPage> {
+async function loadTraderRanking(): Promise<LeaderboardDatabaseRow[]> {
   const database = getDatabase();
   const configIds = await database.unsafe<ConfigIdRow[]>(`
     SELECT DISTINCT versus.config_id AS "configId"
@@ -66,12 +61,7 @@ async function loadTraderLeaderboard(
     } : null;
   }));
   const configJson = JSON.stringify(loadedConfigs.filter((config) => config !== null));
-  const orderBy = sort === "volume"
-    ? "volume_wei DESC, pnl_wei DESC NULLS LAST, trader_wallet ASC"
-    : "pnl_wei DESC NULLS LAST, volume_wei DESC, trader_wallet ASC";
-  const offset = (page - 1) * pageSize;
-
-  const rowsPromise = database.unsafe<LeaderboardDatabaseRow[]>(`
+  return database.unsafe<LeaderboardDatabaseRow[]>(`
     WITH configs AS (
       SELECT
         (value->>'configId')::INTEGER AS config_id,
@@ -170,42 +160,8 @@ async function loadTraderLeaderboard(
       LEFT JOIN pnl_totals pnl ON pnl.trader_address = totals.trader_address
       LEFT JOIN public.users users ON users.evm_wallet = totals.trader_address
     ),
-    ranked AS (
-      SELECT
-        ROW_NUMBER() OVER (ORDER BY ${orderBy}) AS rank,
-        trader_wallet,
-        display_name,
-        pnl_wei,
-        volume_wei,
-        trade_count
-      FROM leaderboard
-    ),
-    filtered AS (
-      SELECT ranked.*, COUNT(*) OVER ()::INTEGER AS total_items
-      FROM ranked
-      WHERE $3 = '' OR display_name ILIKE '%' || $3 || '%' OR trader_wallet ILIKE '%' || $3 || '%'
-    )
-    , paged AS (
-      SELECT *
-      FROM filtered
-      ORDER BY rank
-      LIMIT $4 OFFSET $5
-    )
-    SELECT
-      paged.rank,
-      paged.trader_wallet AS "traderWallet",
-      paged.display_name AS "displayName",
-      paged.pnl_wei::TEXT AS "pnlWei",
-      paged.volume_wei::TEXT AS "volumeWei",
-      paged.trade_count AS "tradeCount",
-      paged.total_items AS "totalItems",
-      creator.versus_created AS "versusCreated",
-      creator.generated_volume_wei::TEXT AS "creatorVolumeWei",
-      referral.referral_count AS "referralCount",
-      referral.referred_volume_wei::TEXT AS "referredVolumeWei"
-    FROM paged
-    LEFT JOIN LATERAL (
-      SELECT
+    creator_totals AS (
+      SELECT versus.creator_wallet,
         COUNT(DISTINCT versus.versus_id)::INTEGER AS versus_created,
         COALESCE(SUM(COALESCE(market.cumulative_volume_after, 0)), 0) AS generated_volume_wei
       FROM ${INDEXER_SCHEMA}.versuses versus
@@ -213,26 +169,55 @@ async function loadTraderLeaderboard(
         ON camp.chain_id = versus.chain_id AND camp.versus_id = versus.versus_id
       LEFT JOIN ${INDEXER_SCHEMA}.camp_market_state market
         ON market.chain_id = camp.chain_id AND market.token_address = camp.token_address
-      WHERE versus.chain_id = $1 AND versus.creator_wallet = paged.trader_wallet
-    ) creator ON TRUE
-    LEFT JOIN LATERAL (
-      SELECT
-        COUNT(binding.user_wallet)::INTEGER AS referral_count,
+      WHERE versus.chain_id = $1
+      GROUP BY versus.creator_wallet
+    ), referral_totals AS (
+      SELECT binding.referrer_wallet, COUNT(binding.user_wallet)::INTEGER AS referral_count,
         COALESCE(SUM(COALESCE(referred.total_volume_wei, 0)), 0) AS referred_volume_wei
       FROM ${INDEXER_SCHEMA}.referral_bindings binding
       LEFT JOIN ${INDEXER_SCHEMA}.trader_totals referred
         ON referred.chain_id = binding.chain_id AND referred.trader_address = binding.user_wallet
-      WHERE binding.chain_id = $1 AND binding.referrer_wallet = paged.trader_wallet
-    ) referral ON TRUE
-    ORDER BY paged.rank
-  `, [KORUM_CHAIN_ID, configJson, search, pageSize, offset]);
+      WHERE binding.chain_id = $1
+      GROUP BY binding.referrer_wallet
+    )
+    SELECT
+      ROW_NUMBER() OVER (ORDER BY volume_wei DESC, pnl_wei DESC NULLS LAST, trader_wallet ASC) AS "volumeRank",
+      ROW_NUMBER() OVER (ORDER BY pnl_wei DESC NULLS LAST, volume_wei DESC, trader_wallet ASC) AS "pnlRank",
+      trader_wallet AS "traderWallet", display_name AS "displayName",
+      pnl_wei::TEXT AS "pnlWei", volume_wei::TEXT AS "volumeWei", trade_count AS "tradeCount",
+      COALESCE(creator.versus_created, 0) AS "versusCreated",
+      COALESCE(creator.generated_volume_wei, 0)::TEXT AS "creatorVolumeWei",
+      COALESCE(referral.referral_count, 0) AS "referralCount",
+      COALESCE(referral.referred_volume_wei, 0)::TEXT AS "referredVolumeWei"
+    FROM leaderboard
+    LEFT JOIN creator_totals creator ON creator.creator_wallet = trader_wallet
+    LEFT JOIN referral_totals referral ON referral.referrer_wallet = trader_wallet
+  `, [KORUM_CHAIN_ID, configJson]);
+}
+
+// Ranking and badge inputs are shared across searches, pages and both sorts.
+// Keep the previous search freshness bound; no timer or wallet-specific SQL fill.
+export const LEADERBOARD_PROJECTION_SECONDS = 30;
+export async function getTraderLeaderboard(
+  options: { page?: number; pageSize?: number; sort?: LeaderboardSort; search?: string } = {},
+  diagnostic?: CacheDiagnostic,
+): Promise<TraderLeaderboardPage> {
+  const page = Number.isFinite(options.page) ? Math.max(1, Math.trunc(options.page!)) : 1;
+  const pageSize = Number.isFinite(options.pageSize) ? Math.min(MAX_PAGE_SIZE, Math.max(1, Math.trunc(options.pageSize!))) : LEADERBOARD_PAGE_SIZE;
+  const sort: LeaderboardSort = options.sort === "volume" ? "volume" : "pnl";
+  const search = (options.search ?? "").trim().slice(0, 64);
+  const rowsPromise = rememberJson(redisCacheKey("leaderboard", "projection-v1"), LEADERBOARD_PROJECTION_SECONDS, loadTraderRanking, diagnostic);
 
   const [rows, quote] = await Promise.all([rowsPromise, getEthUsdQuote()]);
   const quoteUsd = quote?.value ?? null;
-  const totalItems = rows[0]?.totalItems ?? 0;
+  const term = search.toLowerCase();
+  const rank = (row: LeaderboardDatabaseRow) => Number(sort === "volume" ? row.volumeRank : row.pnlRank);
+  const filtered = rows.filter(row => !term || row.displayName.toLowerCase().includes(term) || row.traderWallet.toLowerCase().includes(term));
+  const totalItems = filtered.length;
+  const selected = filtered.sort((a, b) => rank(a) - rank(b)).slice((page - 1) * pageSize, page * pageSize);
 
   return {
-    items: rows.map((row) => {
+    items: selected.map((row) => {
       const pnlEth = amountEth(row.pnlWei);
       const volumeEth = amountEth(row.volumeWei) ?? 0;
       const creatorVolumeEth = amountEth(row.creatorVolumeWei) ?? 0;
@@ -246,7 +231,7 @@ async function loadTraderLeaderboard(
         referredVolumeUsd: quoteUsd === null ? null : referredVolumeEth * quoteUsd,
       }).overall;
       return {
-        rank: Number(row.rank),
+        rank: rank(row),
         wallet: row.traderWallet,
         name: row.displayName,
         pnlEth,
@@ -264,26 +249,4 @@ async function loadTraderLeaderboard(
     sort,
     search,
   };
-}
-
-export function getTraderLeaderboard(
-  options: { page?: number; pageSize?: number; sort?: LeaderboardSort; search?: string } = {},
-  diagnostic?: CacheDiagnostic,
-) {
-  const page = Math.max(1, Math.trunc(options.page ?? 1));
-  const pageSize = Math.min(MAX_PAGE_SIZE, Math.max(1, Math.trunc(options.pageSize ?? LEADERBOARD_PAGE_SIZE)));
-  const sort: LeaderboardSort = options.sort === "volume" ? "volume" : "pnl";
-  const search = (options.search ?? "").trim().slice(0, 64);
-
-  if (search) {
-    if (diagnostic) diagnostic.status = "BYPASS";
-    return loadTraderLeaderboard(page, pageSize, sort, search);
-  }
-
-  return rememberJson(
-    redisCacheKey("leaderboard", "traders-v3", sort, page, pageSize),
-    LEADERBOARD_CACHE_SECONDS,
-    () => loadTraderLeaderboard(page, pageSize, sort, search),
-    diagnostic,
-  );
 }

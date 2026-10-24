@@ -5,6 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 import type { Debate, DebateToken } from "../../lib/debates";
 import { formatMarketValue } from "../../lib/markets/format";
+import { useMinuteClock } from "../../hooks/useMinuteClock";
 import { useWatchlist } from "../../hooks/useWatchlist";
 import MarketStatIcon from "../MarketStatIcon";
 import styles from "./ExploreVsCard.module.css";
@@ -67,17 +68,10 @@ export default function ExploreVsCard({ debate, index = 0 }: { debate: Debate; i
   const share = Math.max(0, Math.min(100, totalCap > 0
     ? Math.round(((tokens[0].marketCap ?? 0) / totalCap) * 100)
     : debate.sideAPercentage ?? 50));
-  const visualSplit = share === 50 ? 50
-    : 50 + Math.sign(share - 50) * (4 + Math.min(Math.abs(share - 50) * 0.16, 8));
   const { toggle, has } = useWatchlist();
   const starred = has(debate.id);
   const [failedImages, setFailedImages] = React.useState<string[]>([]);
-  const [now, setNow] = React.useState<number | null>(null);
-  React.useEffect(() => {
-    const kickoff = window.setTimeout(() => setNow(Date.now()), 0);
-    const timer = window.setInterval(() => setNow(Date.now()), 60_000);
-    return () => { window.clearTimeout(kickoff); window.clearInterval(timer); };
-  }, []);
+  const now = useMinuteClock();
   const debateTimestamp = timestampMs(debate.launchedAtUtc || debate.launchedAt || debate.createdAtUtc || debate.createdAt)
     ?? timestampMs(debate.launchTimestamp ?? debate.createdAtTimestamp);
   const launchTimestamp = Math.max(...tokens.map((token) => timestampMs(token.launchedAt) ?? timestampMs(token.launchTimestamp) ?? debateTimestamp ?? 0)) || debateTimestamp;
@@ -106,7 +100,6 @@ export default function ExploreVsCard({ debate, index = 0 }: { debate: Debate; i
         </div>
       </div>
       <Link href={href} className={styles.visuals}
-        style={{ "--visual-split": `${visualSplit}%` } as React.CSSProperties}
         aria-label={`${tokens[0].name} vs ${tokens[1].name}`}>
         {tokens.map((token, side) => {
           const source = token.image || token.imageRef;

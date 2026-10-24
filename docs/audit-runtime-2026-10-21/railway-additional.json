@@ -1,0 +1,142 @@
+{
+  "at": "2026-10-21 16:57:08 UTC",
+  "tracing": {
+    "environment": {
+      "id": "77c5c32e-8703-4810-bcdd-27fdc9cad8c7",
+      "name": "staging"
+    },
+    "services": [
+      {
+        "autoInstrumentationActive": false,
+        "autoInstrumentationEnabled": false,
+        "id": "6e90c3c8-ddb2-42e3-9d89-386b2845ebd4",
+        "name": "korum-project",
+        "tracingEnabled": false
+      },
+      {
+        "autoInstrumentationActive": false,
+        "autoInstrumentationEnabled": false,
+        "id": "22372f54-0d30-440e-8af8-42c9835a6324",
+        "name": "Postgres",
+        "tracingEnabled": false
+      },
+      {
+        "autoInstrumentationActive": false,
+        "autoInstrumentationEnabled": false,
+        "id": "380af336-a0ad-41c4-b305-ab5c4a289c60",
+        "name": "Redis",
+        "tracingEnabled": false
+      }
+    ]
+  },
+  "metrics": [
+    {
+      "environment": {
+        "id": "77c5c32e-8703-4810-bcdd-27fdc9cad8c7",
+        "name": "staging"
+      },
+      "metrics": [
+        {
+          "average": 0,
+          "current": 0,
+          "max": 0,
+          "measurement": "DISK_USAGE_GB",
+          "min": 0,
+          "sampleCount": 1441
+        },
+        {
+          "average": 7.994448299791811,
+          "current": 8,
+          "max": 8,
+          "measurement": "CPU_LIMIT",
+          "min": 0,
+          "sampleCount": 1441
+        },
+        {
+          "average": 7.994448299791811,
+          "current": 8,
+          "max": 8,
+          "measurement": "MEMORY_LIMIT_GB",
+          "min": 0,
+          "sampleCount": 1441
+        }
+      ],
+      "service": {
+        "id": "6e90c3c8-ddb2-42e3-9d89-386b2845ebd4",
+        "name": "korum-project"
+      }
+    },
+    {
+      "environment": {
+        "id": "77c5c32e-8703-4810-bcdd-27fdc9cad8c7",
+        "name": "staging"
+      },
+      "metrics": [
+        {
+          "average": 0.11886837589451783,
+          "current": 0.118956032,
+          "max": 0.118956032,
+          "measurement": "DISK_USAGE_GB",
+          "min": 0,
+          "sampleCount": 1441
+        },
+        {
+          "average": 7.994448299791811,
+          "current": 8,
+          "max": 8,
+          "measurement": "CPU_LIMIT",
+          "min": 0,
+          "sampleCount": 1441
+        },
+        {
+          "average": 7.994448299791811,
+          "current": 8,
+          "max": 8,
+          "measurement": "MEMORY_LIMIT_GB",
+          "min": 0,
+          "sampleCount": 1441
+        }
+      ],
+      "service": {
+        "id": "22372f54-0d30-440e-8af8-42c9835a6324",
+        "name": "Postgres"
+      }
+    },
+    {
+      "environment": {
+        "id": "77c5c32e-8703-4810-bcdd-27fdc9cad8c7",
+        "name": "staging"
+      },
+      "metrics": [
+        {
+          "average": 0.05101471640249893,
+          "current": 0.051060736,
+          "max": 0.051060736,
+          "measurement": "DISK_USAGE_GB",
+          "min": 0.050937856,
+          "sampleCount": 1441
+        },
+        {
+          "average": 8,
+          "current": 8,
+          "max": 8,
+          "measurement": "CPU_LIMIT",
+          "min": 8,
+          "sampleCount": 1441
+        },
+        {
+          "average": 8,
+          "current": 8,
+          "max": 8,
+          "measurement": "MEMORY_LIMIT_GB",
+          "min": 8,
+          "sampleCount": 1441
+        }
+      ],
+      "service": {
+        "id": "380af336-a0ad-41c4-b305-ab5c4a289c60",
+        "name": "Redis"
+      }
+    }
+  ]
+}

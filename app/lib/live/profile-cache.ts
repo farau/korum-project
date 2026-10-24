@@ -21,7 +21,7 @@ export function activeProfileKey(key: Key) { return key("live", "profile-source-
 export async function prepareProfileInvalidations(
   redis: Redis, key: Key, notices: TradeNotice[],
   load: (notices: TradeNotice[]) => Promise<Array<{ eventId: string; wallets: string[] }>>,
-): Promise<{ revisions: string[]; mappings: CacheMapping[] }> {
+): Promise<{ revisions: string[]; mappings: CacheMapping[]; wallets?: string[] }> {
   if (!await redis.get(activeProfileKey(key))) return { revisions: [], mappings: [] };
   const eventKeys = notices.map(notice => key("live", "profile-event-wallets-v1",
     createHash("sha256").update(notice.event_id).digest("hex")));
@@ -46,5 +46,5 @@ export async function prepareProfileInvalidations(
   // Old deletes/updates can have lost their event-to-wallet mapping. Advance
   // metadata once to recover private sources whose old actor cannot be found.
   if (unknownDeletion) revisions.push(key("live", "snapshot-metadata"));
-  return { revisions, mappings };
+  return { revisions, mappings, wallets: unknownDeletion ? undefined : [...affected] };
 }

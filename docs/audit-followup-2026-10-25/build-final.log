@@ -1,0 +1,71 @@
+
+> korum-project@0.3.2 build
+> next build
+
+▲ Next.js 16.4.2 (Turbopack)
+- Environments: .env.local
+✓ Running next.config.ts took 16ms
+
+  Creating an optimized production build ...
+✓ Compiled successfully in 1173ms
+  Running TypeScript ...
+  Finished TypeScript in 6.8s ...
+  Collecting page data using 7 workers ...
+  Generating static pages using 7 workers (0/33) ...
+  Generating static pages using 7 workers (8/33) 
+  Generating static pages using 7 workers (16/33) 
+  Generating static pages using 7 workers (24/33) 
+✓ Generating static pages using 7 workers (33/33) in 229ms
+  Finalizing page optimization ...
+
+Route (app)
+┌ ○ /
+├ ○ /_not-found
+├ ƒ /analytics
+├ ƒ /api/analytics
+├ ƒ /api/auth/challenge
+├ ƒ /api/auth/session
+├ ƒ /api/auth/verify
+├ ƒ /api/avatars/[address]
+├ ƒ /api/leaderboard
+├ ƒ /api/markets/[token]/chart
+├ ƒ /api/markets/[token]/trades
+├ ƒ /api/markets/[token]/venue
+├ ƒ /api/markets/live
+├ ƒ /api/markets/trades
+├ ƒ /api/notifications
+├ ƒ /api/profile
+├ ƒ /api/profile/activity
+├ ƒ /api/profile/avatar
+├ ƒ /api/profile/holdings
+├ ƒ /api/profile/managed-versus
+├ ƒ /api/profile/stats
+├ ƒ /api/referrals/capture
+├ ƒ /api/referrals/pending
+├ ƒ /api/rpc
+├ ƒ /api/token-images
+├ ƒ /api/versus
+├ ƒ /api/versus/[id]
+├ ƒ /api/versus/[id]/positions
+├ ƒ /api/versus/[id]/socials
+├ ƒ /api/versus/search
+├ ƒ /api/watchlist
+├ ƒ /api/webhooks/goldsky
+├ ○ /concept
+├ ƒ /create
+├ ○ /earn
+├ ƒ /explore
+├ ○ /icon.png
+├ ƒ /leaderboard
+├ ○ /privacy
+├ ƒ /profile
+├ ○ /terms
+├ ƒ /vs/[id]
+└ ƒ /watchlist
+
+
+ƒ Proxy (Middleware)
+
+○  (Static)   prerendered as static content
+ƒ  (Dynamic)  server-rendered on demand
+

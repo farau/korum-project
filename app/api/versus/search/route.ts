@@ -1,5 +1,4 @@
-import { createHash } from "node:crypto";
-
+import { requestIdentity } from "../../../lib/request-identity";
 import { consumeRateLimit, redisCacheKey, type CacheDiagnostic } from "../../../lib/cache/redis";
 import {
   INDEXED_DEBATE_SEARCH_CACHE_SECONDS,
@@ -14,15 +13,6 @@ const SEARCH_MIN_LENGTH = 2;
 const SEARCH_MAX_LENGTH = 100;
 const SEARCH_RATE_LIMIT = 30;
 const SEARCH_RATE_WINDOW_SECONDS = 60;
-
-function requestIdentity(request: Request) {
-  const forwarded = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim();
-  const address = request.headers.get("cf-connecting-ip")
-    || request.headers.get("x-real-ip")
-    || forwarded
-    || "unknown";
-  return createHash("sha256").update(address).digest("hex").slice(0, 24);
-}
 
 function rateLimitHeaders(remaining: number) {
   return {

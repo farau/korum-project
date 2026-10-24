@@ -48,6 +48,8 @@ html[data-theme="dark"] .explore-page, .explore-page {
   min-height: 80vh;
 }
 html[data-theme="light"] .explore-page { --bg: #f5f5f6; --explore-art: url('/design-vdef/home/light.webp'); }
+/* Keep overflowing filter menus clickable above the footer on short result pages. */
+.explore-page:has(.custom-select.open) { z-index: 1; overflow: visible; }
 .explore-page::before {
   content: "";
   position: absolute;
@@ -169,6 +171,12 @@ footer { padding-block: 14px 20px; }
 }
 @media (max-width: 600px) {
   .header-search { padding-block: 9px; }
+  html[data-theme="dark"] .explore-page, .explore-page {
+    --explore-art: image-set(url('/design-vdef/home/dark-mobile.webp') 1x, url('/design-vdef/home/dark-mobile@2x.webp') 2x);
+  }
+  html[data-theme="light"] .explore-page {
+    --explore-art: image-set(url('/design-vdef/home/light-mobile.webp') 1x, url('/design-vdef/home/light-mobile@2x.webp') 2x);
+  }
   .explore-page::before { aspect-ratio: auto; height: 680px; }
   .explore-page .mini-hero { padding-block: 28px 18px; }
   .explore-page .mini-hero h1 { letter-spacing: -.8px; }

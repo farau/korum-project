@@ -10,19 +10,8 @@ import {
 import { useRouter } from "next/navigation";
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { useAccount, useDisconnect } from "wagmi";
+import { WalletContext, type WalletContextValue } from "./WalletContext";
 import { WalletSessionGuard, walletMatches, isWalletConnectorReady } from "../lib/auth/wallet-session-guard";
-
-type WalletContextValue = {
-  address: string | null;
-  connected: boolean;
-  authenticated: boolean;
-  authenticating: boolean;
-  hydrated: boolean;
-  authError: string | null;
-  connect: () => void;
-  openWallet: () => void;
-  disconnect: () => Promise<void>;
-};
 
 type SessionResponse = {
   authenticated: boolean;
@@ -37,7 +26,7 @@ type AuthContextValue = {
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
-const WalletContext = createContext<WalletContextValue | null>(null);
+
 
 async function responseError(response: Response, fallback: string) {
   try {
@@ -48,7 +37,9 @@ async function responseError(response: Response, fallback: string) {
   }
 }
 
-export function WalletAuthenticationProvider({ children }: { children: React.ReactNode }) {
+export function WalletAuthenticationProvider({ children, hasSessionCookie = false }: {
+  children: React.ReactNode; hasSessionCookie?: boolean;
+}) {
   const router = useRouter();
   const { address, connector: restoredConnector, isConnected, status: accountStatus } = useAccount();
   const connector = isWalletConnectorReady(accountStatus, restoredConnector) ? restoredConnector : undefined;
@@ -168,7 +159,11 @@ export function WalletAuthenticationProvider({ children }: { children: React.Rea
       if (!nextAddress) {
         // Also expire restored server cookies when the wallet disconnected
         // while the page was closed.
-        await signOut();
+        if (hasSessionCookie) await signOut();
+        else {
+          setSessionAddress(null);
+          setAuthenticationStatus("unauthenticated");
+        }
         return;
       }
       setSessionAddress(null);
@@ -205,7 +200,7 @@ export function WalletAuthenticationProvider({ children }: { children: React.Rea
       window.clearTimeout(timer);
       guard.invalidate();
     };
-  }, [accountStatus, address, connector, isConnected, invalidateWallet, signOut, sessionGuard]);
+  }, [accountStatus, address, connector, isConnected, invalidateWallet, signOut, sessionGuard, hasSessionCookie]);
 
   useEffect(() => {
     if (!connector || !isConnected || !address) return;
@@ -370,12 +365,4 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   return <WalletContext.Provider value={value}>{children}</WalletContext.Provider>;
 }
 
-export function useWallet() {
-  const context = useContext(WalletContext);
-  if (!context) throw new Error("useWallet must be used within WalletProvider");
-  return context;
-}
-
-export function shortenAddress(address: string) {
-  return `${address.slice(0, 6)}...${address.slice(-4)}`;
-}
+export { useWallet, shortenAddress } from "./WalletContext";

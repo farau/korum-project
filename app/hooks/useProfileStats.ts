@@ -3,11 +3,11 @@
 import { useQuery } from "@tanstack/react-query";
 import type { UserProfileStats } from "../lib/profile";
 import { PROFILE_STATS_QUERY_KEY } from "./useIndexedMarkets";
-import { useMarketLive } from "./useMarketLive";
+import { useMarketConnection, useMarketSubscription } from "./useMarketLive";
 
 export function useProfileStats(address: string | null, initialData: UserProfileStats | null) {
-  const live = useMarketLive(address ? "feed" : null);
-  return useQuery({
+  const live = useMarketConnection();
+  const query = useQuery({
     queryKey: [PROFILE_STATS_QUERY_KEY, address?.toLowerCase()],
     queryFn: async ({ signal }) => {
       const response = await fetch("/api/profile/stats", { signal, credentials: "same-origin", cache: "no-store" });
@@ -27,4 +27,7 @@ export function useProfileStats(address: string | null, initialData: UserProfile
     refetchIntervalInBackground: false,
     retry: 1,
   });
+  const tokens = query.data?.liveTokens ?? initialData?.liveTokens ?? [];
+  useMarketSubscription(address ? `profile:${address.toLowerCase()}:${[...tokens].sort().join(",")}` : null);
+  return query;
 }

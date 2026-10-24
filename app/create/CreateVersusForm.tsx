@@ -307,12 +307,14 @@ export default function CreateVersusForm({ initialPendingReferral }: { initialPe
         args: [KORUM_QUOTE_ASSET],
       }) as readonly [number, PairEconomics];
       if (!economicsId || economics.quoteAsset.toLowerCase() !== KORUM_QUOTE_ASSET) throw new Error("Only native ETH launches are supported.");
-      const [costA, costB] = await Promise.all([tokenAmountA, tokenAmountB].map(amount => publicClient.readContract({
+      const quoteCost = (amount: bigint) => publicClient.readContract({
         address: KORUM_LENS_ADDRESS,
         abi: KORUM_LENS_ABI,
         functionName: "quoteCreatorInitialBuy",
         args: [configId, economics.virtualQuote, economics.graduationQuote, amount],
-      }) as Promise<bigint>));
+      }) as Promise<bigint>;
+      const quoteA = quoteCost(tokenAmountA);
+      const [costA, costB] = await Promise.all([quoteA, tokenAmountA === tokenAmountB ? quoteA : quoteCost(tokenAmountB)]);
       return { economicsId, economics, costA, costB };
     },
   });

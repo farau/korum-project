@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
-import type { CacheDiagnostic } from "../../lib/cache/redis";
+import { consumeRateLimit, redisCacheKey, type CacheDiagnostic } from "../../lib/cache/redis";
+import { requestIdentity } from "../../lib/request-identity";
 import { getTraderLeaderboard, LEADERBOARD_CACHE_SECONDS } from "../../lib/db/leaderboard";
 import type { LeaderboardSort } from "../../lib/leaderboard";
 
@@ -12,6 +13,14 @@ export async function GET(request: NextRequest) {
   }
 
   try {
+    if (search.trim()) {
+      const budget = await consumeRateLimit(redisCacheKey("rate-limit", "leaderboard-search", requestIdentity(request)), 1, 30, 60);
+      if (!budget.allowed) {
+        return NextResponse.json({ error: "Leaderboard search rate limit exceeded." }, {
+          status: 429, headers: { "Cache-Control": "no-store", "Retry-After": String(budget.retryAfterSeconds) },
+        });
+      }
+    }
     const cache: CacheDiagnostic = { status: "BYPASS" };
     const leaderboard = await getTraderLeaderboard({
       page: Number(pageValue),

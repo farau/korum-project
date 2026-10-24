@@ -1,9 +1,10 @@
 import "server-only";
 
-import { randomInt, randomUUID } from "node:crypto";
+import { createHash, randomInt, randomUUID } from "node:crypto";
 import { getAddress } from "viem";
 import type { UserProfile } from "../profile";
 import { getDatabase } from "./client";
+import type { WalletChallenge } from "../auth/session";
 
 type UserRow = {
   id: string;
@@ -92,24 +93,42 @@ const userColumns = `
   updated_at AS "updatedAt"
 `;
 
-export async function upsertUserAfterWalletVerification(address: `0x${string}`, chainId: number) {
+export async function upsertUserAfterWalletVerification(address: `0x${string}`, chainId: number, challenge: Pick<WalletChallenge, "nonce" | "expiresAt">) {
   const database = getDatabase();
   const evmWallet = normalizeWallet(address);
+  const nonceHash = createHash("sha256").update(challenge.nonce).digest("hex");
 
   for (let attempt = 0; attempt < referralCodeAttempts; attempt += 1) {
     try {
-      const rows = await database.unsafe<UserRow[]>(`
-        INSERT INTO users (evm_wallet, referral_code, last_login_chain_id, last_login_at)
-        VALUES ($1, $2, $3, NOW())
-        ON CONFLICT (evm_wallet) DO UPDATE SET
-          last_login_chain_id = EXCLUDED.last_login_chain_id,
-          last_login_at = NOW(),
-          updated_at = NOW()
-        RETURNING ${userColumns}
-      `, [evmWallet, generateReferralCode(), chainId]);
+      return await database.begin(async (sql) => {
+        const consumed = await sql`
+          INSERT INTO public.consumed_wallet_nonces (nonce_hash, expires_at)
+          SELECT ${nonceHash}, ${new Date(challenge.expiresAt)}
+          WHERE ${new Date(challenge.expiresAt)} > NOW()
+          ON CONFLICT (nonce_hash) DO NOTHING
+          RETURNING nonce_hash
+        `;
+        if (!consumed.length) return null;
+        // Bounded, opportunistic cleanup; no timer or per-user polling.
+        await sql`
+          DELETE FROM public.consumed_wallet_nonces WHERE nonce_hash IN (
+            SELECT nonce_hash FROM public.consumed_wallet_nonces
+            WHERE expires_at <= NOW() ORDER BY expires_at LIMIT 100
+          )
+        `;
+        const rows = await sql.unsafe<UserRow[]>(`
+          INSERT INTO users (evm_wallet, referral_code, last_login_chain_id, last_login_at)
+          VALUES ($1, $2, $3, NOW())
+          ON CONFLICT (evm_wallet) DO UPDATE SET
+            last_login_chain_id = EXCLUDED.last_login_chain_id,
+            last_login_at = NOW(),
+            updated_at = NOW()
+          RETURNING ${userColumns}
+        `, [evmWallet, generateReferralCode(), chainId]);
 
-      if (!rows[0]) throw new Error("The wallet user upsert returned no row.");
-      return toUserProfile(rows[0]);
+        if (!rows[0]) throw new Error("The wallet user upsert returned no row.");
+        return toUserProfile(rows[0]);
+      });
     } catch (error) {
       if (!isReferralCodeCollision(error) || attempt === referralCodeAttempts - 1) throw error;
     }

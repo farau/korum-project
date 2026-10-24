@@ -124,18 +124,23 @@ export async function rememberJson<T>(
   ttlSeconds: number,
   load: () => Promise<T>,
   diagnostic?: CacheDiagnostic,
+  token?: string,
 ) {
+  let revisionUnavailable = false;
   // Version market caches instead of deleting keys: in-flight old loads stay
   // isolated even when a webhook arrives while PostgreSQL is being queried.
   if (key.startsWith(redisCacheKey("market") + ":") || key.startsWith(redisCacheKey("debates") + ":")) {
-    const revision = await runRedis(client => client.get(redisCacheKey("live", "revision")));
+    const revision = await runRedis(async client => token
+      ? JSON.stringify(await client.mget(redisCacheKey("live", "snapshot-metadata"), redisCacheKey("live", "chart-revision", token)))
+      : await client.get(redisCacheKey("live", "revision")));
     if (revision.ok) key = `${key}:revision:${revision.value ?? "0"}`;
     else {
-      if (diagnostic) diagnostic.status = "BYPASS";
-      return load();
+      // Coalesce concurrent SQL fallbacks without storing unversioned data.
+      revisionUnavailable = true;
+      key = `${key}:revision-unavailable`;
     }
   }
-  const cached = await readJson<T>(key);
+  const cached = revisionUnavailable ? { hit: false as const, bypassed: true } : await readJson<T>(key);
   if (cached.hit) {
     if (diagnostic) diagnostic.status = "HIT";
     return cached.value;
@@ -151,7 +156,7 @@ export async function rememberJson<T>(
   if (diagnostic) diagnostic.status = cached.bypassed ? "BYPASS" : "MISS";
 
   const pending = load().then(async (value) => {
-    if (value !== null && value !== undefined) {
+    if (!revisionUnavailable && value !== null && value !== undefined) {
       await writeJson(key, value, ttlSeconds);
     }
     return value;
