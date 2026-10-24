@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-10-25
+
 ### Changed
 
 - Complete final local verification on 2026-10-25: all 30 checks, lint and production build pass. The refreshed npm audit now reports 17 high-severity package entries (including production), all tracing to Zod advisory GHSA-mrhx-c7xc-m3w5; the earlier clean audit is historical. Dependencies remain unchanged pending a compatible wallet-SDK remediation.
